@@ -98,7 +98,7 @@ export default function AuthGate({ children }) {
                     <span className="text-slate-700">·</span>
                     <span>NICEIC / NAPIT</span>
                     <span className="text-slate-700">·</span>
-                    <span>© {new Date().getFullYear()} · Reg 15900987</span>
+                    <span>© {new Date().getFullYear()}</span>
                     <span className="text-slate-700">·</span>
                     {/* Manually bumped every deploy (matches public/sw.js's
                         CACHE_VERSION convention). Exists purely so a device
