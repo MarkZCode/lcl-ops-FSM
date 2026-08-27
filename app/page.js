@@ -303,26 +303,18 @@ export default function Dashboard() {
                   note={stats.monthLabel}
                   link="/reports"
                 />
+                {/* Profit is the number that matters most, so it gets the
+                    same emerald gradient + featured double-width treatment
+                    the mobile hero card uses, instead of sitting flat in
+                    line with everything else. */}
                 <Kpi
                   icon={FiPieChart}
                   label="Profit (Cash)"
                   value={gbp(stats.profit)}
+                  valueClassName="bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent !text-4xl"
                   note="Net after expenses"
                   link="/reports"
-                />
-                <Kpi
-                  icon={FiBarChart2}
-                  label="Company Expenses"
-                  value={gbp(stats.companyExpenses)}
-                  note="Month to date"
-                  link="/reports"
-                />
-                <Kpi
-                  icon={FiUsers}
-                  label="Engineer Pay"
-                  value={gbp(stats.engineerCost)}
-                  note="Paid out this month"
-                  link="/reports"
+                  className="lg:col-span-2"
                 />
                 <Kpi
                   icon={FiAlertCircle}
@@ -331,6 +323,24 @@ export default function Dashboard() {
                   pill={stats.overdueCount ? `${stats.overdueCount} overdue` : null}
                   pillTone="down"
                   note={stats.overdueCount ? "Chase these" : "Nothing overdue"}
+                />
+                {/* Cash-out figures — bold red, same signal as mobile's
+                    Company Exp. / Engineer Pay pair. */}
+                <Kpi
+                  icon={FiBarChart2}
+                  label="Company Expenses"
+                  value={gbp(stats.companyExpenses)}
+                  valueClassName="text-rose-500"
+                  note="Month to date"
+                  link="/reports"
+                />
+                <Kpi
+                  icon={FiUsers}
+                  label="Engineer Pay"
+                  value={gbp(stats.engineerCost)}
+                  valueClassName="text-rose-500"
+                  note="Paid out this month"
+                  link="/reports"
                 />
                 <Kpi
                   icon={FiLayers}
@@ -689,13 +699,13 @@ function MRow({ icon: Icon, label, sub, value, href, alert = false, pill }) {
   );
 }
 
-function Kpi({ icon: Icon, label, value, unit, pill, pillTone = "flat", caption, note, link }) {
+function Kpi({ icon: Icon, label, value, unit, pill, pillTone = "flat", caption, note, link, valueClassName, className = "" }) {
   const body = (
     <>
       {Icon && <span className="kpi-icon"><Icon className="h-[18px] w-[18px]" strokeWidth={1.9} /></span>}
       <p className="kpi-label">{label}</p>
       <div className="kpi-row">
-        <span className="kpi-value">{value}</span>
+        <span className={`kpi-value ${valueClassName || ""}`}>{value}</span>
         {unit && <span className="kpi-unit">{unit}</span>}
         {pill && <span className={`kpi-pill kpi-pill-${pillTone}`}>{pill}</span>}
         {caption && <span className="kpi-caption">{caption}</span>}
@@ -704,8 +714,8 @@ function Kpi({ icon: Icon, label, value, unit, pill, pillTone = "flat", caption,
     </>
   );
   return link
-    ? <Link href={link} className="kpi block">{body}</Link>
-    : <div className="kpi">{body}</div>;
+    ? <Link href={link} className={`kpi block ${className}`}>{body}</Link>
+    : <div className={`kpi ${className}`}>{body}</div>;
 }
 
 // One figure inside the banded overview panel: quiet sentence-case label,
