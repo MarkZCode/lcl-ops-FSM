@@ -234,9 +234,7 @@ export default function Sidebar() {
         style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
       >
         <Link href="/" className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center overflow-hidden rounded-lg bg-white ring-1 ring-navy-200">
-            <LogoMark className="h-6 w-6" />
-          </span>
+          <LogoMark className="h-7 w-7 shrink-0 text-navy-900" />
           <span className="text-sm font-bold text-navy-900">LCL Ops</span>
         </Link>
         <div className="flex items-center gap-2">
@@ -327,9 +325,12 @@ export default function Sidebar() {
                 {/* The drawer is dark chrome in BOTH themes, so the mark is
                     pinned dark rather than following the theme — an auto mark
                     here put a white glyph on a forced-white tile in dark mode. */}
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-white/10 ring-1 ring-white/10">
-                  <LogoMark className="h-6 w-6" variant="dark" />
-                </span>
+                {/* The drawer is a fixed dark surface, so the mark takes an
+                    explicit white — `variant="dark"` now means "pinned dark
+                    strokes for a white tile", which is the opposite of what
+                    this needs. Line art, no tile, same as the rest of the
+                    chrome. */}
+                <LogoMark className="h-8 w-8 shrink-0 text-white" />
                 {/* Single-line wordmark. The old two-line "LCL Ops / FIELD
                     SERVICE" lockup had no room beside the controls and was
                     clipping mid-word. */}

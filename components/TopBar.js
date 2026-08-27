@@ -40,9 +40,10 @@ export default function TopBar() {
               was the opaque white background baked into the PNG, now keyed
               out. The hairline + shadow keep the tile readable in light mode,
               where white-on-#f6f6f7 otherwise disappears. */}
-          <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-[11px] bg-white shadow-sm ring-1 ring-navy-200">
-            <LogoMark className="h-8 w-8" />
-          </span>
+          {/* No tile. The mark is line art now (see LogoMark) and inherits
+              the bar's own text colour, so boxing it in a white square just
+              put a box inside a box. */}
+          <LogoMark className="h-9 w-9 shrink-0 text-navy-900" />
           <span className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-[15px] font-semibold tracking-tight text-navy-900">LCL Ops</span>
             <span className="truncate text-[11px] text-navy-500">Landlord Compliance London</span>
