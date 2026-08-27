@@ -7,7 +7,7 @@ import JobFunnelView from "@/components/JobFunnelView";
 import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { JOB_STATUSES } from "@/lib/constants";
-import { serviceShort, gbp, fmtDateTime, jobTags } from "@/lib/format";
+import { gbp, fmtDateTime, jobTags } from "@/lib/format";
 import PageHeader from "@/components/PageHeader";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange } from "@/lib/usePeriodRange";
@@ -289,12 +289,12 @@ function ListView({ jobs, clients, onJobCard }) {
                   <td className="px-4 py-2.5 text-navy-700">{client?.name || "—"}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-1">
-                      {(job.services || []).map((c) => (
+                      {jobTags(job).map((t) => (
                         <span
-                          key={c}
+                          key={t.key}
                           className="rounded bg-navy-50 px-1.5 py-0.5 text-[11px] text-navy-600"
                         >
-                          {serviceShort(c)}
+                          {t.label}
                         </span>
                       ))}
                     </div>

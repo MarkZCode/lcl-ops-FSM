@@ -7,7 +7,7 @@ import { isSameDay, parseISO, format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { UNASSIGNED_ENGINEER } from "@/lib/constants";
-import { serviceShort, fmtTime, gbp } from "@/lib/format";
+import { fmtTime, gbp, jobTags } from "@/lib/format";
 import { detectConflicts, isFromOutreach } from "@/lib/dispatch";
 import { visitEntries } from "@/lib/visits";
 import StatusBadge from "./StatusBadge";
@@ -242,7 +242,7 @@ export default function DispatchBoard({ day }) {
                       </Link>
                       <div className="flex items-center justify-between">
                         <p className="truncate text-[11px] text-navy-500">
-                          {(job.services || []).map(serviceShort).join(", ")}
+                          {jobTags(job).map((t) => t.label).join(", ")}
                         </p>
                         {job.price > 0 && (
                           <span className="shrink-0 text-[11px] font-bold text-navy-700">{gbp(job.price)}</span>

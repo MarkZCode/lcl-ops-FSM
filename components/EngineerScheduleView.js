@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { FiClock, FiMapPin, FiArrowRight } from "react-icons/fi";
 import { format, isToday, isTomorrow, parseISO, startOfDay } from "date-fns";
 import { useStore } from "@/lib/store";
-import { serviceShort, fmtTime, gbp } from "@/lib/format";
+import { fmtTime, gbp, jobTags } from "@/lib/format";
 import { detectConflicts } from "@/lib/dispatch";
 import StatusBadge from "./StatusBadge";
 
@@ -86,7 +86,7 @@ export default function EngineerScheduleView() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">{client?.name || job.id}</p>
                           <p className="flex items-center gap-2 truncate text-[11px] text-navy-400 dark:text-slate-500">
-                            {(job.services || []).map(serviceShort).join(", ")}
+                            {jobTags(job).map((t) => t.label).join(", ")}
                             {property?.postcode && (
                               <span className="flex items-center gap-0.5"><FiMapPin className="h-3 w-3" />{property.postcode}</span>
                             )}
