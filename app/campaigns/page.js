@@ -694,7 +694,7 @@ function Row({ r, audience }) {
   return (
     <tr className="border-t border-navy-100 dark:border-white/10">
       <td className="px-4 py-2 font-medium text-navy-900 dark:text-slate-100">{name || "—"}</td>
-      <td className="px-4 py-2 text-navy-700 dark:text-slate-300">{email || "—"}</td>
+      <td className="max-w-[280px] truncate px-4 py-2 text-navy-700 dark:text-slate-300">{email || "—"}</td>
       <td className="px-4 py-2 tnum text-navy-600 dark:text-slate-400">{phone || "—"}</td>
       <td className="px-4 py-2 max-w-xs truncate text-navy-600 dark:text-slate-400">{extra}</td>
       <td className="px-4 py-2"><span className="badge-navy">{stage || "—"}</span></td>
