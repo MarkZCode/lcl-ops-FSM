@@ -105,7 +105,7 @@ export default function LoginScreen() {
 
         {/* Footer */}
         <p className="relative z-10 text-[11px] text-navy-500">
-          © {new Date().getFullYear()} Landlord Compliance London Ltd · Reg 15900987
+          © {new Date().getFullYear()} Landlord Compliance London Ltd
         </p>
       </div>
 
