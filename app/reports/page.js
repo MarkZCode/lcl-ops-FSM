@@ -325,9 +325,9 @@ function ReportsInner() {
 
           {/* ── TOP STAT CARDS — each shows change vs the previous period ── */}
           <div className="hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid lg:grid-cols-3 xl:grid-cols-4">
-            <StatCard tone="brand" icon={FiTrendingUp} label="Revenue" value={gbp(stats.revenue)}
+            <StatCard tone="light" icon={FiTrendingUp} label="Revenue" value={gbp(stats.revenue)}
               sub="Completed · invoiced · paid" trend={trendVs(stats.revenue, prevStats.revenue)} />
-            <StatCard tone="navy" icon={FiDollarSign} label="Collected" value={gbp(stats.collected)}
+            <StatCard tone="light" icon={FiDollarSign} label="Collected" value={gbp(stats.collected)}
               sub={`${gbp(stats.outstanding)} outstanding`} trend={trendVs(stats.collected, prevStats.collected)} />
             {/* True bottom line — engineer costs AND company expenses both
                 deducted. This card used to show profit after engineer costs
@@ -381,9 +381,9 @@ function ReportsInner() {
           </div>
 
           {/* ── P&L BREAKDOWN ── */}
-          <div className="card overflow-hidden">
-            <div className="border-b border-navy-100 px-5 py-4">
-              <h2 className="section-label text-sm">Profit & Loss · {range.label}</h2>
+          <div className="panel mx-auto max-w-[720px]">
+            <div className="panel-head panel-head-ruled">
+              <span className="panel-title">Profit &amp; Loss · {range.label}</span>
             </div>
             <div className="divide-y divide-navy-100">
               {/* Revenue */}
@@ -488,11 +488,11 @@ function ReportsInner() {
         {/* ════ EXPENSES TAB ════ */}
         {view === "expenses" && <>
           {/* ── COMPANY EXPENSES MANAGER ── */}
-          <div className="card overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-navy-100 px-5 py-4">
+          <div className="panel">
+            <div className="panel-head panel-head-ruled flex-wrap">
               <div>
-                <h2 className="section-label text-sm">Company Expenses · {range.label}</h2>
-                <p className="text-xs text-navy-400 mt-0.5">Phone bills · salaries · software · domain · anything ongoing</p>
+                <span className="panel-title">Company Expenses · {range.label}</span>
+                <p className="panel-sub">Phone bills · salaries · software · domain · anything ongoing</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm text-navy-500">
@@ -600,20 +600,22 @@ function ReportsInner() {
         {/* ════ TRENDS TAB ════ */}
         {view === "trends" && <>
           {/* ── TREND CHART ── */}
-          <div className="card p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="section-label text-sm">Trend</h2>
+          <div className="panel">
+            <div className="panel-head">
+              <span className="panel-title">Trend</span>
               <div className="flex items-center gap-1 rounded-lg border border-navy-200 bg-white p-1">
                 <button onClick={() => setMetric("revenue")} className={`rounded-md px-2.5 py-1 text-xs font-semibold ${metric === "revenue" ? "bg-navy-800 text-white" : "text-navy-500"}`}>Revenue</button>
                 <button onClick={() => setMetric("count")} className={`rounded-md px-2.5 py-1 text-xs font-semibold ${metric === "count" ? "bg-navy-800 text-white" : "text-navy-500"}`}>Jobs</button>
               </div>
             </div>
-            <BarChart data={series} metric={metric} />
+            <div className="panel-body">
+              <BarChart data={series} metric={metric} />
+            </div>
           </div>
 
           {/* ── BREAKDOWNS ── */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="card p-5">
+            <div className="panel panel-body">
               <h2 className="mb-4 section-label text-sm">By service</h2>
               {stats.byService.length === 0 ? <p className="text-sm text-navy-400">No jobs in this period.</p> : (
                 <ul className="space-y-3">
@@ -635,7 +637,7 @@ function ReportsInner() {
               )}
             </div>
 
-            <div className="card p-5">
+            <div className="panel panel-body">
               <h2 className="mb-4 section-label text-sm">By engineer</h2>
               {stats.byEngineer.length === 0 ? <p className="text-sm text-navy-400">No jobs in this period.</p> : (
                 <ul className="space-y-3">
@@ -655,7 +657,7 @@ function ReportsInner() {
               )}
             </div>
 
-            <div className="card p-5">
+            <div className="panel panel-body">
               <h2 className="mb-4 section-label text-sm">By status</h2>
               {Object.keys(stats.byStatus).length === 0 ? <p className="text-sm text-navy-400">No jobs in this period.</p> : (
                 <ul className="space-y-2.5">
@@ -684,11 +686,11 @@ function ReportsInner() {
               (An "all time" summary used to sit here too, but it showed a
               second, different owed figure alongside the period one, which
               read as confusing/duplicate rather than useful — removed.) ── */}
-          <div className="card overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-navy-100 px-5 py-4">
+          <div className="panel">
+            <div className="panel-head panel-head-ruled flex-wrap">
               <div>
-                <h2 className="section-label text-sm">Engineer pay · {range.label}</h2>
-                <p className="mt-0.5 text-xs text-navy-400">
+                <span className="panel-title">Engineer pay · {range.label}</span>
+                <p className="panel-sub">
                   &quot;Paid&quot; here means logged via Record payment below — separate from the customer&apos;s payment status on the job.
                 </p>
               </div>
@@ -742,23 +744,23 @@ function ReportsInner() {
                             {r.vatRegistered && <span className="rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-500">VAT</span>}
                           </span>
                         </td>
-                        <td className="px-3 py-2.5 text-right text-navy-700">{r.jobs}</td>
-                        <td className="px-3 py-2.5 text-right text-navy-700">{gbp(r.revenue)}</td>
-                        <td className="px-3 py-2.5 text-right text-navy-700">{gbp(r.labour)} <span className="text-[11px] text-navy-400">({r.payLabel})</span></td>
-                        <td className="px-3 py-2.5 text-right text-navy-500">{r.vat > 0 ? gbp(r.vat) : "—"}</td>
-                        <td className="px-3 py-2.5 text-right text-navy-500">{r.parkingReimbursed > 0 ? gbp(r.parkingReimbursed) : "—"}</td>
-                        <td className="px-3 py-2.5 text-right text-emerald-700">{r.paid > 0 ? gbp(r.paid) : "—"}</td>
-                        <td className="px-5 py-2.5 text-right font-bold text-amber-700">{gbp(r.balance)}</td>
+                        <td className="tnum px-3 py-2.5 text-right text-navy-700">{r.jobs}</td>
+                        <td className="tnum px-3 py-2.5 text-right text-navy-700">{gbp(r.revenue)}</td>
+                        <td className="tnum px-3 py-2.5 text-right text-navy-700">{gbp(r.labour)} <span className="text-[11px] text-navy-400">({r.payLabel})</span></td>
+                        <td className="tnum px-3 py-2.5 text-right text-navy-500">{r.vat > 0 ? gbp(r.vat) : "—"}</td>
+                        <td className="tnum px-3 py-2.5 text-right text-navy-500">{r.parkingReimbursed > 0 ? gbp(r.parkingReimbursed) : "—"}</td>
+                        <td className="tnum px-3 py-2.5 text-right text-emerald-700">{r.paid > 0 ? gbp(r.paid) : "—"}</td>
+                        <td className="tnum px-5 py-2.5 text-right font-bold text-amber-700">{gbp(r.balance)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="border-t-2 border-navy-200 bg-navy-50/80 dark:bg-white/[0.04]">
                     <tr>
                       <td className="px-5 py-2.5 text-sm font-bold text-navy-700" colSpan={2}>Totals</td>
-                      <td className="px-3 py-2.5 text-right text-sm font-bold text-navy-900">{gbp(stats.revenue)}</td>
+                      <td className="tnum px-3 py-2.5 text-right text-sm font-bold text-navy-900">{gbp(stats.revenue)}</td>
                       <td colSpan={3} />
-                      <td className="px-3 py-2.5 text-right text-sm font-bold text-emerald-700">{gbp(pay.totalPaid)}</td>
-                      <td className="px-5 py-2.5 text-right text-sm font-black text-amber-700">{gbp(pay.totalBalance)}</td>
+                      <td className="tnum px-3 py-2.5 text-right text-sm font-bold text-emerald-700">{gbp(pay.totalPaid)}</td>
+                      <td className="tnum px-5 py-2.5 text-right text-sm font-black text-amber-700">{gbp(pay.totalBalance)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -779,9 +781,9 @@ function ReportsInner() {
 
           {/* ── PARKING ── */}
           {stats.parking && (stats.parking.collected > 0 || stats.parking.reimbursed > 0) && (
-            <div className="card overflow-hidden">
-              <div className="border-b border-navy-100 px-5 py-4">
-                <h2 className="section-label text-sm">Parking reconciliation · {range.label}</h2>
+            <div className="panel">
+              <div className="panel-head panel-head-ruled">
+                <span className="panel-title">Parking reconciliation · {range.label}</span>
               </div>
               <div className="grid grid-cols-1 divide-y divide-navy-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
                 <div className="p-5 text-center">
@@ -815,7 +817,7 @@ function PipelineView({ pipeline }) {
   const max = Math.max(...bars.map(b => b.value), 1);
   return (
     <div className="space-y-6">
-      <div className="card p-5">
+      <div className="panel panel-body mx-auto max-w-[720px]">
         <h3 className="mb-4 section-label text-sm">Quote → Paid funnel (all time)</h3>
         <div className="space-y-3">
           {bars.map((b) => (
@@ -836,7 +838,7 @@ function PipelineView({ pipeline }) {
         <div className="card p-4"><p className="text-xs font-semibold uppercase tracking-wide text-navy-400">Avg days to book</p><p className="mt-1 text-3xl font-bold text-navy-900">{avgDaysToBook ?? "—"}</p><p className="text-xs text-navy-500">Quote to scheduled</p></div>
       </div>
       {topServices.length > 0 && (
-        <div className="card p-5">
+        <div className="panel panel-body mx-auto max-w-[720px]">
           <h3 className="mb-3 section-label text-sm">Most requested services</h3>
           <ul className="divide-y divide-navy-100">
             {topServices.map((s) => (
