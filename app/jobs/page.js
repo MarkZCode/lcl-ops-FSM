@@ -36,7 +36,18 @@ export default function JobsPage() {
     const q = searchParams?.get("q");
     if (q) setQuery(q);
   }, [searchParams]);
-  const [statusFilter, setStatusFilter] = useState("all");
+  // Quote is the tab that actually needs attention day to day — jobs waiting
+  // on a decision or still needing an engineer/date sorted out. Opening on
+  // "All" buried that queue behind every scheduled/paid/cancelled job too.
+  const [statusFilter, setStatusFilter] = useState("quote");
+  // The Dashboard's "Open quotes" card (and anything else linking with
+  // ?status=…) was navigating here and being silently ignored — nothing ever
+  // read the param back, so the link always landed on whatever the default
+  // tab happened to be regardless of which status it promised.
+  useEffect(() => {
+    const s = searchParams?.get("status");
+    if (s) setStatusFilter(s);
+  }, [searchParams]);
   const [view, setView] = useState("board");
 
   // Same Day/Week/Month/Year/Range control as Reports, and remembered the
