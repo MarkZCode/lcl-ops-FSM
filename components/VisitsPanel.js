@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { gbp, lineTotal } from "@/lib/format";
 import { TIME_PARTS, WINDOW_PRESETS } from "@/lib/constants";
 import { certLabel } from "@/lib/jobCard";
+import { toast } from "@/lib/toast";
 import {
   getVisits, isSplit, visitLines, unassignedLines, schedulableLines,
   deriveJobStatus, visitProgress, readyToInvoice, isVisitBooked,
@@ -17,7 +18,7 @@ import {
 // days, one client-facing job. Only appears on multi-service jobs, because a
 // single-service job is already one visit and splitting it is meaningless.
 export default function VisitsPanel({ job }) {
-  const { updateJob, engineers } = useStore();
+  const { updateJob, engineers, splitOffIncompleteWork } = useStore();
   const [open, setOpen] = useState(false);
 
   // Only real work is schedulable. Parking/congestion are charges on the job,
@@ -27,6 +28,27 @@ export default function VisitsPanel({ job }) {
   const visits = getVisits(job);
   const progress = visitProgress(job);
   const orphans = unassignedLines(job);
+
+  // "Some done, some not" — the only state where splitting the job is the
+  // right move. Needs at least one completed visit AND at least one that
+  // isn't (cancelled visits don't count as outstanding; they were called off
+  // deliberately and there's nothing left to reschedule).
+  const partial = (() => {
+    if (!split) return null;
+    const live = visits.filter((v) => v.status !== "cancelled");
+    const done = live.filter((v) => v.status === "completed");
+    const notDone = live.filter((v) => v.status !== "completed");
+    if (!done.length || !notDone.length) return null;
+    const labels = notDone
+      .flatMap((v) => visitLines(job, v))
+      .map((l) => (l.code === "CUSTOM" ? l.name : certLabel(l.code)))
+      .filter(Boolean);
+    return {
+      doneCount: done.length,
+      total: live.length,
+      outstandingLabel: [...new Set(labels)].join(", ") || "the remaining work",
+    };
+  })();
 
   // Nothing to split — don't clutter a one-service job with this.
   if (!split && realLines.length < 2) return null;
@@ -178,6 +200,36 @@ export default function VisitsPanel({ job }) {
           <LuPlus className="h-3.5 w-3.5" /> Add visit
         </button>
       </div>
+
+      {/* Part done, part not — the gas cert got done, the EICR couldn't be.
+          Rather than block the whole job from being invoiced until someone
+          fakes the outstanding visit as complete, offer the honest move:
+          bill what was actually carried out, and push the rest onto its own
+          job so it stays in the pipeline to be rescheduled. */}
+      {partial && (
+        <div className="border-b border-navy-100 bg-amber-50 px-4 py-3 dark:bg-amber-500/10">
+          <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+            {partial.doneCount} of {partial.total} visits done — {partial.outstandingLabel} still outstanding
+          </p>
+          <p className="mt-0.5 text-[11px] text-amber-800 dark:text-amber-300/90">
+            Invoice the completed work now and move the rest onto its own job,
+            so it can be rescheduled (or cancelled) without holding up billing.
+          </p>
+          <button
+            className="btn-outline mt-2 py-1.5 text-xs"
+            onClick={() => {
+              const created = splitOffIncompleteWork(job.id);
+              if (created) {
+                toast.success(`${partial.outstandingLabel} moved to ${created.id} — this job is now ready to invoice.`);
+              } else {
+                toast.error("Couldn't split this job — check that at least one visit is complete and one isn't.");
+              }
+            }}
+          >
+            <LuSplit className="h-3.5 w-3.5" /> Invoice completed work, reschedule the rest
+          </button>
+        </div>
+      )}
 
       {orphans.length > 0 && (
         <p className="border-b border-navy-100 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-500/10">

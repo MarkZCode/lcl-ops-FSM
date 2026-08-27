@@ -29,12 +29,14 @@ import { TEMPLATE_VARS } from "@/lib/settings";
 import { fmtDate } from "@/lib/format";
 import { uploadFile, removeFile, fileSrc } from "@/lib/uploads";
 import PageHeader from "@/components/PageHeader";
+import InvoiceArchive from "@/components/InvoiceArchive";
 
 const TABS = [
   { key: "workflow", label: "Full workflow", icon: FiActivity },
   { key: "guide", label: "User guide", icon: FiBookOpen },
   { key: "templates", label: "Document templates", icon: FiFileText },
   { key: "company", label: "Company documents", icon: FiFolder },
+  { key: "invoices", label: "Invoices", icon: FiFileText },
 ];
 
 export default function HelpPage() {
@@ -85,6 +87,7 @@ export default function HelpPage() {
         {tab === "guide" && <UserGuide />}
         {tab === "templates" && <DocTemplates />}
         {tab === "company" && <CompanyDocs />}
+        {tab === "invoices" && <InvoiceArchive />}
       </div>
     </>
   );
