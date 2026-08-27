@@ -54,7 +54,7 @@ import { toast } from "@/lib/toast";
 export default function JobDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { jobs, clients, updateJob, removeJob, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq } =
+  const { jobs, clients, updateJob, removeJob, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
     useStore();
   const { can, user } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
@@ -265,7 +265,9 @@ export default function JobDetailPage() {
           try {
             const { generateInvoicePDF } = await import("@/lib/generateInvoice");
             const { buildInvoicePrefill } = await import("@/lib/invoiceData");
-            const invNo = String(invoiceSeq);
+            // Allocated against the job, so the emailed PDF carries the
+            // same number the job page and the payment record show.
+            const invNo = allocateInvoiceNumber(job.id);
             const prefill = buildInvoicePrefill(nextJob, client, property);
             const pdf = generateInvoicePDF(
               { docType: "invoice", invNo, dateISO: new Date().toISOString().slice(0, 10), ...prefill, taxOn: false },
@@ -1005,8 +1007,10 @@ export default function JobDetailPage() {
         open={invoiceOpen}
         onClose={() => setInvoiceOpen(false)}
         docType={invoiceMode}
+        jobId={job.id}
         prefill={{
-          // Quotes use the job id as the reference; invoices use the counter.
+          // Quotes use the job id as the reference; invoices get a number
+          // allocated against the job itself (see allocateInvoiceNumber).
           invNo: invoiceMode === "quote" ? job.id : undefined,
           clientName: client?.name || "",
           clientAddr: client?.company || "",

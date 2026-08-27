@@ -31,9 +31,9 @@ const newLine = (desc = "", price = "", qty = 1, type = "charge") => ({
 // `docType` = "invoice" (default) | "quote"
 // `onSave` (optional) = (lines) => void — when passed, the footer button saves
 // the edited line items back to the caller instead of downloading a PDF.
-export default function InvoiceModal({ open, onClose, prefill, docType = "invoice", onSave }) {
+export default function InvoiceModal({ open, onClose, prefill, docType = "invoice", onSave, jobId }) {
   const isQuote = docType === "quote";
-  const { invoiceSeq, advanceInvoiceSeq } = useStore();
+  const { invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } = useStore();
   const [invNo, setInvNo] = useState(String(invoiceSeq));
   const [dateISO, setDateISO] = useState(todayISO());
   const [clientName, setClientName] = useState("");
@@ -55,9 +55,17 @@ export default function InvoiceModal({ open, onClose, prefill, docType = "invoic
     if (initRef.current === currentSession) return;
     initRef.current = currentSession;
 
-    // Always start from the persisted next-invoice number (unless a specific
-    // number was passed in), so each new invoice gets a fresh number.
-    setInvNo(prefill?.invNo || String(invoiceSeq));
+    // Invoice numbers are ALLOCATED AND STORED against the job (see
+    // allocateInvoiceNumber in lib/store.js), not read live off the counter.
+    // Reading the counter meant re-opening the same job handed out a
+    // different number each time, and the counter itself kept getting reset
+    // by re-hydrates before it was ever saved — which is why every invoice
+    // came out as 345. First open allocates and persists; every later open
+    // for the same job returns the number already on it.
+    setInvNo(
+      prefill?.invNo ||
+        (!isQuote && jobId ? allocateInvoiceNumber(jobId) : String(invoiceSeq))
+    );
     if (prefill) {
       setClientName(prefill.clientName || "");
       setClientAddr(prefill.clientAddr || "");
@@ -139,12 +147,13 @@ export default function InvoiceModal({ open, onClose, prefill, docType = "invoic
       lines: signedLines(),
     });
     setGenerating(false);
-    // Quotes don't consume an invoice number; only invoices advance the counter.
-    if (!isQuote) {
-      advanceInvoiceSeq(invNo);
-      const next = parseInt(invNo, 10);
-      if (!isNaN(next)) setInvNo(String(next + 1));
-    }
+    // The number was already allocated and persisted when this modal opened
+    // (allocateInvoiceNumber), so generating the PDF must NOT advance the
+    // counter again or bump the field — doing that here is what made the
+    // number drift away from the one saved on the job. advanceInvoiceSeq is
+    // still called for the hand-typed case, where the operator overrode the
+    // number and the counter needs to catch up past it.
+    if (!isQuote) advanceInvoiceSeq(invNo);
   };
 
   return (

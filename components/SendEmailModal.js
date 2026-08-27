@@ -37,7 +37,7 @@ export default function SendEmailModal({
   property,
   defaultTemplate,
 }) {
-  const { templates, email, invoiceSeq, advanceInvoiceSeq, logActivity } = useStore();
+  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, logActivity } = useStore();
   const [tplKey, setTplKey] = useState(defaultTemplate || "booking");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -177,7 +177,9 @@ export default function SendEmailModal({
     let attachFailed = false;
     if (attachable && attach) {
       try {
-        const invNo = docType === "invoice" ? String(invoiceSeq) : `Q-${job.id}`;
+        // Allocated against the job so the emailed PDF, the job page and
+        // the payment record all quote the same invoice number.
+        const invNo = docType === "invoice" ? allocateInvoiceNumber(job.id) : `Q-${job.id}`;
         const { generateInvoicePDF } = await import("@/lib/generateInvoice");
         const prefill = buildInvoicePrefill(job, client, property);
         const pdf = generateInvoicePDF(
@@ -345,7 +347,7 @@ export default function SendEmailModal({
               <FiPaperclip className="text-brand-600" />
               <span>
                 Attach the <strong>{docLabel}</strong> PDF to this email
-                {docType === "invoice" ? ` (No. ${invoiceSeq})` : ""}
+                {docType === "invoice" ? ` (No. ${job?.invoiceNumber || invoiceSeq})` : ""}
                 {editedLines ? " — edited" : ""}
               </span>
             </label>
