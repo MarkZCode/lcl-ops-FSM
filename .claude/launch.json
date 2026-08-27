@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ops-dev",
+      "runtimeExecutable": "/Users/macbookpro/.lcl-node/node-v20.18.0-darwin-x64/bin/node",
+      "runtimeArgs": [
+        "node_modules/next/dist/bin/next",
+        "dev",
+        "-p",
+        "3200"
+      ],
+      "port": 3200
+    }
+  ]
+}

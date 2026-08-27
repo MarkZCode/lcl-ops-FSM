@@ -1,0 +1,725 @@
+"use client";
+
+import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  FiBriefcase, FiPlus, FiArrowRight, FiCalendar,
+  FiDollarSign, FiBell, FiFileText, FiCheckCircle,
+  FiAlertCircle, FiTrendingUp, FiPhone, FiClock,
+  FiLayers, FiCreditCard, FiInbox, FiActivity, FiTarget, FiUser, FiChevronRight,
+  FiBarChart2, FiPieChart, FiUsers,
+} from "react-icons/fi";
+import { useStore } from "@/lib/store";
+import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
+import { gbp, fmtDate, serviceShort } from "@/lib/format";
+import { getRenewals } from "@/lib/renewals";
+import { getPeriodRange, jobInRange, computeOperatingKpis, expensesForRange, computeEngineerPay, computeStats } from "@/lib/stats";
+import { isToday, parseISO } from "date-fns";
+import DailyActivityPanel from "@/components/DailyActivityPanel";
+import NeedsDecisionPanel from "@/components/NeedsDecisionPanel";
+import CoverageMap from "@/components/CoverageMap";
+import RevenueChart from "@/components/RevenueChart";
+import JobModal from "@/components/JobModal";
+import { useSectionTour } from "@/components/OnboardingTour";
+import { useAuth } from "@/lib/auth";
+import LogoMark from "@/components/LogoMark";
+
+const PIPELINE = [
+  { key: "quote",       label: "Quotes",      dot: "bg-slate-400",  card: "", val: "text-slate-700 dark:text-slate-200", sub: "text-slate-500 dark:text-slate-400" },
+  { key: "scheduled",   label: "Scheduled",   dot: "bg-blue-500",   card: "", val: "text-blue-700 dark:text-blue-300", sub: "text-blue-500 dark:text-blue-400" },
+  { key: "in_progress", label: "In Progress", dot: "bg-amber-500",  card: "", val: "text-amber-700 dark:text-amber-300", sub: "text-amber-500 dark:text-amber-400" },
+  { key: "invoiced",    label: "Invoiced",    dot: "bg-violet-500", card: "", val: "text-violet-700 dark:text-violet-300", sub: "text-violet-500 dark:text-violet-400" },
+  { key: "paid",        label: "Paid",        dot: "bg-brand-500",  card: "", val: "text-brand-700 dark:text-brand-300", sub: "text-brand-500 dark:text-brand-400" },
+];
+
+const STATUS_DOT = {
+  quote: "bg-slate-400", scheduled: "bg-blue-500",
+  in_progress: "bg-amber-500", invoiced: "bg-violet-500",
+  paid: "bg-brand-500", cancelled: "bg-rose-500",
+};
+const STATUS_LABEL = {
+  quote: "Quote", scheduled: "Scheduled", in_progress: "In Progress",
+  invoiced: "Invoiced", paid: "Paid", cancelled: "Cancelled",
+};
+// Solid state chips on list rows — findable at a glance down a long list in
+// a way a small dot never is. Quote stays neutral because "not decided yet"
+// isn't a state worth shouting about.
+const STATUS_PILL = {
+  quote: "pill-neutral",
+  scheduled: "pill-blue",
+  in_progress: "pill-amber",
+  invoiced: "pill-neutral",
+  paid: "pill-green",
+  cancelled: "pill-rose",
+};
+
+export default function Dashboard() {
+  const { jobs: allJobs, clients, hydrated, prospectsReady, engineers, prospects, requestBigTables, expenses, engineerPayments } = useStore();
+  // The renewals KPI counts prospects, so the dashboard needs that table — but
+  // it never touches leads, which is 25MB it shouldn't be paying for.
+  useEffect(() => { requestBigTables("prospects"); }, [requestBigTables]);
+  const { user, can } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user && !can("dashboard")) {
+      router.replace(user.role === "engineer" ? "/portal" : "/dispatch");
+    }
+  }, [user, can, router]);
+
+  const myEngId = useMyEngineerId();
+  const jobs = useMemo(
+    () => (myEngId ? allJobs.filter((j) => jobBelongsToEngineer(j, myEngId)) : allJobs),
+    [allJobs, myEngId]
+  );
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const tour = useSectionTour("dashboard", [
+    { selector: null, position: "center", label: "Welcome", title: "Your field-service hub 👋", body: "A quick guide to the key parts of the app." },
+    { selector: ".kpi-strip", label: "KPIs", title: "Pipeline at a glance", body: "Live counts and revenue across every stage of your job pipeline." },
+    { selector: '[data-tour-nav="/dispatch"]', label: "Dispatch", title: "Assign jobs to engineers", body: "Head to Dispatch to manage your engineer columns." },
+  ]);
+
+  const stats = useMemo(() => {
+    const now = new Date();
+
+    const active = jobs.filter((j) => ["quote", "scheduled", "in_progress"].includes(j.status)).length;
+    const today  = jobs.filter((j) => j.scheduledAt && isToday(parseISO(j.scheduledAt))).length;
+    const quotes = jobs.filter((j) => j.status === "quote").length;
+
+    const outstanding = jobs
+      .filter((j) => j.status === "invoiced")
+      .reduce((s, j) => s + (j.price || 0), 0);
+
+    const overdueCount = jobs.filter((j) => {
+      if (j.status !== "invoiced") return false;
+      const sent = j.invoicedAt || j.createdAt;
+      return !sent || Date.now() - new Date(sent).getTime() > 30 * 86400000;
+    }).length;
+
+    const paidJobs = jobs.filter((j) => j.status === "paid");
+
+    // ── This month, defined EXACTLY as Reports defines it ──────────────────
+    // A job counts toward a month by its scheduled date (falling back to when
+    // it was raised), and counts as revenue once it is completed/invoiced/paid.
+    // The old "Collected in <Month>" card used paidAt instead, so it answered
+    // a different question from every other revenue figure in the app and
+    // read £135 on a month the reports called £664.96.
+    const monthRange = getPeriodRange("month", now);
+    const monthJobs = jobs.filter((j) => jobInRange(j, monthRange));
+    const monthDone = monthJobs.filter((j) => ["completed", "invoiced", "paid"].includes(j.status));
+    const monthRevenue = monthDone.reduce((s, j) => s + (j.price || 0), 0);
+
+    // Average value of paid jobs (a clean "how big is a typical job" signal)
+    const avgValue = paidJobs.length
+      ? Math.round(paidJobs.reduce((s, j) => s + (j.price || 0), 0) / paidJobs.length)
+      : 0;
+
+    // Total value sitting in the live pipeline (quote → invoiced)
+    const pipelineValue = jobs
+      .filter((j) => ["quote", "scheduled", "in_progress", "invoiced"].includes(j.status))
+      .reduce((s, j) => s + (j.price || 0), 0);
+
+    const renewals = getRenewals(jobs, 60).length;
+
+    // Prospects due ≤14d
+    const urgentProspects = prospects.filter((p) => {
+      if (!p.certRenewalDate && !p.jobDate) return false;
+      const base = p.certRenewalDate || p.jobDate;
+      const due = new Date(base);
+      due.setFullYear(due.getFullYear() + 1);
+      const d = Math.ceil((due - now) / 86400000);
+      return d >= 0 && d <= 14;
+    }).length;
+
+    const pipeline = Object.fromEntries(
+      PIPELINE.map((s) => {
+        const sj = jobs.filter((j) => j.status === s.key);
+        return [s.key, { count: sj.length, value: sj.reduce((sum, j) => sum + (j.price || 0), 0) }];
+      })
+    );
+    const pipelineMax = Math.max(1, ...PIPELINE.map((s) => pipeline[s.key]?.count || 0));
+
+    const periodStats = computeStats(jobs, monthRange, engineers, engineerPayments);
+    const expBreakdown = expensesForRange(expenses, monthRange);
+    const pay = computeEngineerPay(jobs, monthRange, engineers, engineerPayments);
+    const companyExpenses = expBreakdown.total + (pay.totalTransferFees ?? 0);
+    const engineerCost = pay.totalCashOut ?? pay.totalPaid;
+    const profit = (periodStats.netProfitAfterPay ?? 0) - companyExpenses;
+
+    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: monthRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, companyExpenses, engineerCost };
+  }, [jobs, prospects, engineers, engineerPayments, expenses]);
+
+  // How the business is running, not just what it billed — measured over the
+  // last 90 days so the rates have enough jobs behind them to mean anything.
+  // A 7-day win rate on two quotes is noise, not a metric.
+  const kpis = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end.getTime() - 90 * 86400000);
+    return computeOperatingKpis(jobs, { start, end }, engineers, clients);
+  }, [jobs, engineers, clients]);
+
+  const recent = useMemo(
+    () => [...jobs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 10),
+    [jobs]
+  );
+  const todayJobs = useMemo(
+    () => jobs.filter((j) => j.scheduledAt && isToday(parseISO(j.scheduledAt))),
+    [jobs]
+  );
+
+  const [greeting, setGreeting] = useState("");
+  const [dateStr,  setDateStr]  = useState("");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+    setDateStr(new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }));
+  }, []);
+  const displayName = user?.role === "admin" ? "Sir" : (user?.username || user?.name || "").split(" ")[0] || "";
+
+  const clientMap  = useMemo(() => Object.fromEntries(clients.map((c)  => [c.id, c])),   [clients]);
+  const engineerMap = useMemo(() => Object.fromEntries(engineers.map((e) => [e.id, e])), [engineers]);
+
+  return (
+    <>
+      {tour}
+
+      {/* ── HEADER — flat page chrome, single hairline, no colour slab ── */}
+      <div className="bar-navy">
+        <div className="flex items-center gap-4 px-5 pb-1 pt-7 sm:px-8">
+          <div className="min-w-0 flex-1">
+            {/* Big, confident greeting with a quiet subtitle under it — the
+                reference leads with this rather than a bordered header bar. */}
+            <h1 className="truncate text-[1.5rem] font-bold tracking-[-0.028em] text-navy-900 sm:text-[2rem] sm:font-extrabold sm:tracking-[-0.03em]">
+              {greeting}{displayName ? `, ${displayName}` : ""}
+            </h1>
+            {/* On a phone the date alone is the useful half — the "Here's your
+                workspace summary" preamble wrapped to a second line and said
+                nothing the screen wasn't already showing. */}
+            <p className="mt-1 text-[0.8125rem] text-navy-500 sm:text-[0.9375rem]">
+              <span className="hidden sm:inline">Here&apos;s your workspace summary · </span>{dateStr}
+            </p>
+          </div>
+          {hydrated && stats.urgentProspects > 0 && (
+            <Link href="/prospects" className="badge-rose hidden sm:inline-flex">
+              <FiAlertCircle className="h-3 w-3" /> {stats.urgentProspects} renewal{stats.urgentProspects > 1 ? "s" : ""} due
+            </Link>
+          )}
+          <button className="btn-primary shrink-0" onClick={() => setModalOpen(true)}>
+            <FiPlus /> <span className="hidden sm:inline">New job</span><span className="sm:hidden">New</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="page space-y-6">
+
+        {/* ── HEADLINE KPIs — icon square, figure, change pill ── */}
+        {!hydrated ? (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="kpi">
+                <div className="skeleton h-8 w-8 rounded-[9px]" />
+                <div className="skeleton mt-3 h-3 w-20" />
+                <div className="skeleton mt-2 h-6 w-24" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* ── PHONE: hero figure + grouped rows ────────────────────
+                Eight equal cards in a 2-up grid meant ~1800px of scrolling
+                and no hierarchy. See .m-hero / .m-group in globals.css. */}
+            <div className="lg:hidden">
+              <div className="space-y-4">
+                <Link href="/reports" className="m-hero block">
+                  <p className="m-hero-label">Revenue this month</p>
+                  <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.monthRevenue)}</p>
+                  <div className="m-hero-foot">
+                    {stats.monthDoneCount > 0 && (
+                      <span className="m-hero-chip">
+                        {stats.monthDoneCount} job{stats.monthDoneCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    <span>
+                      {stats.monthLabel}
+                      {stats.avgValue > 0 ? ` · avg ${gbp(stats.avgValue)}` : ""}
+                    </span>
+                  </div>
+                </Link>
+
+                <Link href="/reports" className="m-hero block">
+                  <p className="m-hero-label">Profit (Cash)</p>
+                  <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.profit)}</p>
+                  <div className="m-hero-foot">
+                    <span>Net after expenses</span>
+                  </div>
+                </Link>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Link href="/reports" className="m-hero block !p-4">
+                    <p className="m-hero-label !text-[11px]">Company Exp.</p>
+                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500">{gbp(stats.companyExpenses)}</p>
+                  </Link>
+                  <Link href="/reports" className="m-hero block !p-4">
+                    <p className="m-hero-label !text-[11px]">Engineer Pay</p>
+                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500">{gbp(stats.engineerCost)}</p>
+                  </Link>
+                </div>
+              </div>
+
+              <p className="m-group-title mt-8">Money</p>
+              <div className="m-group">
+                <MRow icon={FiAlertCircle} label="Outstanding"
+                  sub={stats.overdueCount ? `${stats.overdueCount} overdue — chase these` : "Nothing overdue"}
+                  value={gbp(stats.outstanding)} alert={stats.overdueCount > 0} href="/reports" />
+                <MRow icon={FiTrendingUp} label="Pipeline value" sub="All open stages"
+                  value={gbp(stats.pipelineValue)} href="/jobs" />
+              </div>
+
+              <p className="m-group-title">Work</p>
+              <div className="m-group">
+                <MRow icon={FiLayers} label="Active jobs" sub="Quote → invoiced"
+                  value={stats.active} href="/jobs" />
+                <MRow icon={FiInbox} label="Open quotes" sub="Awaiting approval"
+                  value={stats.quotes} href="/jobs?status=quote" />
+                <MRow icon={FiClock} label="Today's schedule"
+                  sub={stats.today ? "Booked in for today" : "Nothing booked in"}
+                  value={stats.today} href="/dispatch" />
+                <MRow icon={FiBell} label="Renewals due"
+                  sub={stats.urgentProspects > 0 ? "Chase before they lapse" : "Nothing due"}
+                  pill={stats.urgentProspects > 0 ? "14 days" : null}
+                  value={stats.urgentProspects} alert={stats.urgentProspects > 0} href="/prospects" />
+              </div>
+            </div>
+
+            <div className="hidden grid-cols-2 gap-4 lg:grid lg:grid-cols-4">
+              <Kpi
+                icon={FiCheckCircle}
+                label="Revenue this month"
+                value={gbp(stats.monthRevenue)}
+                note={stats.monthLabel}
+                link="/reports"
+              />
+              <Kpi
+                icon={FiPieChart}
+                label="Profit (Cash)"
+                value={gbp(stats.profit)}
+                note="Net after expenses"
+                link="/reports"
+              />
+              <Kpi
+                icon={FiBarChart2}
+                label="Company Expenses"
+                value={gbp(stats.companyExpenses)}
+                note="Month to date"
+                link="/reports"
+              />
+              <Kpi
+                icon={FiUsers}
+                label="Engineer Pay"
+                value={gbp(stats.engineerCost)}
+                note="Paid out this month"
+                link="/reports"
+              />
+              <Kpi
+                icon={FiAlertCircle}
+                label="Outstanding"
+                value={gbp(stats.outstanding)}
+                pill={stats.overdueCount ? `${stats.overdueCount} overdue` : null}
+                pillTone="down"
+                note={stats.overdueCount ? "Chase these" : "Nothing overdue"}
+              />
+              <Kpi
+                icon={FiLayers}
+                label="Active jobs"
+                value={stats.active}
+                note="Quote → invoiced"
+                link="/jobs"
+              />
+              <Kpi
+                icon={FiTarget}
+                label="Jobs done this month"
+                value={stats.monthDoneCount}
+                note={`Avg ${gbp(stats.avgValue)} per job`}
+                link="/jobs"
+              />
+            </div>
+
+            <div className="hidden grid-cols-2 gap-4 lg:grid lg:grid-cols-4">
+              <Kpi icon={FiInbox}    label="Open quotes"      value={stats.quotes} note="Awaiting approval" link="/jobs?status=quote" />
+              <Kpi icon={FiClock}    label="Today's schedule" value={stats.today}  note="Jobs scheduled"    link="/dispatch" />
+              <Kpi icon={FiTrendingUp} label="Pipeline value" value={gbp(stats.pipelineValue)} note="All open stages" link="/jobs" />
+              <Kpi
+                icon={FiBell}
+                label="Renewals due"
+                value={stats.urgentProspects}
+                pill={stats.urgentProspects > 0 ? "fortnight" : null}
+                pillTone="down"
+                note="Next 14 days"
+                link="/prospects"
+              />
+            </div>
+          </>
+        )}
+
+        {/* ── REVENUE + TODAY — the reference's main row: a wide chart with
+            a narrow live list beside it, rather than two full-width bands
+            stacked. Keeps the fold useful instead of spending all of it on
+            one graph. */}
+        {hydrated && (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2"><RevenueChart jobs={jobs} days={30} /></div>
+            <div className="panel flex flex-col">
+              <div className="panel-head panel-head-ruled">
+                <div className="min-w-0">
+                  <span className="panel-title">Today&rsquo;s schedule</span>
+                  <p className="panel-sub">{todayJobs.length} job{todayJobs.length !== 1 ? "s" : ""} booked in</p>
+                </div>
+              </div>
+              {todayJobs.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 px-5 py-10 text-center">
+                  <FiCalendar className="h-5 w-5 text-navy-500" />
+                  <p className="text-sm text-navy-500">Nothing scheduled today</p>
+                </div>
+              ) : (
+                <div className="py-1">
+                  {todayJobs.slice(0, 5).map((job) => {
+                    const client = clientMap[job.clientId];
+                    const eng = engineerMap[job.engineerId];
+                    return (
+                      <Link key={job.id} href={`/jobs/${job.id}`}
+                        className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-navy-50">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-navy-100 text-[11px] font-semibold text-navy-700">
+                          {(client?.name || "?").slice(0, 2).toUpperCase()}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-navy-900">{client?.name || "—"}</p>
+                          <p className="truncate text-xs text-navy-500">
+                            {job.id}{eng && eng.id !== "unassigned" ? ` · ${eng.name}` : ""}
+                          </p>
+                        </div>
+                        <span className={`pill ${STATUS_PILL[job.status] || "pill-neutral"}`}>
+                          {STATUS_LABEL[job.status] || job.status}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── HOW THE BUSINESS IS RUNNING — rates and ratios, not totals.
+            90-day window so each rate has enough jobs behind it to mean
+            something. Anything with too little data shows a dash rather
+            than a misleading 0%. */}
+        {hydrated && (
+          <div>
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="text-[13px] font-semibold tracking-tight text-navy-900">Performance</h2>
+              <span className="text-[11px] text-navy-500">Last 90 days</span>
+            </div>
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Kpi
+                icon={FiTarget}
+                label="Quote win rate"
+                value={kpis.winRate == null ? "—" : kpis.winRate}
+                unit={kpis.winRate == null ? null : "%"}
+                pill={kpis.quotesOpen ? `${kpis.quotesOpen} open` : null}
+                pillTone="flat"
+                note={kpis.quotesDecided ? `${kpis.quotesDecided} quotes decided` : "No decided quotes yet"}
+              />
+              <Kpi
+                icon={FiActivity}
+                label="Repeat business"
+                value={kpis.repeatRate == null ? "—" : kpis.repeatRate}
+                unit={kpis.repeatRate == null ? null : "%"}
+                note={kpis.repeatJobs ? `${kpis.repeatJobs} jobs from returning clients` : "No returning clients yet"}
+              />
+              <Kpi
+                icon={FiUser}
+                label="Revenue per engineer"
+                value={kpis.revenuePerEngineer == null ? "—" : gbp(kpis.revenuePerEngineer)}
+                note={kpis.activeEngineers ? `${kpis.activeEngineers} engineer${kpis.activeEngineers !== 1 ? "s" : ""} working` : "No engineers active"}
+              />
+              <Kpi
+                icon={FiClock}
+                label="Booked → paid"
+                value={kpis.avgDaysBookedToPaid == null ? "—" : kpis.avgDaysBookedToPaid}
+                unit={kpis.avgDaysBookedToPaid == null ? null : "days"}
+                pill={kpis.avgDaysBookedToPaid != null && kpis.avgDaysBookedToPaid > 30 ? "slow" : null}
+                pillTone="down"
+                note="Average full cycle to cash"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── JOB PIPELINE — a single composition bar plus a dot legend.
+            Share-of-total is what this data actually is, and one segmented
+            bar shows it in a glance where five separate rows made you read
+            and compare. Segments are proportional to VALUE, not count, so a
+            stage full of small jobs can't visually outweigh a big one. */}
+        {hydrated && (() => {
+          const segs = PIPELINE.map((s) => ({ ...s, ...(stats.pipeline[s.key] || { count: 0, value: 0 }) }));
+          const totalValue = segs.reduce((a, s) => a + s.value, 0);
+          const totalCount = segs.reduce((a, s) => a + s.count, 0);
+          return (
+            <div className="panel">
+              <div className="panel-head">
+                <div className="min-w-0">
+                  <span className="panel-title">Job pipeline</span>
+                  <p className="panel-sub">{totalCount} open · {gbp(totalValue)} in flight</p>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="segbar">
+                  {totalValue > 0
+                    ? segs.filter((s) => s.value > 0).map((s) => (
+                        <span
+                          key={s.key}
+                          className={s.dot}
+                          style={{ width: `${(s.value / totalValue) * 100}%` }}
+                          title={`${s.label}: ${s.count} job${s.count !== 1 ? "s" : ""} · ${gbp(s.value)}`}
+                        />
+                      ))
+                    : <span className="w-full bg-navy-100" />}
+                </div>
+                <div className="segbar-legend">
+                  {segs.map((s) => (
+                    <Link key={s.key} href={`/jobs?status=${s.key}`} className="min-w-0 transition-opacity hover:opacity-70">
+                      <span className="segbar-key">
+                        <i className={s.dot} />
+                        <span className="truncate">{s.label}</span>
+                      </span>
+                      <p className="tnum mt-1 text-[13px] font-semibold text-navy-900">{gbp(s.value)}</p>
+                      <p className="tnum text-[11px] text-navy-500">{s.count} job{s.count !== 1 ? "s" : ""}</p>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ── ACTIVITY + AT RISK + 7-DAY ── */}
+        <DailyActivityPanel />
+
+        {/* ── MAIN GRID: recent jobs + right rail ── */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+          {/* Recent jobs — dense list */}
+          <div className="lg:col-span-2">
+            <div className="panel">
+              <div className="panel-head panel-head-ruled">
+                <div className="min-w-0">
+                  <span className="panel-title">Recent jobs</span>
+                  <p className="panel-sub">Latest activity across the pipeline</p>
+                </div>
+                <Link href="/jobs" className="shrink-0 text-[13px] text-navy-500 hover:text-navy-900">View all</Link>
+              </div>
+              {recent.length === 0 ? (
+                <div className="flex flex-col items-center gap-3 p-10 text-center">
+                  <FiBriefcase className="h-5 w-5 text-navy-400" />
+                  <p className="text-sm text-navy-500">No jobs yet</p>
+                  <button className="btn-primary" onClick={() => setModalOpen(true)}>
+                    <FiPlus /> Create first job
+                  </button>
+                </div>
+              ) : (
+                <div className="scroll-area overflow-x-auto">
+                <table className="w-full min-w-[480px] text-sm">
+                  <thead>
+                    <tr className="border-b border-navy-100">
+                      <th className="px-4 py-2.5 text-left text-[11px] font-medium text-navy-500">Client</th>
+                      <th className="hidden px-3 py-2.5 text-left text-[11px] font-medium text-navy-500 sm:table-cell">Services</th>
+                      <th className="hidden px-3 py-2.5 text-left text-[11px] font-medium text-navy-500 md:table-cell">Engineer</th>
+                      <th className="px-3 py-2.5 text-left text-[11px] font-medium text-navy-500">Status</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-medium text-navy-500">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-navy-100">
+                    {recent.map((job) => {
+                      const client = clientMap[job.clientId];
+                      const eng    = engineerMap[job.engineerId];
+                      return (
+                        <tr key={job.id} className="cursor-pointer transition-colors hover:bg-navy-50"
+                          onClick={() => router.push(`/jobs/${job.id}`)}>
+                          <td className="px-4 py-3">
+                            <p className="max-w-[160px] truncate font-medium text-navy-900">
+                              {client?.name || "Unknown"}
+                            </p>
+                            <p className="text-[11px] text-navy-500">{job.id}</p>
+                          </td>
+                          <td className="hidden px-3 py-3 sm:table-cell">
+                            <span className="text-xs text-navy-600">
+                              {(job.services || []).join(", ") || "—"}
+                            </span>
+                          </td>
+                          <td className="hidden px-3 py-3 md:table-cell">
+                            <span className="text-xs text-navy-500">
+                              {eng && eng.id !== "unassigned" ? eng.name : "—"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className={`pill ${STATUS_PILL[job.status] || "pill-neutral"}`}>
+                              {STATUS_LABEL[job.status] || job.status}
+                            </span>
+                          </td>
+                          <td className="tnum px-4 py-3 text-right font-medium text-navy-900">
+                            {job.price ? gbp(job.price) : "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right rail */}
+          <div className="space-y-6">
+
+            {/* Today's schedule now lives beside the revenue chart at the
+                top of the page — it's live, actionable information and was
+                buried down here below the fold. */}
+
+            {/* Renewal pipeline — urgency shown by one tinted figure, not a
+                whole coloured card. */}
+            <div className="panel">
+              <div className="panel-head">
+                <div className="min-w-0">
+                  <span className="panel-title">Renewal pipeline</span>
+                  <p className="panel-sub">Certificates coming up for renewal</p>
+                </div>
+                <Link href="/prospects" className="shrink-0 text-[13px] text-navy-500 hover:text-navy-900">Call list</Link>
+              </div>
+              <div className="panel-body">
+                <p className="metric-label">Due within 60 days</p>
+                <p className={`metric-value ${stats.urgentProspects > 0 ? "delta-down" : ""}`}>
+                  {prospectsReady ? stats.renewals : <span className="inline-block h-6 w-10 animate-pulse rounded bg-current align-middle opacity-10" />}
+                </p>
+                {prospectsReady && (
+                  <p className={`metric-sub ${stats.urgentProspects > 0 ? "delta-down" : ""}`}>
+                    {stats.urgentProspects > 0
+                      ? `${stats.urgentProspects} due this fortnight — call now`
+                      : "Nothing urgent this fortnight"}
+                  </p>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── SECONDARY — housekeeping, not headline numbers ──
+            "Needs your decision" and the service-coverage grid used to sit
+            mid-page at full size, pushing revenue and pipeline below the
+            fold. They're worth having but they're not what you open the
+            dashboard to see, so they now live at the bottom, folded away
+            behind a summary you can expand. */}
+        {hydrated && (
+          <details className="panel group">
+            <summary className="panel-head cursor-pointer list-none marker:hidden">
+              <span className="panel-title">Coverage &amp; housekeeping</span>
+              <span className="text-xs text-navy-500 group-open:hidden">Show</span>
+              <span className="hidden text-xs text-navy-500 group-open:inline">Hide</span>
+            </summary>
+            <div className="space-y-6 p-4">
+              {user?.role === "admin" && <NeedsDecisionPanel />}
+              <CoverageMap />
+            </div>
+          </details>
+        )}
+      </div>
+
+      <JobModal open={modalOpen} onClose={() => setModalOpen(false)} />
+    </>
+  );
+}
+
+/* ── Local components ──────────────────────────────────────────── */
+
+function SectionHead({ title, link, extra }) {
+  return (
+    <div className="mb-3 flex items-center justify-between">
+      <h2 className="text-[13px] font-semibold tracking-tight text-navy-900">{title}</h2>
+      <div className="flex items-center gap-3">
+        {extra && <span className="text-xs text-navy-500">{extra}</span>}
+        {link && (
+          <Link href={link} className="text-xs text-navy-500 hover:text-navy-900">View all</Link>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Headline stat card: icon square, label, figure, optional change pill and a
+// caption. `pill` is for a real change/qualifier only — a card with nothing
+// to compare against simply omits it rather than showing a hollow "0%".
+// One row of the phone dashboard's grouped list: glyph, label + caption,
+// figure, chevron. Deliberately the same shape as an iOS settings row —
+// scannable top to bottom, with the numbers aligned down the right edge.
+function MRow({ icon: Icon, label, sub, value, href, alert = false, pill }) {
+  return (
+    <Link href={href} className={`m-row ${alert ? "m-row-alert" : ""}`}>
+      <span className="m-row-ico"><Icon className="h-[15px] w-[15px]" strokeWidth={1.9} /></span>
+      <span className="m-row-main">
+        <span className="m-row-label">
+          {label}
+          {pill && <span className="m-row-pill">{pill}</span>}
+        </span>
+        <span className="m-row-sub">{sub}</span>
+      </span>
+      <span className="m-row-val">{value}</span>
+      <FiChevronRight className="m-row-chev h-4 w-4" />
+    </Link>
+  );
+}
+
+function Kpi({ icon: Icon, label, value, unit, pill, pillTone = "flat", caption, note, link }) {
+  const body = (
+    <>
+      {Icon && <span className="kpi-icon"><Icon className="h-[18px] w-[18px]" strokeWidth={1.9} /></span>}
+      <p className="kpi-label">{label}</p>
+      <div className="kpi-row">
+        <span className="kpi-value">{value}</span>
+        {unit && <span className="kpi-unit">{unit}</span>}
+        {pill && <span className={`kpi-pill kpi-pill-${pillTone}`}>{pill}</span>}
+        {caption && <span className="kpi-caption">{caption}</span>}
+      </div>
+      {note && <p className="kpi-note">{note}</p>}
+    </>
+  );
+  return link
+    ? <Link href={link} className="kpi block">{body}</Link>
+    : <div className="kpi">{body}</div>;
+}
+
+// One figure inside the banded overview panel: quiet sentence-case label,
+// the number, then a muted caption. No icon, no chip, no colour block —
+// tone only ever tints the caption, and only when something is actually wrong.
+function Cell({ label, value, sub, delta, tone, link }) {
+  // The cell itself must stay the DIRECT child of .metric-row — the
+  // interior hairlines are drawn with nth-child rules, and wrapping it in
+  // a <Link> would push it a level down and silently drop every divider.
+  const body = (
+    <>
+      <p className="metric-label">{label}</p>
+      <div className="metric-figure">
+        <span className="metric-value">{value}</span>
+        {delta && <span className={`delta ${tone === "down" ? "delta-down" : tone === "up" ? "delta-up" : "delta-flat"}`}>{delta}</span>}
+      </div>
+      {sub && <p className="metric-sub">{sub}</p>}
+    </>
+  );
+  return link ? (
+    <Link href={link} className="metric-cell block transition-colors hover:bg-navy-50">{body}</Link>
+  ) : (
+    <div className="metric-cell">{body}</div>
+  );
+}

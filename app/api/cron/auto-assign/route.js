@@ -1,0 +1,488 @@
+// Vercel cron — runs daily at ~5:30 AM UK, BEFORE the 8am reminder digest
+// so newly-created tasks land in that morning's push. This is the
+// automation heart of the outreach system: every prospect due in the next
+// 14 days, every stale reply, every unassigned job gets a real assigned
+// task with a real owner, without anyone having to remember to check.
+//
+// Fair share:
+//   • Round-robin picker keyed on agent-role users only (never engineers)
+//   • "Same face" continuity — a prospect last contacted by agent X gets
+//     its follow-up task assigned back to X so the client doesn't get
+//     re-introduced every round
+//   • Escalation kinds (stale quotes, unassigned jobs, monthly campaigns)
+//     always go to admin
+//
+// Dedup:
+//   • Any existing OPEN task linked to the same FSM record blocks a new
+//     auto-task for that same record (so re-running the cron is idempotent)
+//   • Monthly-campaign task blocked by a same-month same-segment source
+//     tag (so 1st-of-month kicks in exactly once per month)
+//
+// Secured by CRON_SECRET, same pattern as the other cron routes.
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { currentCycleDue, serviceLabel } from "@/lib/prospects";
+
+const STATE_ID = "auto_assign_state";
+const DUE_WITHIN_DAYS = 14;
+const REPLY_STALE_HOURS = 24;
+const QUOTE_STALE_DAYS = 3;
+// Per-assignee daily cap on new auto-generated tasks. Escalations (jobs
+// unassigned, replies) and monthly campaigns bypass this — those are
+// time-critical. Prospect renewals get throttled so a big backlog rolls
+// out over several days instead of arriving as a wall on day one.
+const DAILY_CAP_PER_ASSIGNEE = 30;
+const THROTTLED_KINDS = new Set(["prospect_renewal"]);
+const CAMPAIGN_SEGMENTS = [
+  { key: "residential", label: "residential landlord list" },
+  { key: "commercial",  label: "commercial lead list" },
+  { key: "engineers",   label: "engineer network list" },
+];
+
+function ukDateStr(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(now);
+}
+function ukMonthKey(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit" }).format(now);
+}
+function ukDayOfMonth(now = new Date()) {
+  return parseInt(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "numeric" }).format(now), 10);
+}
+function newId() {
+  return "tk-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function isoDatePlusDays(now, days) {
+  const d = new Date(now);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Round-robin picker weighted by lowest current load. Falls back to the
+// admin id when no agents are available so escalation tasks always route.
+function makePicker(agents, byAgentCounts, adminFallbackId) {
+  if (!agents.length) return () => ({ id: adminFallbackId, name: null });
+  const sortedAgents = [...agents].sort((a, b) => {
+    const ca = byAgentCounts[a.id] || 0;
+    const cb = byAgentCounts[b.id] || 0;
+    if (ca !== cb) return ca - cb;
+    return a.id.localeCompare(b.id); // deterministic tie-breaker
+  });
+  let cursor = 0;
+  const counts = { ...byAgentCounts };
+  return () => {
+    const pick = sortedAgents[cursor % sortedAgents.length];
+    counts[pick.id] = (counts[pick.id] || 0) + 1;
+    cursor++;
+    // Re-sort so the next call picks the newly-lowest.
+    sortedAgents.sort((a, b) => (counts[a.id] || 0) - (counts[b.id] || 0));
+    return { id: pick.id, name: pick.name };
+  };
+}
+
+export async function GET(request) {
+  const auth = request.headers.get("authorization") || "";
+  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!supabaseAdmin) return NextResponse.json({ skipped: true, reason: "Supabase not configured" });
+
+  const now = new Date();
+  const force = new URL(request.url).searchParams.get("force") === "1";
+
+  // ── Roster ─────────────────────────────────────────────────────────────
+  const { data: usersRes } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
+  const users = usersRes?.users || [];
+  const normRole = (r) => (r === "admin" || r === "engineer" ? r : "agent");
+  const agents = users
+    .map((u) => ({ id: u.id, name: u.user_metadata?.name || u.email, role: normRole(u.app_metadata?.role) }))
+    .filter((u) => u.role === "agent");
+  const admins = users
+    .map((u) => ({ id: u.id, name: u.user_metadata?.name || u.email, role: normRole(u.app_metadata?.role), created_at: u.created_at }))
+    .filter((u) => u.role === "admin")
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const adminId = admins[0]?.id || null;
+  const adminName = admins[0]?.name || null;
+
+  // ── FSM state ──────────────────────────────────────────────────────────
+  const [prospectsRes, jobsRes, clientsRes, tasksRes, stateRes] = await Promise.all([
+    supabaseAdmin.from("prospects").select("id,data"),
+    supabaseAdmin.from("jobs").select("id,data"),
+    supabaseAdmin.from("clients").select("id,data"),
+    supabaseAdmin.from("tasks").select("id,data"),
+    supabaseAdmin.from("app_settings").select("data").eq("id", STATE_ID).maybeSingle(),
+  ]);
+
+  const state = stateRes.data?.data || { byAgent: {}, lastRunAt: null, monthlyDoneFor: null };
+
+  // ── AUTO-CLOSE SWEEP ────────────────────────────────────────────────
+  // Before creating any new tasks, close any open ones whose underlying
+  // work is definitely done: prospect moved to booked/dnc, job completed
+  // or cancelled, engineer assigned to a job_unassigned task, or a
+  // prospect_renewal task whose prospect was contacted since the task was
+  // created. Stops the task list ballooning even if the client-side hooks
+  // missed something (offline write, direct DB edit, etc).
+  const prospectById = new Map((prospectsRes.data || []).map((r) => [r.id, r.data]));
+  const jobById = new Map((jobsRes.data || []).map((r) => [r.id, r.data]));
+  const autoClosed = [];
+  const nowIsoEarly = new Date().toISOString();
+  const nowMs = now.getTime();
+  for (const row of tasksRes.data || []) {
+    const t = row.data;
+    if (!t || t.status === "done" || !t.linkedTo?.id) continue;
+    let reason = null;
+
+    if (t.linkedTo.kind === "prospect") {
+      const p = prospectById.get(t.linkedTo.id);
+      if (!p) continue;
+      if (p.stage === "booked") reason = "Prospect booked — chase no longer needed.";
+      else if (p.stage === "dnc") reason = "Prospect marked Do Not Contact — chase closed.";
+      else if (t.source === "prospect_renewal" && p.lastContactedAt) {
+        // If the prospect was contacted AFTER the task was created, treat
+        // that outbound touch as fulfilling the chase.
+        const taskAt = new Date(t.createdAt || 0).getTime();
+        const contactAt = new Date(p.lastContactedAt).getTime();
+        if (!isNaN(contactAt) && contactAt >= taskAt) {
+          reason = "Prospect contacted since task was created — auto-completed.";
+        }
+      }
+    }
+
+    if (!reason && t.linkedTo.kind === "job") {
+      const j = jobById.get(t.linkedTo.id);
+      if (!j) continue;
+      if (["completed", "paid", "cancelled"].includes(j.status)) {
+        reason = `Job ${j.status} — task closed.`;
+      } else if (t.source === "job_unassigned" && j.engineerId && j.engineerId !== "unassigned") {
+        reason = "Engineer assigned — task closed.";
+      } else if (t.source === "job_unconfirmed" && (j.engineerConfirmed || !j.engineerId || j.engineerId === "unassigned")) {
+        reason = j.engineerConfirmed ? "Engineer confirmed — task closed." : "Engineer unassigned — task closed.";
+      } else if (t.source === "reply") {
+        // Reply task closes as soon as an outbound activity happens after
+        // the reply that triggered it (i.e. someone answered).
+        const lastIn = (j.activity || []).filter((a) => a.direction === "in").sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+        if (lastIn) {
+          const answered = (j.activity || []).some((a) => a.direction !== "in" && new Date(a.at).getTime() > new Date(lastIn.at).getTime());
+          if (answered) reason = "Client reply has been answered — task closed.";
+        }
+      } else if (t.source === "quote_followup" && j.status !== "quote") {
+        reason = `Quote moved to ${j.status} — task closed.`;
+      }
+    }
+
+    if (reason) {
+      autoClosed.push({
+        id: row.id,
+        data: {
+          ...t,
+          status: "done",
+          completedAt: nowIsoEarly,
+          completedBy: { id: "system", name: "Auto-close" },
+          updatedAt: nowIsoEarly,
+          updates: [
+            ...(t.updates || []),
+            { at: nowIsoEarly, by: { id: "system", name: "Auto-close" }, kind: "status", text: reason },
+          ],
+        },
+      });
+    }
+  }
+  if (autoClosed.length) {
+    await supabaseAdmin.from("tasks").upsert(autoClosed);
+  }
+
+  // Any open task already linked to an entity blocks a new one for that
+  // same entity. Kills the risk of the cron piling identical follow-ups.
+  // (Recomputed after auto-close so newly-closed tasks free their slot.)
+  const closedIds = new Set(autoClosed.map((r) => r.id));
+  const openLinkedKeys = new Set(
+    (tasksRes.data || [])
+      .filter((r) => !closedIds.has(r.id))
+      .map((r) => r.data)
+      .filter((t) => t && t.status !== "done" && t.linkedTo?.id)
+      .map((t) => `${t.linkedTo.kind}:${t.linkedTo.id}`)
+  );
+
+  // Map prospect → last-contacted agent (for same-face continuity).
+  const lastAgentForProspect = new Map();
+  for (const row of prospectsRes.data || []) {
+    const p = row.data;
+    if (!p?.contactLog) continue;
+    const lastOut = [...p.contactLog]
+      .filter((e) => e && e.direction !== "in" && e.by)
+      .sort((a, b) => new Date(b.at || b.ts || 0) - new Date(a.at || a.ts || 0))[0];
+    if (!lastOut?.by) continue;
+    const byId = typeof lastOut.by === "string" ? null : lastOut.by.id;
+    if (byId && agents.some((a) => a.id === byId)) {
+      lastAgentForProspect.set(row.id, { id: byId, name: agents.find((a) => a.id === byId)?.name });
+    }
+  }
+
+  // Map job → last-actor agent (best-effort — jobs.activity entries carry
+  // the agent's user in `by` for outbound emails/whatsapp/calls).
+  const lastAgentForJob = new Map();
+  for (const row of jobsRes.data || []) {
+    const j = row.data;
+    if (!j?.activity) continue;
+    const lastOut = [...j.activity]
+      .filter((e) => e && e.direction !== "in" && e.by)
+      .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0))[0];
+    if (!lastOut?.by) continue;
+    const byId = typeof lastOut.by === "string" ? null : lastOut.by.id;
+    if (byId && agents.some((a) => a.id === byId)) {
+      lastAgentForJob.set(row.id, { id: byId, name: agents.find((a) => a.id === byId)?.name });
+    }
+  }
+
+  const pickAgent = makePicker(agents, state.byAgent || {}, adminId);
+  const chosen = { byAgent: { ...(state.byAgent || {}) } };
+  const bump = (id) => { if (id) chosen.byAgent[id] = (chosen.byAgent[id] || 0) + 1; };
+
+  // Per-assignee, per-UK-day cap. Resets whenever the date rolls over so
+  // yesterday's cap doesn't bleed into today.
+  const todayKey = ukDateStr(now);
+  const dailyState = state.dailyByAgent?.date === todayKey
+    ? { date: todayKey, counts: { ...(state.dailyByAgent.counts || {}) } }
+    : { date: todayKey, counts: {} };
+  let throttled = 0;
+
+  const created = [];
+  const nowIso = new Date().toISOString();
+
+  const makeTask = (spec) => {
+    // Throttle: prospect renewals honor the daily-per-assignee cap so a
+    // huge backlog rolls out over several days. Urgent escalations
+    // (unassigned jobs, replies, quotes, monthly campaigns) bypass.
+    if (spec.assigneeId && THROTTLED_KINDS.has(spec.source)) {
+      const cur = dailyState.counts[spec.assigneeId] || 0;
+      if (cur >= DAILY_CAP_PER_ASSIGNEE) { throttled++; return null; }
+      dailyState.counts[spec.assigneeId] = cur + 1;
+    }
+    const task = {
+      id: newId(),
+      title: spec.title,
+      notes: spec.notes || "",
+      assigneeId: spec.assigneeId,
+      assigneeName: spec.assigneeName || (spec.assigneeId ? users.find((u) => u.id === spec.assigneeId)?.user_metadata?.name || users.find((u) => u.id === spec.assigneeId)?.email : "Everyone"),
+      dueDate: spec.dueDate,
+      priority: spec.priority,
+      reminderCadence: spec.cadence,
+      linkedTo: spec.linkedTo || null,
+      status: "open",
+      source: spec.source,
+      autoAssign: true,
+      createdBy: { id: "system", name: "Auto-assign" },
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      updates: [{
+        at: nowIso,
+        by: { id: "system", name: "Auto-assign" },
+        kind: "status",
+        text: spec.reason || "Auto-assigned by the daily automation.",
+      }],
+    };
+    created.push(task);
+    if (spec.linkedTo?.id) openLinkedKeys.add(`${spec.linkedTo.kind}:${spec.linkedTo.id}`);
+    bump(spec.assigneeId);
+    return task;
+  };
+
+  const clientsById = new Map((clientsRes.data || []).map((r) => [r.id, r.data]));
+
+  // ── 1. Prospect renewals due in next 14 days (or overdue) ──────────────
+  const prospectRows = prospectsRes.data || [];
+  const prospectCandidates = [];
+  for (const row of prospectRows) {
+    const p = row.data;
+    if (!p || p.stage === "dnc" || p.stage === "booked") continue;
+    const due = currentCycleDue(p, now);
+    if (!due) continue;
+    const daysLeft = Math.ceil((due - now) / 86400_000);
+    if (daysLeft > DUE_WITHIN_DAYS) continue;
+    if (openLinkedKeys.has(`prospect:${row.id}`)) continue;
+    prospectCandidates.push({ row, p, daysLeft });
+  }
+  // Sort most-urgent first so the earliest-due agents get the earliest cases.
+  prospectCandidates.sort((a, b) => a.daysLeft - b.daysLeft);
+  for (const { row, p, daysLeft } of prospectCandidates) {
+    const svcs = p.services?.length ? p.services : [p.primaryService || "CONFIRM"];
+    const svcText = svcs.filter((s) => s !== "CONFIRM").map(serviceLabel).join(", ") || "compliance cert";
+    const name = p.nameOnCert || p.ownerName || "Prospect";
+    // Same-face continuity: hand it back to the agent who last talked to them.
+    const owner = lastAgentForProspect.get(row.id) || pickAgent();
+    const urgent = daysLeft <= 3;
+    makeTask({
+      title: `Chase ${name} — ${svcText} renewal`,
+      notes: `${daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d until due`} · ${p.address || ""}`.trim(),
+      assigneeId: owner.id,
+      assigneeName: owner.name,
+      dueDate: isoDatePlusDays(now, Math.max(0, Math.min(daysLeft, 2))),
+      priority: urgent ? "urgent" : "normal",
+      cadence: daysLeft < 0 ? "aggressive" : urgent ? "daily" : "daily",
+      linkedTo: { kind: "prospect", id: row.id, label: name },
+      source: "prospect_renewal",
+      reason: lastAgentForProspect.has(row.id) ? "You spoke to this prospect last time — auto-routed back to you." : "Auto-assigned via round-robin.",
+    });
+  }
+
+  // ── 2. Stale unread client replies (>24h since inbound) ────────────────
+  const replyCutoff = now.getTime() - REPLY_STALE_HOURS * 3600_000;
+  for (const row of jobsRes.data || []) {
+    const job = row.data;
+    if (!job) continue;
+    const lastIn = (job.activity || [])
+      .filter((a) => a.direction === "in")
+      .sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+    if (!lastIn) continue;
+    if (new Date(lastIn.at).getTime() > replyCutoff) continue;
+    // Was it since answered? Any outbound activity after the reply cancels the task.
+    const answeredAfter = (job.activity || []).some(
+      (a) => a.direction !== "in" && new Date(a.at).getTime() > new Date(lastIn.at).getTime()
+    );
+    if (answeredAfter) continue;
+    if (openLinkedKeys.has(`job:${row.id}`)) continue;
+    const client = clientsById.get(job.clientId);
+    const owner = lastAgentForJob.get(row.id) || pickAgent();
+    makeTask({
+      title: `Reply from ${client?.name || "client"} on ${job.id} — respond`,
+      notes: (lastIn.detail || "").slice(0, 240),
+      assigneeId: owner.id,
+      assigneeName: owner.name,
+      dueDate: ukDateStr(now),
+      priority: "urgent",
+      cadence: "aggressive",
+      linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
+      source: "reply",
+      reason: lastAgentForJob.has(row.id) ? "You were last on this job — reply routed back to you." : "Auto-assigned via round-robin.",
+    });
+  }
+
+  // ── 3. Stale quotes (>3 days no activity) → admin ──────────────────────
+  const quoteStaleCutoff = now.getTime() - QUOTE_STALE_DAYS * 86400_000;
+  if (adminId) {
+    for (const row of jobsRes.data || []) {
+      const job = row.data;
+      if (!job || job.status !== "quote") continue;
+      if (openLinkedKeys.has(`job:${row.id}`)) continue;
+      const lastActivity = (job.activity || [])
+        .map((a) => new Date(a.at).getTime())
+        .filter((t) => !isNaN(t))
+        .sort((a, b) => b - a)[0] || new Date(job.createdAt || 0).getTime();
+      if (!lastActivity || lastActivity > quoteStaleCutoff) continue;
+      const client = clientsById.get(job.clientId);
+      const daysSince = Math.floor((now.getTime() - lastActivity) / 86400_000);
+      makeTask({
+        title: `Follow up quote ${job.id}${client?.name ? ` · ${client.name}` : ""}`,
+        notes: `Quote sat ${daysSince}d with no activity`,
+        assigneeId: adminId,
+        assigneeName: adminName,
+        dueDate: ukDateStr(now),
+        priority: daysSince > 7 ? "urgent" : "normal",
+        cadence: daysSince > 7 ? "aggressive" : "daily",
+        linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
+        source: "quote_followup",
+        reason: "Auto-escalated to admin — no activity on this quote for over 3 days.",
+      });
+    }
+
+    // ── 4. Booked / in-progress jobs with no engineer ────────────────────
+    for (const row of jobsRes.data || []) {
+      const job = row.data;
+      if (!job) continue;
+      if (!["scheduled", "in_progress"].includes(job.status)) continue;
+      if (job.engineerId && job.engineerId !== "unassigned") continue;
+      if (openLinkedKeys.has(`job:${row.id}`)) continue;
+      const client = clientsById.get(job.clientId);
+      makeTask({
+        title: `Assign engineer to ${job.id}`,
+        notes: `${job.status === "scheduled" ? "Scheduled" : "In progress"} · no engineer set`,
+        assigneeId: adminId,
+        assigneeName: adminName,
+        dueDate: ukDateStr(now),
+        priority: "urgent",
+        cadence: "aggressive",
+        linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
+        source: "job_unassigned",
+        reason: "Auto-escalated — no engineer assigned to an active job.",
+      });
+    }
+
+    // ── 4b. Jobs within 3 days that have an engineer but no confirmation ──
+    // An assigned engineer who never actually confirmed is exactly how a
+    // job silently falls through — chase this well before the day-of
+    // reminder cron even fires.
+    for (const row of jobsRes.data || []) {
+      const job = row.data;
+      if (!job || !job.scheduledAt) continue;
+      if (!["scheduled", "in_progress"].includes(job.status)) continue;
+      if (!job.engineerId || job.engineerId === "unassigned") continue;
+      if (job.engineerConfirmed) continue;
+      const daysUntil = Math.ceil((new Date(job.scheduledAt) - now) / 86400_000);
+      if (daysUntil > 3) continue; // not yet urgent — leave it for a later run
+      if (openLinkedKeys.has(`job:${row.id}`)) continue;
+      const client = clientsById.get(job.clientId);
+      makeTask({
+        title: `Chase confirmation — ${job.id}${client?.name ? ` · ${client.name}` : ""}`,
+        notes: `${daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : daysUntil === 0 ? "Scheduled today" : `${daysUntil}d until scheduled`} · engineer never confirmed`,
+        assigneeId: adminId,
+        assigneeName: adminName,
+        dueDate: ukDateStr(now),
+        priority: "urgent",
+        cadence: "aggressive",
+        linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
+        source: "job_unconfirmed",
+        reason: "Auto-escalated — engineer assigned but never marked confirmed.",
+      });
+    }
+  }
+
+  // ── 5. Monthly campaign send tasks on the 1st of the month ─────────────
+  const dayOfMonth = ukDayOfMonth(now);
+  const monthKey = ukMonthKey(now);
+  const alreadyDoneThisMonth = state.monthlyDoneFor === monthKey;
+  if (adminId && (dayOfMonth === 1 || force) && !alreadyDoneThisMonth) {
+    for (const seg of CAMPAIGN_SEGMENTS) {
+      makeTask({
+        title: `Send ${monthKey} campaign — ${seg.label}`,
+        notes: `Start of month: bulk-email the ${seg.label} for renewal outreach.`,
+        assigneeId: adminId,
+        assigneeName: adminName,
+        dueDate: isoDatePlusDays(now, 3),
+        priority: "urgent",
+        cadence: "aggressive",
+        linkedTo: null,
+        source: "monthly_campaign",
+        reason: "Auto-created on the 1st of the month.",
+      });
+    }
+  }
+
+  // Persist all created tasks (batched upsert).
+  if (created.length > 0) {
+    await supabaseAdmin.from("tasks").upsert(created.map((t) => ({ id: t.id, data: t })));
+  }
+
+  // Update round-robin state.
+  await supabaseAdmin.from("app_settings").upsert({
+    id: STATE_ID,
+    data: {
+      byAgent: chosen.byAgent,
+      dailyByAgent: dailyState,
+      lastRunAt: nowIso,
+      monthlyDoneFor: (adminId && dayOfMonth === 1) ? monthKey : state.monthlyDoneFor,
+    },
+  });
+
+  return NextResponse.json({
+    ok: true,
+    created: created.length,
+    autoClosed: autoClosed.length,
+    throttled,
+    dailyCap: DAILY_CAP_PER_ASSIGNEE,
+    byKind: created.reduce((m, t) => { m[t.source] = (m[t.source] || 0) + 1; return m; }, {}),
+    byAssignee: created.reduce((m, t) => { const k = t.assigneeName || t.assigneeId || "unassigned"; m[k] = (m[k] || 0) + 1; return m; }, {}),
+    agentsAvailable: agents.length,
+    adminId,
+    dayOfMonth,
+    monthlyCampaignFired: adminId && (dayOfMonth === 1 || force) && !alreadyDoneThisMonth,
+  });
+}

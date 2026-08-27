@@ -1,0 +1,1153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ================================================================
+   LCL CONSOLE — surface tokens
+   One flat, quiet, near-monochrome system. Depth comes from
+   hairline borders and surface steps, never from shadows or
+   gradients. Every primitive below reads from these variables, so
+   retuning the whole app is a change in exactly one place.
+   ================================================================ */
+:root {
+  --font-inter: "Inter", system-ui, sans-serif;
+
+  --surface-page:   #f6f6f7;
+  --surface-card:   #ffffff;
+  --surface-raised: #f1f1f3;
+  --surface-sunken: #fafafb;
+
+  /* Light mode is the opt-out, but it still has to hold up. These were a
+     touch too faint — hairlines you could barely see and muted text that
+     read as washed out rather than quiet. */
+  --hairline:        rgba(13, 28, 51, 0.13);
+  --hairline-strong: rgba(13, 28, 51, 0.22);
+
+  --text-primary:   #0b1420;
+  --text-secondary: #45505f;
+  --text-muted:     #6b7583;
+
+  --accent:      #3fa34d;
+  --accent-text: #2f8a3d;
+  --pos:         #16a34a;
+  --neg:         #e11d48;
+
+  /* Corner radius is the single biggest lever on how "blocky" the app reads,
+     and these two tokens drive everything: cards, panels, modals, inputs,
+     buttons, and every .rounded-xl/.rounded-2xl via the normalisation below.
+     Softened to sit closer to the rounded, calmer reference dashboards. */
+  --radius-card: 24px;
+  --radius-ctl:  16px;
+}
+
+.dark {
+  /* Near-black page with the faintest neutral lift, then two barely-there
+     steps up for cards and raised surfaces. Deliberately narrow range —
+     the reference look separates surfaces with hairlines, not brightness. */
+  /* TRUE NEUTRAL — no blue in the greys. The old values carried a slate
+     cast (#9ba1ab, #0a0a0c) which, combined with the unmapped blue-tinted
+     navy-200/300 steps below, is what made the whole app read "bluish". */
+  --surface-page:   #0a0a0a;
+  --surface-card:   #141415;
+  --surface-raised: #1c1c1e;
+  --surface-sunken: #0f0f10;
+
+  --hairline:        rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.15);
+
+  --text-primary:   #fafafa;
+  --text-secondary: #a1a1a8;
+  --text-muted:     #71717a;
+
+  --accent:      #3fa34d;
+  --accent-text: #4ea95c;
+  --pos:         #4ade80;
+  --neg:         #fb7185;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Pinch-zoom is enabled (WCAG 1.4.4). iOS auto-zooms any focused control
+   with a font under 16px, so on touch screens all form controls render at
+   16px regardless of the desktop size utility on them. */
+@media (max-width: 1023px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+body {
+  background-color: var(--surface-page);
+  color: var(--text-primary);
+  @apply antialiased;
+  font-feature-settings: "ss01", "cv11", "cv09";
+  letter-spacing: -0.011em;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.014em;
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  @apply bg-brand-500/20 text-navy-900;
+}
+.dark ::selection {
+  @apply bg-brand-500/30 text-white;
+}
+
+/* The browser's default focus ring is bright blue and was the single most
+   obviously "not designed" thing on screen — it framed the active sidebar
+   item in electric blue. Replaced with a quiet neutral ring. Still only on
+   :focus-visible, so keyboard users keep a real indicator and mouse clicks
+   don't paint one. */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--hairline-strong);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Thin, tidy scrollbars inside scroll areas */
+.scroll-area {
+  scrollbar-width: thin;
+  scrollbar-color: #c9d2e0 transparent;
+}
+.scroll-area::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-area::-webkit-scrollbar-thumb {
+  background: #c9d2e0;
+  border-radius: 9999px;
+}
+.dark .scroll-area {
+  scrollbar-color: #2a2a2e transparent;
+}
+.dark .scroll-area::-webkit-scrollbar-thumb {
+  background: #2a2a2e;
+}
+
+@layer components {
+  /* ── Form controls ────────────────────────────────────────────
+     Written as plain CSS rather than @apply-with-variants: the
+     `focus:border-brand-400` form inside @apply was also what broke
+     `next dev` locally with a phantom "class does not exist" error. */
+  .input {
+    width: 100%;
+    border-radius: var(--radius-ctl);
+    border: 1px solid var(--hairline);
+    background-color: var(--surface-card);
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input::placeholder { color: var(--text-muted); }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(63, 163, 77, 0.13);
+  }
+  .input:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  /* Sentence case, quiet, no shouty uppercase tracking. */
+  .label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  /* ── Buttons — flat fills, hairline outlines, no gradients ───── */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:cursor-not-allowed disabled:opacity-55;
+    border-radius: var(--radius-ctl);
+    padding: 0.5rem 0.875rem;
+  }
+  .btn-primary {
+    @apply btn text-white;
+    background-color: var(--accent);
+  }
+  .btn-primary:hover { background-color: #379044; }
+  .btn-primary:active { background-color: #2f8a3d; }
+
+  .btn-navy {
+    @apply btn;
+    background-color: var(--text-primary);
+    color: var(--surface-card);
+  }
+  .btn-navy:hover { opacity: 0.88; }
+
+  .btn-outline {
+    @apply btn;
+    border: 1px solid var(--hairline);
+    background-color: transparent;
+    color: var(--text-primary);
+  }
+  .btn-outline:hover {
+    border-color: var(--hairline-strong);
+    background-color: var(--surface-raised);
+  }
+  .btn-secondary { @apply btn-outline; }
+
+  .btn-ghost {
+    @apply btn;
+    color: var(--text-secondary);
+    background-color: transparent;
+  }
+  .btn-ghost:hover {
+    background-color: var(--surface-raised);
+    color: var(--text-primary);
+  }
+
+  .btn-danger {
+    @apply btn text-white;
+    background-color: #e11d48;
+  }
+  .btn-danger:hover { background-color: #be123c; }
+
+  /* ── Surfaces ─────────────────────────────────────────────────
+     Hairline + surface step. No shadow, no hover lift — the whole
+     point of this system is that nothing floats. */
+  .card {
+    background-color: var(--surface-card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+  }
+  .card-hover {
+    @apply card transition-colors duration-150;
+  }
+  .card-hover:hover {
+    border-color: var(--hairline-strong);
+    background-color: var(--surface-raised);
+  }
+  .elev { box-shadow: none; }
+
+  /* ── Panel — the reference's signature pattern: a quiet title row,
+     a full-bleed hairline rule, then the body. ─────────────────── */
+  .panel {
+    @apply card overflow-hidden;
+  }
+  /* No bottom rule by default — the reference separates a panel header from
+     its body with space, not a line. `panel-head-ruled` opts back in for
+     dense surfaces (tables, list stacks) where a divider genuinely helps. */
+  .panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.375rem 1.375rem 0;
+  }
+  .panel-head-ruled {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .panel-title {
+    font-family: var(--font-heading), var(--font-sans), sans-serif;
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.021em;
+    line-height: 1.25;
+  }
+  /* The grey second line under a panel title in the reference. */
+  .panel-sub {
+    margin-top: 0.1875rem;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    letter-spacing: -0.006em;
+  }
+  .panel-body { padding: 1.375rem; }
+
+  /* ── Metrics ──────────────────────────────────────────────────
+     A row of figures inside ONE panel, split by vertical hairlines,
+     rather than a grid of separate floating boxes. */
+  .metric-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  @media (min-width: 640px) {
+    .metric-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  .metric-cell {
+    padding: 0.6875rem 0.875rem;
+    border-top: 1px solid var(--hairline);
+    border-left: 1px solid var(--hairline);
+    min-width: 0;
+  }
+  /* Kill the outer edges so only the interior rules show. */
+  .metric-row > .metric-cell:nth-child(-n + 2) { border-top: none; }
+  .metric-row > .metric-cell:nth-child(2n + 1) { border-left: none; }
+  @media (min-width: 640px) {
+    .metric-row > .metric-cell:nth-child(-n + 4) { border-top: none; }
+    .metric-row > .metric-cell:nth-child(2n + 1) { border-left: 1px solid var(--hairline); }
+    .metric-row > .metric-cell:nth-child(4n + 1) { border-left: none; }
+  }
+
+  /* Standalone metric card — same language, used where a grid of
+     separate cards genuinely reads better than one banded row. */
+  .metric-card {
+    position: relative;
+    background-color: var(--surface-card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    padding: 1.0625rem 1.125rem;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  .metric-card-hover:hover {
+    border-color: var(--hairline-strong);
+    background-color: var(--surface-raised);
+  }
+  .metric-icon {
+    @apply inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center;
+    color: var(--text-muted);
+  }
+  .metric-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Value + delta share ONE baseline — the reference never stacks the
+     change underneath the figure, it sits right beside it. */
+  .metric-figure {
+    display: flex;
+    align-items: baseline;
+    gap: 0.375rem;
+    margin-top: 0.3125rem;
+    min-width: 0;
+  }
+  .metric-value {
+    @apply tnum;
+    font-family: var(--font-heading), var(--font-sans), sans-serif;
+    font-size: 1.0625rem;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.021em;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @media (min-width: 640px) {
+    .metric-value { font-size: 1.125rem; }
+  }
+  .metric-sub {
+    margin-top: 0.1875rem;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .metric-rule { display: none; } /* retired — colour bars aren't part of this system */
+
+  /* ── KPI card ─────────────────────────────────────────────────
+     Icon in a soft rounded square, quiet label, big figure, then a
+     small tinted delta pill and its comparison text on one line.
+     This is the headline-stat pattern from the reference dashboards. */
+  .kpi {
+    background-color: var(--surface-card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    padding: 1.375rem 1.375rem 1.5rem;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+    min-width: 0;
+  }
+  a.kpi:hover, button.kpi:hover {
+    border-color: var(--hairline-strong);
+    background-color: var(--surface-raised);
+  }
+  .kpi-icon {
+    display: inline-grid;
+    place-items: center;
+    height: 2.5rem;
+    width: 2.5rem;
+    border-radius: 12px;
+    background-color: var(--surface-raised);
+    border: 1px solid var(--hairline);
+    /* Near-full strength, like the reference — a dim icon in a dim square
+       just reads as a smudge. */
+    color: var(--text-primary);
+    margin-bottom: 1.125rem;
+  }
+  /* The label is a real label, not fine print — in the reference it sits at
+     body size in near-full-strength text, with the muted grey saved for the
+     "vs last month" caption beside the figure. */
+  .kpi-label {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: -0.011em;
+    color: var(--text-secondary);
+    /* Wraps to a second line instead of truncating. On a two-column phone
+       grid `nowrap` turned every real label into "Revenue this m…" and
+       "Jobs done this …" — the KPI stopped saying what it measured, which
+       is the entire job of the label. The min-height keeps the numbers on
+       adjacent cards aligned when one label wraps and its neighbour doesn't. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 2.6em;
+  }
+  .kpi-row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    min-width: 0;
+  }
+  .kpi-value {
+    @apply tnum;
+    font-family: var(--font-heading), var(--font-sans), sans-serif;
+    font-size: 1.75rem;
+    line-height: 1.05;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+  }
+  /* Small unit suffix riding the figure — "24/38", "22%", "5.2d". */
+  .kpi-unit {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: -0.01em;
+  }
+  /* Tinted pill, only for a real change figure. */
+  .kpi-pill {
+    @apply tnum;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    border-radius: 6px;
+    padding: 0.0625rem 0.3125rem;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .kpi-pill-up   { background-color: rgba(74,222,128,0.13); color: var(--pos); }
+  .kpi-pill-down { background-color: rgba(244,63,94,0.12);  color: var(--neg); }
+  .kpi-pill-flat { background-color: var(--surface-raised);  color: var(--text-muted); }
+  /* Sits inline after the pill — "24 [+12%] vs last month" — rather than on
+     its own line underneath. */
+  .kpi-caption {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    letter-spacing: -0.006em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .kpi-note {
+    margin-top: 0.625rem;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+    color: var(--text-muted);
+    /* Same reasoning as the label — "Avg £96.00 per job" is worth reading. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* ── Composition bar ──────────────────────────────────────────
+     One horizontal bar split into proportional segments, with a
+     dot-legend underneath. Reads a share-of-total far faster than a
+     stack of rows does, and it's the right shape for a pipeline. */
+  .segbar {
+    display: flex;
+    gap: 3px;
+    height: 6px;
+    width: 100%;
+  }
+  .segbar > span {
+    border-radius: 999px;
+    min-width: 3px;
+    transition: opacity 0.15s ease;
+  }
+  .segbar-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 1rem;
+    margin-top: 0.875rem;
+  }
+  @media (min-width: 640px) {
+    .segbar-legend { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  }
+  .segbar-key {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    min-width: 0;
+  }
+  .segbar-key > i {
+    height: 6px; width: 6px; border-radius: 999px; flex: none;
+  }
+
+  /* ── Status pills ─────────────────────────────────────────────
+     Solid tinted chips, sentence case, for state on list rows —
+     "In Progress", "Completed", "On Hold". Distinct from `.badge`
+     (quiet, bordered) because state deserves to be findable at a
+     glance down a long list. */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 7px;
+    padding: 0.1875rem 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: -0.004em;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  .pill-blue    { background-color: #2563eb; color: #fff; }
+  .pill-green   { background-color: #16a34a; color: #fff; }
+  .pill-amber   { background-color: #d97706; color: #fff; }
+  .pill-rose    { background-color: #e11d48; color: #fff; }
+  .pill-neutral { background-color: var(--surface-raised); color: var(--text-secondary); border: 1px solid var(--hairline); }
+  /* Outline variant — for the secondary chip (priority) that shouldn't
+     compete with the state chip beside it. */
+  .pill-outline {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--hairline-strong);
+    font-weight: 500;
+  }
+
+  /* ── Progress bar ─────────────────────────────────────────────
+     Label + right-aligned % above a slim rounded track. */
+  .progress {
+    height: 6px;
+    width: 100%;
+    border-radius: 999px;
+    background-color: var(--surface-raised);
+    overflow: hidden;
+  }
+  .progress > span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background-color: #2563eb;
+    transition: width 0.3s ease;
+  }
+
+  /* ── Sidebar nav item ─────────────────────────────────────────
+     Roomier than a dense list — the reference gives each row real
+     height and lets the rail breathe. */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-radius: 10px;
+    padding: 0.625rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: -0.008em;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  /* Delta — plain coloured text beside the figure, never a pill. */
+  .delta {
+    @apply tnum;
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .delta-up   { color: var(--pos); }
+  .delta-down { color: var(--neg); }
+  .delta-flat { color: var(--text-muted); }
+
+  /* ── Section label above a group of panels ───────────────────── */
+  .section-label {
+    @apply inline-flex items-center gap-2;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-secondary);
+    background: transparent;
+    padding: 0;
+  }
+  .stat-value {
+    @apply tnum;
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    color: var(--text-primary);
+  }
+
+  /* ── Badges — quiet tinted text, not shouty uppercase pills ──── */
+  .badge {
+    @apply inline-flex items-center gap-1.5;
+    border-radius: 6px;
+    padding: 0.1875rem 0.4375rem;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    line-height: 1.2;
+  }
+  .badge-navy  { @apply badge; background-color: var(--surface-raised); color: var(--text-secondary); border: 1px solid var(--hairline); }
+  .badge-brand { @apply badge; background-color: rgba(63,163,77,0.12);  color: var(--accent-text); }
+  .badge-amber { @apply badge; background-color: rgba(245,158,11,0.13); color: #b45309; }
+  .badge-rose  { @apply badge; background-color: rgba(244,63,94,0.12);  color: #be123c; }
+  .badge-blue  { @apply badge; background-color: rgba(59,130,246,0.12); color: #1d4ed8; }
+  .dark .badge-amber { color: #fbbf24; }
+  .dark .badge-rose  { color: #fb7185; }
+  .dark .badge-blue  { color: #7aa7f8; }
+}
+
+/* ── Tabular figures — align numbers in tables, KPIs, money columns ── */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Chrome surfaces ───────────────────────────────────────────── */
+/* Page chrome now reads as part of the page, not a separate coloured
+   slab — flat surface + a single hairline underneath. */
+.bar-navy {
+  background-color: var(--surface-page);
+  color: var(--text-primary);
+}
+.dark .bar-navy { background-color: var(--surface-page); }
+.rule-brand { box-shadow: none; }
+
+/* ── Loading-screen-only surfaces (kept per owner request) ─────── */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.hero-navy {
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(63,163,77,0.18) 0%, transparent 45%),
+    radial-gradient(120% 120% at 100% 0%, rgba(63,163,77,0.04) 0%, transparent 50%),
+    linear-gradient(135deg, #050505 0%, #0a0a0a 55%, #000000 100%);
+}
+
+/* ── Skeleton shimmer — for loading placeholders ───────────────── */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(13,28,51,0.06), transparent);
+  animation: shimmer 1.4s infinite;
+}
+.dark .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+}
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* ── Branded splash loader ─────────────────────────────────────── */
+@keyframes splash-pop {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes splash-ring {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes bar-load {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+.splash-logo { animation: splash-pop 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+.splash-ring { animation: splash-ring 1s linear infinite; }
+.splash-bar  { animation: bar-load 1.3s ease-in-out infinite; }
+
+/* ── Splash screen ──────────────────────────────────────────────────
+   One light source, one surface, slow motion. The old splash stacked a
+   22px tiled grid, two radial gradients, a hard white tile, a ring
+   spinning once a second and a thick two-tone bar — five things
+   competing, which is what made it read cheap rather than calm. */
+.splash-bg {
+  /* A fixed-radius CIRCLE, not a percentage ellipse. Percentages are relative
+     to the viewport, so on a tall phone the glow stretched into an obvious
+     oval smudge running most of the screen. */
+  background:
+    radial-gradient(circle 320px at 50% 42%, rgba(63,163,77,0.11) 0%, transparent 72%),
+    #060607;
+}
+
+/* A wide, very soft glow instead of a drawn ring. */
+.splash-halo {
+  background: radial-gradient(circle, rgba(63,163,77,0.34) 0%, rgba(63,163,77,0.11) 44%, transparent 72%);
+  filter: blur(14px);
+  animation: splash-breathe 3.4s ease-in-out infinite;
+}
+
+/* Circular, faintly lit surface — a soft edge rather than a hard tile. */
+.splash-disc {
+  background: linear-gradient(160deg, #ffffff 0%, #f3f5f4 100%);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.55) inset,
+    0 10px 30px -12px rgba(0,0,0,0.75);
+}
+
+/* The whole group settles in once — no bounce. */
+.splash-in { animation: splash-in 0.75s cubic-bezier(0.16,1,0.3,1) both; }
+
+/* Progress drifts; it does not race. Feathered at both ends so it never
+   reads as a solid block sliding around. */
+.splash-sweep {
+  background: linear-gradient(90deg, transparent, rgba(63,163,77,0.95) 50%, transparent);
+  animation: splash-drift 2.6s cubic-bezier(0.45,0,0.55,1) infinite;
+}
+
+@keyframes splash-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes splash-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(0.97); }
+  50%      { opacity: 1;    transform: scale(1.04); }
+}
+@keyframes splash-drift {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(420%); }
+}
+
+/* Motion is decoration here — the loader still reads perfectly still. */
+@media (prefers-reduced-motion: reduce) {
+  .splash-in, .splash-halo, .splash-sweep { animation: none; }
+  .splash-sweep { transform: translateX(140%); }
+}
+
+/* Subtle entrance for metric figures */
+@keyframes metric-rise {
+  0% { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.metric-rise { animation: metric-rise 0.35s ease-out both; }
+
+/* ============================================================
+   Literal-utility re-tuning
+   The app applies the navy/brand palette directly via hundreds of
+   literal classNames across every page. Rather than retrofit each
+   one, these rules remap the most common literals onto the console
+   tokens above.
+
+   SPECIFICITY: every selector here is prefixed with `:root` (or
+   `:root.dark`). Without it these rules tie with Tailwind's own
+   generated utilities at (0,2,0) — and Tailwind's copy is emitted
+   AFTER this block, so it wins every tie. That is exactly what
+   caused the white hover flash and the navy-blue cards: the remaps
+   were being silently discarded. The `:root` prefix adds one class
+   of weight so they land reliably.
+   ============================================================ */
+
+/* Neutral surfaces */
+:root .bg-white     { background-color: var(--surface-card); }
+:root .bg-slate-50  { background-color: var(--surface-page); }
+:root .bg-slate-100 { background-color: var(--surface-raised); }
+:root.dark .bg-slate-200 { background-color: #1d1d21; }
+:root.dark .bg-navy-700  { background-color: #1d1d21; }
+:root.dark .bg-navy-800  { background-color: var(--surface-card); }
+:root.dark .bg-navy-900  { background-color: var(--surface-sunken); }
+:root.dark .bg-navy-950  { background-color: var(--surface-page); }
+:root.dark .hover\:bg-navy-700:hover { background-color: #222226; }
+:root.dark .hover\:bg-navy-800:hover { background-color: var(--surface-raised); }
+:root.dark .hover\:bg-navy-900:hover { background-color: var(--surface-card); }
+
+/* Neutral text — mapped onto the token ramp so every page picks up
+   the quieter secondary/muted tiers automatically. */
+:root .text-navy-900 { color: var(--text-primary); }
+:root .text-navy-800 { color: var(--text-primary); }
+:root .text-navy-700 { color: var(--text-secondary); }
+:root .text-navy-600 { color: var(--text-secondary); }
+:root .text-navy-500 { color: var(--text-muted); }
+:root .text-navy-400 { color: var(--text-muted); }
+/* 200 and 300 were the gap. 42 elements use text-navy-300 — every sidebar
+   nav label among them — and it resolves to #7488ad, a genuinely blue
+   slate. That single unmapped step is most of the "bluish" look. */
+:root .text-navy-300 { color: var(--text-secondary); }
+:root .text-navy-200 { color: var(--text-secondary); }
+:root.dark .text-brand-400 { color: #4ea95c; }
+:root .text-slate-400, :root .text-slate-500 { color: var(--text-muted); }
+:root.dark .text-slate-100, :root.dark .text-slate-200 { color: var(--text-primary); }
+:root.dark .text-slate-300 { color: var(--text-secondary); }
+/* NB: no `.text-white` remap — `.btn-primary` does `@apply text-white`,
+   and redefining it here makes Tailwind report a circular dependency.
+   White on a filled button is correct anyway. */
+:root.dark .hover\:text-navy-800:hover,
+:root.dark .hover\:text-navy-700:hover,
+:root.dark .hover\:text-navy-600:hover { color: var(--text-primary); }
+
+/* Borders, dividers, rings */
+:root .border-navy-100,
+:root .border-navy-200 { border-color: var(--hairline); }
+:root .border-navy-300 { border-color: var(--hairline-strong); }
+:root.dark .border-white\/10,
+:root.dark .border-white\/5,
+:root.dark .border-white\/\[0\.06\],
+:root.dark .border-white\/\[0\.08\] { border-color: var(--hairline); }
+:root .hover\:border-navy-300:hover { border-color: var(--hairline-strong); }
+:root .divide-navy-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--hairline); }
+:root.dark .divide-white\/10 > :not([hidden]) ~ :not([hidden]) { border-color: var(--hairline); }
+:root .ring-navy-100,
+:root .ring-navy-200 { --tw-ring-color: var(--hairline); }
+
+/* Subtle tinted backgrounds (section labels, hover rows, info pills) */
+:root .bg-navy-50,
+:root .bg-navy-50\/40, :root .bg-navy-50\/50, :root .bg-navy-50\/60,
+:root .bg-navy-50\/70, :root .bg-navy-50\/80,
+:root .bg-navy-100,
+:root .bg-navy-100\/50, :root .bg-navy-100\/60 { background-color: var(--surface-raised); }
+:root.dark .bg-white\/5, :root.dark .bg-white\/\[0\.03\] { background-color: var(--surface-raised); }
+:root.dark .bg-navy-200 { background-color: #232327; }
+:root .hover\:bg-navy-50:hover,
+:root .hover\:bg-navy-50\/50:hover,
+:root .hover\:bg-navy-100:hover { background-color: var(--surface-raised); }
+:root.dark .hover\:bg-white\/5:hover,
+:root.dark .hover\:bg-white\/10:hover { background-color: var(--surface-raised); }
+
+/* Accent text */
+:root.dark .text-brand-600,
+:root.dark .text-brand-700,
+:root.dark .hover\:text-brand-600:hover,
+:root.dark .hover\:text-brand-700:hover { color: var(--accent-text); }
+:root.dark .text-amber-700, :root.dark .text-amber-800,
+:root.dark .text-amber-900, :root.dark .text-amber-200 { color: #d9a441; }
+:root.dark .text-rose-500, :root.dark .text-rose-600,
+:root.dark .text-rose-700, :root.dark .text-rose-800,
+:root.dark .text-rose-300,
+:root.dark .hover\:text-rose-500:hover { color: var(--neg); }
+:root.dark .text-emerald-700, :root.dark .text-emerald-200 { color: var(--pos); }
+:root.dark .text-blue-700, :root.dark .text-blue-800 { color: #7aa7f8; }
+:root.dark .text-purple-700 { color: #b07ce0; }
+
+/* Accent tints — deliberately faint. Solid pastel blocks are the main
+   reason panels read as "blocky app" rather than product surface, so
+   these collapse to a near-flat wash over the card colour. */
+:root.dark :is(.bg-brand-50, .bg-brand-100, .bg-brand-500\/10, .hover\:bg-brand-50\/50:hover) { background-color: rgba(63,163,77,0.10); }
+:root.dark :is(.bg-amber-50, .bg-amber-100, .bg-amber-50\/70, .bg-amber-500\/10) { background-color: rgba(217,164,65,0.09); }
+:root.dark :is(.bg-rose-50, .bg-rose-100, .bg-rose-500\/10, .hover\:bg-rose-50:hover) { background-color: rgba(244,63,94,0.09); }
+:root.dark :is(.bg-blue-50, .bg-blue-100, .bg-blue-500\/10) { background-color: rgba(59,130,246,0.09); }
+:root.dark :is(.bg-emerald-50, .bg-emerald-100, .bg-emerald-50\/70, .bg-emerald-500\/10) { background-color: rgba(74,222,128,0.08); }
+:root.dark :is(.bg-purple-100, .bg-purple-500\/10) { background-color: rgba(176,124,224,0.09); }
+
+:root.dark .border-amber-200,   :root.dark .border-amber-500\/30 { border-color: rgba(217,164,65,0.22); }
+:root.dark .border-rose-200,    :root.dark .border-rose-500\/30  { border-color: rgba(244,63,94,0.22); }
+:root.dark .border-blue-200,    :root.dark .border-blue-500\/30  { border-color: rgba(59,130,246,0.22); }
+:root.dark .border-emerald-200, :root.dark .border-emerald-500\/30 { border-color: rgba(74,222,128,0.22); }
+
+/* ── Legacy typography normalisation ──────────────────────────────
+   ~130 micro-labels across ~48 files are written as
+   `uppercase tracking-wider font-bold` — the loudest thing separating
+   this app from the quiet reference look. Neutralise the combination
+   rather than hand-editing every call site. A bare `.uppercase` (a
+   deliberate one-off) still uppercases. */
+:root :where(:not(.legacy-chrome *)):is(
+  .uppercase.tracking-wide, .uppercase.tracking-wider, .uppercase.tracking-widest,
+  .uppercase.tracking-\[0\.08em\], .uppercase.tracking-\[0\.1em\],
+  .uppercase.tracking-\[0\.14em\], .uppercase.tracking-\[0\.18em\],
+  .uppercase.tracking-\[0\.2em\], .uppercase.tracking-\[0\.3em\]
+) {
+  text-transform: none;
+  letter-spacing: -0.004em;
+  font-weight: 500;
+}
+/* Those labels tend to be set at 10–11px, which reads as fine print
+   rather than a label. Nudge the smallest ones up a touch. */
+:root :where(:not(.legacy-chrome *)):is(
+  .uppercase.tracking-wider.text-\[10px\], .uppercase.tracking-wider.text-\[10\.5px\],
+  .uppercase.tracking-wide.text-\[10px\], .uppercase.tracking-wider.text-\[11px\]
+) { font-size: 11.5px; }
+
+/* Display weights: the reference tops out at semibold. */
+:root :where(:not(.legacy-chrome *)):is(.font-black, .font-extrabold) { font-weight: 600; }
+/* Oversized figures are what make the UI feel blocky. Bring the
+   display sizes down to product scale. */
+:root :where(:not(.legacy-chrome *)).text-3xl { font-size: 1.35rem; line-height: 1.15; letter-spacing: -0.022em; }
+:root :where(:not(.legacy-chrome *)).text-2xl { font-size: 1.2rem;  line-height: 1.15; letter-spacing: -0.02em; }
+
+/* One card radius across the app. */
+:root :where(:not(.legacy-chrome *)):is(.rounded-2xl, .rounded-xl) { border-radius: var(--radius-card); }
+
+/* Shadows re-enabled for premium depth. */
+:root {
+  --shadow-premium: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 0 3px rgba(0,0,0,0.02);
+}
+.dark {
+  --shadow-premium: 0 4px 20px -2px rgba(0, 0, 0, 0.2), 0 0 3px rgba(0,0,0,0.1);
+}
+:root :where(:not(.legacy-chrome *)):is(
+  .shadow-card, .shadow-lift, .shadow-btn-brand,
+  .shadow-sm, .shadow, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl
+) { 
+  box-shadow: var(--shadow-premium); 
+}
+:root :where(:not(.legacy-chrome *)):is(
+  .hover\:shadow-md, .hover\:shadow-lift, .hover\:shadow-card, .hover\:shadow-lg
+):hover { 
+  box-shadow: var(--shadow-premium); 
+}
+
+/* The two opted-out screens keep literal palette values — highest
+   specificity here so they survive every remap above.
+
+   NOT `.bg-white` though. Pinning that to #fff froze the login form panel
+   white in BOTH themes while its text kept following the theme, so in dark
+   mode "Welcome back" (text-navy-900 -> --text-primary -> #fafafa) was white
+   on white and effectively invisible — and the form's dark inputs sat on a
+   white card, which looked broken even where you could read it. The panel
+   follows --surface-card like every other surface; the logo tile opts back
+   out on its own via `dark:!bg-white`, which carries !important. */
+:root .legacy-chrome .dark\:\!bg-white { background-color: #fff; }
+:root .legacy-chrome .bg-navy-900 { background-color: #0c1626; }
+
+/* Nothing may widen the page. A single un-shrinkable flex child (a filter row,
+   a wide table, a long unbroken string) used to push the whole document wider
+   than the phone, which is why unrelated things — status pills, the badge on a
+   job card — all appeared sliced off at the same screen edge. Scrollers still
+   scroll; they just can't drag the page with them. */
+html, body { max-width: 100%; overflow-x: hidden; }
+
+/* ── Mobile dashboard: hero figure + inset grouped rows ─────────────────
+   The phone dashboard was eight equal-weight KPI cards in a 2-column grid:
+   roughly 1800px of scrolling before any actual content, every figure
+   shouting at the same volume, and no hierarchy at all — which is most of
+   what made it read as blocky. This is the iOS grouped-list pattern: ONE
+   hero number, then compact rows with the label left and the value right,
+   hairline-separated inside a single rounded container. Same information,
+   about 750px, and an obvious order of importance.
+   Phone only — the desktop KPI grid is untouched. */
+.m-hero {
+  padding: 1.25rem 1.25rem 1.375rem;
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+}
+.m-hero-label { font-size: 0.8125rem; font-weight: 500; color: var(--text-muted); letter-spacing: -0.005em; }
+.m-hero-value {
+  margin-top: 0.25rem;
+  font-size: 2.25rem; font-weight: 680; line-height: 1.05;
+  letter-spacing: -0.038em;
+  font-variant-numeric: tabular-nums;
+  width: fit-content;
+}
+.m-hero-foot { margin-top: 0.625rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--text-muted); }
+.m-hero-chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.15rem 0.5rem; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 600;
+  background: rgba(63,163,77,0.14); color: var(--accent-text);
+}
+
+.m-group-title { margin: 1.5rem 0 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); }
+.m-group {
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+}
+.m-row { display: flex; align-items: center; gap: 0.875rem; padding: 0.875rem 1rem; position: relative; }
+/* Divider starts level with the label, not the icon — the iOS inset rule. */
+.m-row + .m-row::before {
+  content: ""; position: absolute; left: 3.375rem; right: 0; top: 0;
+  height: 1px; background: var(--hairline);
+}
+.m-row:active { background: var(--surface-raised); }
+.m-row-ico {
+  display: grid; place-items: center; height: 1.75rem; width: 1.75rem;
+  border-radius: 8px; flex: 0 0 auto;
+  background: var(--surface-raised); color: var(--text-secondary);
+}
+.m-row-main { min-width: 0; flex: 1; }
+.m-row-label { font-size: 0.9375rem; font-weight: 500; color: var(--text-primary); letter-spacing: -0.01em; }
+/* One line, always. A wrapping caption makes rows different heights, and an
+   uneven rhythm is what stops a list feeling like a list. */
+.m-row-sub {
+  display: block; margin-top: 0.0625rem;
+  font-size: 0.75rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Circular initials for people/company rows (Clients). */
+.m-row-av {
+  display: grid; place-items: center; height: 2.25rem; width: 2.25rem;
+  border-radius: 999px; flex: 0 0 auto;
+  font-size: 0.75rem; font-weight: 650; letter-spacing: -0.01em;
+}
+/* A count sitting where a value would — quieter than a figure, and greyed
+   out entirely at zero so "no jobs yet" doesn't read as a number. */
+.m-row-count { font-size: 0.875rem; font-weight: 640; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.m-row-count-zero { color: var(--text-muted); font-weight: 500; }
+.m-row-val { font-size: 1rem; font-weight: 640; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.m-row-alert .m-row-val { color: var(--neg); }
+.m-row-chev { color: var(--text-muted); opacity: 0.5; flex: 0 0 auto; }
+.m-row-pill {
+  margin-left: 0.4rem; padding: 0.1rem 0.4rem; border-radius: 999px;
+  background: rgba(225,29,72,0.14); color: #fb7185;
+  font-size: 0.6875rem; font-weight: 600;
+}
+
+/* Trend chip inside a grouped row (Reports). Same shape as .m-row-pill but
+   carrying direction rather than urgency. */
+.m-row-trend {
+  margin-left: 0.4rem; padding: 0.1rem 0.35rem; border-radius: 999px;
+  font-size: 0.6875rem; font-weight: 600; white-space: nowrap;
+}
+.m-row-trend-up   { background: rgba(63,163,77,0.14); color: var(--accent-text); }
+.m-row-trend-down { background: rgba(225,29,72,0.14); color: #fb7185; }
+
+/* ── Prospects on a phone ───────────────────────────────────────────────
+   The desktop view is a 10-column table. On a 375px screen that means
+   sideways-scrolling to read a single record — unusable for a list whose
+   whole job is "who do I call next". These rows put the two things that
+   drive the decision (who, and how overdue) side by side, with the outreach
+   buttons in reach. Phone only; the table is unchanged above lg. */
+.p-row { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem 1rem; position: relative; }
+.p-row + .p-row::before {
+  content: ""; position: absolute; left: 1rem; right: 0; top: 0;
+  height: 1px; background: var(--hairline);
+}
+.p-row-main { min-width: 0; flex: 1; }
+.p-row-name {
+  display: block; font-size: 0.9375rem; font-weight: 600;
+  color: var(--text-primary); letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.p-row-addr {
+  display: block; margin-top: 0.0625rem; font-size: 0.75rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.p-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin-top: 0.375rem; }
+.p-row-svc {
+  border-radius: 5px; background: var(--surface-raised);
+  padding: 0.05rem 0.3rem; font-size: 0.625rem; font-weight: 700; color: var(--text-secondary);
+}
+.p-row-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.2rem; flex: 0 0 auto; }
+.p-row-due { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+/* Days-left chip. Colour is the signal the whole list exists for, so it is
+   the one place here that gets saturated colour. */
+.p-row-days { font-size: 0.6875rem; font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 999px; white-space: nowrap; }
+.p-row-days-over { background: rgba(225,29,72,0.14); color: #e11d48; }
+.p-row-days-soon { background: rgba(217,131,36,0.16); color: #b45309; }
+.p-row-days-ok   { background: var(--surface-raised); color: var(--text-muted); }
+
+/* ── Dispatch agenda (phone) ────────────────────────────────────────────
+   The board is engineer COLUMNS, which is right on a desk — you compare
+   people's days side by side and drag between them. On a phone it means
+   scrolling sideways through five columns to answer "what's on today",
+   so the same day becomes one time-ordered list instead. Times run down
+   the left edge, which is how every calendar day-view reads. */
+.a-row { display: flex; gap: 0.75rem; padding: 0.75rem 1rem; position: relative; }
+.a-row + .a-row::before {
+  content: ""; position: absolute; left: 4.25rem; right: 0; top: 0;
+  height: 1px; background: var(--hairline);
+}
+.a-time {
+  flex: 0 0 3.25rem; padding-top: 0.0625rem;
+  font-size: 0.8125rem; font-weight: 640; color: var(--text-primary);
+  font-variant-numeric: tabular-nums; letter-spacing: -0.01em;
+}
+.a-time-sub { display: block; font-size: 0.6875rem; font-weight: 500; color: var(--text-muted); }
+.a-main { min-width: 0; flex: 1; }
+.a-client {
+  display: block; font-size: 0.9375rem; font-weight: 600; color: var(--text-primary);
+  letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.a-where {
+  display: block; margin-top: 0.0625rem; font-size: 0.75rem; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.a-eng { display: inline-flex; align-items: center; gap: 0.35rem; margin-top: 0.375rem; font-size: 0.75rem; color: var(--text-secondary); }
+.a-dot { height: 0.5rem; width: 0.5rem; border-radius: 999px; flex: 0 0 auto; }
+.a-empty { padding: 2.5rem 1rem; text-align: center; font-size: 0.8125rem; color: var(--text-muted); }
+
+/* ── Settings on a phone ────────────────────────────────────────────────
+   Nine full sections stacked on one page is a very long scroll with no way
+   to jump — you hunt for "Service catalogue" by thumb. On a phone each
+   section collapses to a single tappable row, so the page opens as an index
+   of what's in Settings, the way iOS Settings does. Desktop is untouched:
+   every section stays open and its own heading does the labelling. */
+.set-head {
+  display: flex; align-items: center; gap: 0.75rem; width: 100%;
+  padding: 0.875rem 1rem; text-align: left;
+  border-radius: var(--radius-card);
+  background: var(--surface-card); border: 1px solid var(--hairline);
+}
+.set-head[data-open="true"] { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.set-head-title { flex: 1; min-width: 0; font-size: 0.9375rem; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; }
+.set-head-chev { color: var(--text-muted); transition: transform 0.18s ease; }
+.set-head[data-open="true"] .set-head-chev { transform: rotate(90deg); }
+/* The section's own heading is the desktop label; on a phone the tap row
+   above already says it, so showing both would say it twice. */
+.set-body .section-label { display: none; }
+.set-body[data-open="true"] {
+  border: 1px solid var(--hairline); border-top: 0;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  padding: 1rem;
+}
+@media (min-width: 1024px) {
+  .set-body .section-label { display: block; }
+  .set-body[data-open="true"] { border: 0; padding: 0; border-radius: 0; }
+}
+
+/* ── The page container ─────────────────────────────────────────────────
+   Every screen previously set its own padding inline (p-4 sm:p-8, p-5 sm:p-8)
+   and NONE of them set a maximum width, so on a wide monitor content simply
+   stretched to fill: measured at 1288px on a 1600px display, which puts body
+   text at ~150 characters a line against a comfortable 60–80. Tables thinned
+   out, KPI rows spread apart, and the eye had to travel the whole screen.
+
+   One container, one padding scale, one measure. 1440px is deliberately
+   generous — this is a data app where a six-column table earns its width —
+   but it stops the runaway. Boards that genuinely want the full display
+   (Dispatch) opt out with .page-wide. */
+/* REVERTED: the 1440px cap boxed the content into the middle of a wide
+   monitor with dead margins either side, which read as worse than the
+   stretching it was meant to fix. The container stays — it unifies the
+   padding scale across every page, which was the other half of the problem —
+   but it no longer constrains width. Any future max-width belongs on the
+   individual surfaces that want one (prose, forms), not on the whole page. */
+.page {
+  width: 100%;
+  padding: 1rem;
+}
+@media (min-width: 640px) { .page { padding: 2rem; } }
+.page-wide { max-width: none; }
+
+/* Prose inside a page still wants a shorter measure than a table does. */
+.measure { max-width: 68ch; }

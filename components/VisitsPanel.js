@@ -1,0 +1,301 @@
+"use client";
+
+import { useState } from "react";
+import { LuSplit, LuTrash2, LuPlus } from "react-icons/lu";
+import { useStore } from "@/lib/store";
+import { gbp, lineTotal } from "@/lib/format";
+import { TIME_PARTS, WINDOW_PRESETS } from "@/lib/constants";
+import { certLabel } from "@/lib/jobCard";
+import {
+  getVisits, isSplit, visitLines, unassignedLines, schedulableLines,
+  deriveJobStatus, visitProgress, readyToInvoice,
+  autoSplitByEngineer, splitPerService, assignLineToVisit,
+  makeVisit, syncJobFromVisits, VISIT_STATUSES, VISIT_OUTCOMES,
+} from "@/lib/visits";
+
+// Split a job into separate engineer visits — different people, different
+// days, one client-facing job. Only appears on multi-service jobs, because a
+// single-service job is already one visit and splitting it is meaningless.
+export default function VisitsPanel({ job }) {
+  const { updateJob, engineers } = useStore();
+  const [open, setOpen] = useState(false);
+
+  // Only real work is schedulable. Parking/congestion are charges on the job,
+  // never something an engineer attends, so they never appear here.
+  const realLines = schedulableLines(job);
+  const split = isSplit(job);
+  const visits = getVisits(job);
+  const progress = visitProgress(job);
+  const orphans = unassignedLines(job);
+
+  // Nothing to split — don't clutter a one-service job with this.
+  if (!split && realLines.length < 2) return null;
+
+  const save = (nextVisits) => {
+    const patched = { ...job, visits: nextVisits };
+    // Job status follows its visits, but never walks a billing status back.
+    // The job's own date/engineer follow them too, so every other view of
+    // this job (list, funnel, calendar, dispatch) agrees with this panel.
+    updateJob(job.id, {
+      visits: nextVisits,
+      status: deriveJobStatus(patched),
+      ...syncJobFromVisits(job, nextVisits),
+    });
+  };
+
+  const startSplit = () => {
+    save(autoSplitByEngineer(job));
+    setOpen(true);
+  };
+
+  const patchVisit = (id, patch) =>
+    save(visits.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+
+  // Picking Morning/Afternoon fills the arrival window the same way job
+  // creation does — same presets, same behaviour — and the times stay
+  // editable afterwards for the odd "8am–10am only" booking. Changing the
+  // part of day also re-anchors scheduledAt to the new start time, so the
+  // calendar and the engineer's card don't keep showing the old slot.
+  const setVisitPart = (v, part) => {
+    const preset = WINDOW_PRESETS[part];
+    const patch = { windowPart: part };
+    if (preset) {
+      patch.windowFrom = preset.from;
+      patch.windowTo = preset.to;
+      if (v.scheduledAt) {
+        const day = new Date(v.scheduledAt).toISOString().slice(0, 10);
+        patch.scheduledAt = new Date(`${day}T${preset.from}`).toISOString();
+      }
+    }
+    patchVisit(v.id, patch);
+  };
+
+  const removeVisit = (id) => {
+    const next = visits.filter((v) => v.id !== id);
+    if (!next.length) {
+      // Last visit removed → back to a plain unsplit job.
+      updateJob(job.id, { visits: null });
+      return;
+    }
+    save(next);
+  };
+
+  const addVisit = () => save([...visits, makeVisit(job, [])]);
+
+  // Clicking a service MOVES it onto this visit and off any other. A service
+  // is done once, by one person, on one day — allowing it on two visits at
+  // once double-counted the job's value and made the panel unreadable.
+  const toggleLine = (visitId, lineId) => {
+    const on = visits.find((v) => v.id === visitId)?.lineIds?.includes(lineId);
+    save(
+      on
+        ? visits.map((v) => (v.id === visitId ? { ...v, lineIds: v.lineIds.filter((x) => x !== lineId) } : v))
+        : assignLineToVisit(visits, lineId, visitId)
+    );
+  };
+
+  if (!split) {
+    // "Group by engineer" buckets the services by whoever is ALREADY assigned
+    // to each one. That only produces more than one visit if the services
+    // genuinely have different engineers on them — and at this point they
+    // usually don't, because engineers normally get assigned AFTER splitting.
+    // Offered blindly it produced a single visit containing everything, which
+    // is not a split at all and is why the button looked like it did nothing.
+    const engineerCount = new Set(
+      realLines.map((l) => l.engineerId || job.engineerId || "unassigned")
+    ).size;
+    const canGroup = engineerCount > 1;
+
+    return (
+      <div className="panel">
+        <div className="panel-head">
+          <div className="min-w-0">
+            <span className="panel-title">Visits</span>
+            <p className="panel-sub">
+              {realLines.length} services on one appointment. Split them if different engineers or days are needed.
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              className="btn-outline py-1.5 text-xs"
+              onClick={() => { save(splitPerService(job)); setOpen(true); }}
+              title={`Creates ${realLines.length} separate visits — one per service, each with its own engineer, date and time`}
+            >
+              <LuSplit className="h-3.5 w-3.5" /> Split into {realLines.length} visits
+            </button>
+            <button
+              className="btn-outline py-1.5 text-xs disabled:opacity-40"
+              onClick={startSplit}
+              disabled={!canGroup}
+              title={
+                canGroup
+                  ? `Creates ${engineerCount} visits — one per engineer already assigned to these services`
+                  : "Nothing to group: these services are all on the same engineer. Assign different engineers to them first, or split per service above."
+              }
+            >
+              Group by engineer{canGroup ? ` (${engineerCount})` : ""}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel-head panel-head-ruled">
+        <div className="min-w-0">
+          <span className="panel-title">Visits</span>
+          <p className="panel-sub">
+            {progress.done} of {progress.total} done
+            {readyToInvoice(job)
+              ? " · all work complete, ready to invoice"
+              : " · not billable until every visit is finished"}
+          </p>
+        </div>
+        <button className="btn-outline shrink-0 py-1.5 text-xs" onClick={addVisit}>
+          <LuPlus className="h-3.5 w-3.5" /> Add visit
+        </button>
+      </div>
+
+      {orphans.length > 0 && (
+        <p className="border-b border-navy-100 bg-amber-50 px-4 py-2 text-xs text-amber-800 dark:bg-amber-500/10">
+          {orphans.length} service{orphans.length !== 1 ? "s" : ""} not on any visit
+          ({orphans.map((l) => (l.code === "CUSTOM" ? l.name : certLabel(l.code))).join(", ")})
+          — they won&apos;t be scheduled or dispatched.
+        </p>
+      )}
+
+      <div className="divide-y divide-navy-100">
+        {visits.map((v, i) => {
+          const vLines = visitLines(job, v);
+          const value = vLines.reduce((s, l) => s + lineTotal(l), 0);
+          const dateVal = v.scheduledAt ? new Date(v.scheduledAt).toISOString().slice(0, 10) : "";
+          return (
+            <div key={v.id} className="p-4">
+              <div className="mb-2.5 flex flex-wrap items-center gap-2">
+                <span className="text-[13px] font-semibold text-navy-900">Visit {i + 1}</span>
+                <span className={`pill ${VISIT_STATUSES.find((s) => s.key === v.status)?.pill || "pill-neutral"}`}>
+                  {VISIT_STATUSES.find((s) => s.key === v.status)?.label || v.status}
+                </span>
+                <span className="tnum ml-auto text-[13px] text-navy-500">{gbp(value)}</span>
+                <button
+                  type="button"
+                  onClick={() => removeVisit(v.id)}
+                  className="rounded p-1 text-navy-400 hover:text-rose-500"
+                  title="Remove this visit"
+                >
+                  <LuTrash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Which services this engineer is doing */}
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {realLines.map((l) => {
+                  const on = (v.lineIds || []).includes(l.id);
+                  const elsewhere = !on && visits.some((o) => o.id !== v.id && (o.lineIds || []).includes(l.id));
+                  return (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => toggleLine(v.id, l.id)}
+                      title={elsewhere ? "On another visit — click to move it here" : on ? "Click to remove from this visit" : "Click to add to this visit"}
+                      className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition ${
+                        on
+                          ? "border-brand-400 bg-brand-50 text-brand-700 dark:bg-brand-500/15"
+                          : elsewhere
+                            ? "border-navy-200 text-navy-400 opacity-50 hover:opacity-100"
+                            : "border-amber-300 text-amber-700"
+                      }`}
+                    >
+                      {l.code === "CUSTOM" ? l.name : certLabel(l.code)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+                <select
+                  className="input h-9 text-sm"
+                  value={v.engineerId || ""}
+                  onChange={(e) => patchVisit(v.id, { engineerId: e.target.value || "" })}
+                >
+                  <option value="">Unassigned</option>
+                  {engineers.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+                <input
+                  type="date"
+                  className="input h-9 text-sm"
+                  value={dateVal}
+                  onChange={(e) =>
+                    patchVisit(v.id, {
+                      scheduledAt: e.target.value
+                        ? new Date(`${e.target.value}T${v.windowFrom || "09:00"}`).toISOString()
+                        : null,
+                    })
+                  }
+                />
+                <select
+                  className="input h-9 text-sm"
+                  value={v.status}
+                  onChange={(e) => patchVisit(v.id, { status: e.target.value })}
+                >
+                  {VISIT_STATUSES.map((s) => (
+                    <option key={s.key} value={s.key}>{s.label}</option>
+                  ))}
+                </select>
+                <select
+                  className="input h-9 text-sm"
+                  value={v.outcome || ""}
+                  onChange={(e) => patchVisit(v.id, { outcome: e.target.value || null })}
+                  title="Outcome — a visit can be Completed and still FAIL"
+                >
+                  <option value="">Outcome…</option>
+                  {VISIT_OUTCOMES.map((o) => (
+                    <option key={o.key} value={o.key}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <select
+                  className="input h-9 text-sm"
+                  value={v.windowPart || ""}
+                  onChange={(e) => setVisitPart(v, e.target.value)}
+                  title="Part of day — fills the arrival window automatically"
+                >
+                  <option value="">Part of day…</option>
+                  {TIME_PARTS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+                <input
+                  type="time"
+                  className="input h-9 text-sm"
+                  value={v.windowFrom || ""}
+                  onChange={(e) => patchVisit(v.id, { windowFrom: e.target.value })}
+                  title="Arrival window from"
+                />
+                <input
+                  type="time"
+                  className="input h-9 text-sm"
+                  value={v.windowTo || ""}
+                  onChange={(e) => patchVisit(v.id, { windowTo: e.target.value })}
+                  title="Arrival window to"
+                />
+              </div>
+              <input
+                className="input mt-2 h-9 text-sm"
+                placeholder="Notes for this visit only — shown on this engineer's card"
+                value={v.notes || ""}
+                onChange={(e) => patchVisit(v.id, { notes: e.target.value })}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,15 @@
+/node_modules
+/.next/
+/out/
+/build
+.DS_Store
+*.pem
+npm-debug.log*
+.env*.local
+.env
+.vercel
+
+# Scraper data
+/scraper/screenshots/
+/scraper/output/
+/scraper/__pycache__/
