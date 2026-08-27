@@ -10,7 +10,7 @@ import { toast } from "@/lib/toast";
 import {
   getVisits, isSplit, visitLines, unassignedLines, schedulableLines,
   deriveJobStatus, visitProgress, readyToInvoice, isVisitBooked,
-  autoSplitByEngineer, splitPerService, assignLineToVisit,
+  splitPerService, assignLineToVisit,
   makeVisit, syncJobFromVisits, VISIT_STATUSES, VISIT_OUTCOMES,
 } from "@/lib/visits";
 
@@ -63,11 +63,6 @@ export default function VisitsPanel({ job }) {
       status: deriveJobStatus(patched),
       ...syncJobFromVisits(job, nextVisits),
     });
-  };
-
-  const startSplit = () => {
-    save(autoSplitByEngineer(job));
-    setOpen(true);
   };
 
   // Assigning an engineer or picking a date is what actually books a visit —
@@ -129,56 +124,33 @@ export default function VisitsPanel({ job }) {
   };
 
   if (!split) {
-    // "Group by engineer" buckets the services by whoever is ALREADY assigned
-    // to each one. That only produces more than one visit if the services
-    // genuinely have different engineers on them — and at this point they
-    // usually don't, because engineers normally get assigned AFTER splitting.
-    // Offered blindly it produced a single visit containing everything, which
-    // is not a split at all and is why the button looked like it did nothing.
-    const engineerCount = new Set(
-      realLines.map((l) => l.engineerId || job.engineerId || "unassigned")
-    ).size;
-    const canGroup = engineerCount > 1;
-
+    // ONE way to split, deliberately.
+    //
+    // There used to be a second button ("Group by engineer") that bucketed the
+    // services by whoever was already named on each service line. It was
+    // redundant: splitPerService below ALREADY carries each line's engineer
+    // onto its visit, so the only thing the second button did differently was
+    // MERGE two services onto a single visit when they shared an engineer —
+    // which the service chips on each visit already let you do by hand, by
+    // clicking a service to move it onto another visit. It added no
+    // capability, only a choice nobody could interpret, so it's gone.
     return (
       <div className="panel">
         <div className="panel-head">
           <div className="min-w-0">
             <span className="panel-title">Visits</span>
             <p className="panel-sub">
-              All {realLines.length} services are on one appointment, with one engineer.
-              Split them if they need different engineers or different days.
+              All {realLines.length} services are booked as one appointment with one
+              engineer. Split them if they need different engineers or different days.
             </p>
           </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <button
-              className="btn-outline py-1.5 text-xs"
-              onClick={() => { save(splitPerService(job)); setOpen(true); }}
-              title={`Creates ${realLines.length} separate visits — one per service, each with its own engineer, date and time`}
-            >
-              <LuSplit className="h-3.5 w-3.5" /> One visit per service ({realLines.length})
-            </button>
-            {/* This button does NOT assign anyone. It buckets the services by
-                whoever is ALREADY set on each service line, so it only does
-                anything when those lines genuinely name different engineers —
-                which is rare, because engineers are normally picked after
-                splitting. Labelled "Group by engineer" it read as though it
-                would work out the assignments for you, which is exactly the
-                opposite of what it does, and it looked broken when it
-                produced one visit containing everything. */}
-            <button
-              className="btn-outline py-1.5 text-xs disabled:opacity-40"
-              onClick={startSplit}
-              disabled={!canGroup}
-              title={
-                canGroup
-                  ? `These services already name ${engineerCount} different engineers. This puts each engineer's services onto their own visit — it does not assign anyone.`
-                  : "Only useful when the services already have different engineers set on them individually. They don't, so this would just make one visit with everything in it. Use “One visit per service” instead."
-              }
-            >
-              Split by who&rsquo;s already assigned{canGroup ? ` (${engineerCount})` : ""}
-            </button>
-          </div>
+          <button
+            className="btn-outline shrink-0 py-1.5 text-xs"
+            onClick={() => { save(splitPerService(job)); setOpen(true); }}
+            title={`Gives each service its own visit, with its own engineer, date and time. You can move services between visits afterwards, or delete a visit to put them back together.`}
+          >
+            <LuSplit className="h-3.5 w-3.5" /> Split into {realLines.length} visits
+          </button>
         </div>
       </div>
     );
@@ -200,6 +172,15 @@ export default function VisitsPanel({ job }) {
           <LuPlus className="h-3.5 w-3.5" /> Add visit
         </button>
       </div>
+
+      {/* Says out loud what the service chips below do. This is the capability
+          the removed "Group by engineer" button was a shortcut for — putting
+          two services back on one visit — so it needs to be discoverable
+          rather than something you find by experimenting. */}
+      <p className="border-b border-navy-100 px-4 py-2 text-[11px] text-navy-500">
+        Tap a service to move it onto that visit — put two on the same visit if
+        one engineer is doing both. Deleting a visit frees its services up again.
+      </p>
 
       {/* Part done, part not — the gas cert got done, the EICR couldn't be.
           Rather than block the whole job from being invoiced until someone
