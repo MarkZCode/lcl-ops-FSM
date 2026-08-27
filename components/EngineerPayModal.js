@@ -87,19 +87,22 @@ export default function EngineerPayModal({
     payableAll: sum((j) => j.owed),
     payableUnsettled: jd.filter((j) => !j.settled).reduce((s, j) => s + (Number(j.owed) || 0), 0),
     settledCount: jd.filter((j) => j.settled).length,
-    // Cash out (row.cashOut) is every payment DATED in this range, whichever
-    // job it actually covers — a transfer for a job from another period that
-    // happened to be sent this period is real money and belongs in that
-    // total, but it also means "Cash out" can be bigger than these jobs'
-    // combined value for a reason that has nothing to do with them. Flag it
-    // rather than let the two numbers look like they've drifted apart.
-    otherPeriodCash: (() => {
-      const periodJobIds = new Set(jd.map((j) => j.jobId));
-      return (row.payments || [])
-        .filter((p) => !(p.jobIds || []).some((id) => periodJobIds.has(id)))
-        .reduce((s, p) => s + (Number(p.amount) || 0), 0);
-    })(),
   };
+
+  // row.payments is every payment DATED inside this range, whichever job it
+  // actually covers — a transfer for a job from a different period that
+  // happened to be sent this period is real money, but it isn't money paid
+  // for one of THIS PERIOD'S JOBS, so it doesn't belong in a view titled
+  // "RIZWAN · 1 Aug – 27 Aug" listing exactly 2 jobs. Scoping "Cash out" and
+  // the payment list to only payments that name one of this period's jobs
+  // keeps every figure on this screen about the same 2 jobs it's showing.
+  const periodJobIds = new Set(jd.map((j) => j.jobId));
+  const periodPayments = (row.payments || []).filter((p) =>
+    (p.jobIds || []).some((id) => periodJobIds.has(id))
+  );
+  const periodPaid = periodPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const periodTransferFees = periodPayments.reduce((s, p) => s + (Number(p.transferFee) || 0), 0);
+  const periodCashOut = periodPaid + periodTransferFees;
 
   const handleFile = async (file) => {
     setError("");
@@ -249,15 +252,12 @@ export default function EngineerPayModal({
                 transfer. The engineer's own figure stays underneath, because
                 that — not the gross — is what settles their balance. */}
             <div className="metric-cell">
-              <p className="metric-label">{row.transferFees > 0 ? "Cash out" : "Already paid"}</p>
-              <div className="metric-figure"><span className="metric-value">{gbp(row.cashOut ?? row.paid)}</span></div>
+              <p className="metric-label">{periodTransferFees > 0 ? "Cash out" : "Already paid"}</p>
+              <div className="metric-figure"><span className="metric-value">{gbp(periodCashOut)}</span></div>
               <p className="metric-sub">
-                {row.transferFees > 0
-                  ? `${gbp(row.paid)} to them + ${gbp(row.transferFees)} bank fees`
-                  : "Recorded payments"}
-                {totals.otherPeriodCash > 0.005 && (
-                  <> · incl. {gbp(totals.otherPeriodCash)} for a job outside this period</>
-                )}
+                {periodTransferFees > 0
+                  ? `${gbp(periodPaid)} to them + ${gbp(periodTransferFees)} bank fees`
+                  : "Recorded payments for these jobs"}
               </p>
             </div>
             <div className="metric-cell">
@@ -568,21 +568,13 @@ export default function EngineerPayModal({
         {/* Reconciliation guard. A payment can only honestly settle jobs worth
           what it paid. Silent drift here is what let three jobs read "Paid"
           off two payments that didn't cover them.
-          Must only compare a payment against the SAME jobs it actually names
-          (p.jobIds) — row.payments is every payment dated inside this range,
-          which routinely includes a transfer settling a job from a DIFFERENT
-          period (paid late, or paid early). Comparing that payment's full
-          amount against only this period's job total made an unrelated,
-          perfectly correct payment look like a £50 overpayment on this
-          engineer's 2 jobs here, when it was really the full, correct amount
-          for a 3rd job that simply isn't one of this period's jobs. */}
+          Uses periodPayments (scoped to this period's jobs, see above) —
+          comparing against row.payments (every payment dated in range,
+          including transfers for jobs from other periods) made an unrelated,
+          perfectly correct payment look like an overpayment on these jobs. */}
       {(() => {
-        const periodJobIds = new Set(jd.map((j) => j.jobId));
-        const relevantPayments = (row.payments || []).filter((p) =>
-          (p.jobIds || []).some((id) => periodJobIds.has(id))
-        );
         const paidWork = jd.filter((j) => j.settled).reduce((s2, j) => s2 + (Number(j.owed) || 0), 0);
-        const paidCash = relevantPayments.reduce((s2, p) => s2 + (Number(p.amount) || 0), 0);
+        const paidCash = periodPaid;
         const diff = Math.round((paidCash - paidWork) * 100) / 100;
         if (Math.abs(diff) < 0.01) return null;
         return (
@@ -702,12 +694,16 @@ export default function EngineerPayModal({
           </div>
         )}
 
-        {/* Payment history */}
-        {row.payments?.length > 0 && (
+        {/* Payment history — scoped to periodPayments (this period's jobs
+            only). row.payments also includes payments for jobs from other
+            periods that simply happened to be sent while this range was open;
+            listing those here, under a title naming exactly 2 jobs, was what
+            made "3 jobs' worth of payments" look like it belonged to 2. */}
+        {periodPayments.length > 0 && (
           <div>
             <h3 className="mb-2 section-label text-xs">Payment history</h3>
             <ul className="divide-y divide-navy-100 rounded-xl border border-navy-100">
-              {row.payments.map((p) => (
+              {periodPayments.map((p) => (
                 <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                   <div className="min-w-0">
                     {/* Lead with what LEFT THE ACCOUNT — that's the figure
