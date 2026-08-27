@@ -179,7 +179,7 @@ export default function PortalPage() {
         }`}
       />
 
-      <div className="space-y-6 p-4 sm:p-8">
+      <div className="space-y-6 p-4 sm:p-8 lg:max-w-[1100px]">
         {/* Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
