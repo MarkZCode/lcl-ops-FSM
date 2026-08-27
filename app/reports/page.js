@@ -40,7 +40,7 @@ const REPORT_TABS = [
   { k: "pipeline", l: "Pipeline" },
 ];
 
-const EXPENSE_CATEGORIES = ["Staffing", "Technology", "Marketing", "Operations", "Legal", "Vehicles", "Insurance", "Other"];
+const EXPENSE_CATEGORIES = ["Staffing", "Technology", "Marketing", "Operations", "Legal", "Vehicles", "Insurance", "Bank Transfer Fees", "Other"];
 
 const CAT_COLORS = {
   Staffing: "bg-blue-100 text-blue-700",
@@ -165,11 +165,16 @@ function ReportsInner() {
   const periodExpenses = expBreakdown.items;
   const loggedExpenses = expBreakdown.total;
   // Bank fees on engineer transfers are a company expense, not engineer pay —
-  // the bank charges them, the engineer never sees them. They're derived from
-  // the payment records rather than typed in, so they can't be edited here,
-  // but they DO count: leaving them out understated what the business spent.
-  const transferFeeExpense = pay.totalTransferFees ?? 0;
-  const totalExpenses = loggedExpenses + transferFeeExpense;
+  // the bank charges them, the engineer never sees them. addEngineerPayment()
+  // (lib/store.js) now logs the fee as a real, dated expense (category "Bank
+  // Transfer Fees") the moment a payment is recorded, so it's already inside
+  // loggedExpenses via the normal date-range filter above — it used to be a
+  // derived number tacked on here instead, invisible in the expense list
+  // itself and impossible to edit or delete if it was ever wrong.
+  const transferFeeExpense = periodExpenses
+    .filter((e) => e.category === "Bank Transfer Fees")
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const totalExpenses = loggedExpenses;
   // TWO different profit questions, and they are NOT interchangeable:
   //
   //  accrualProfit — revenue minus what this period's jobs COST in engineer
@@ -194,17 +199,14 @@ function ReportsInner() {
   const trueProfitPct = accrualProfitPct;
   const showSundayPayReminder = period === "week" && [0, 6].includes(getDay(new Date())) && pay.totalBalance > 0;
 
-  // Group expenses by category for chart
-  const expByCategory = [
-    ...EXPENSE_CATEGORIES.map((cat) => ({
-      cat,
-      total:
-        expBreakdown.oneTime.filter((e) => e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0) +
-        expBreakdown.recurring.filter((e) => e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0) * expBreakdown.months,
-    })),
-    // Derived, not logged — but a real spend, so it belongs in the breakdown.
-    { cat: "Bank transfer fees", total: transferFeeExpense, derived: true },
-  ].filter((e) => e.total > 0);
+  // Group expenses by category for chart. "Bank Transfer Fees" is a normal
+  // category now (see addEngineerPayment in lib/store.js), not injected here.
+  const expByCategory = EXPENSE_CATEGORIES.map((cat) => ({
+    cat,
+    total:
+      expBreakdown.oneTime.filter((e) => e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0) +
+      expBreakdown.recurring.filter((e) => e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0) * expBreakdown.months,
+  })).filter((e) => e.total > 0);
 
   const saveExpense = () => {
     if (!expForm.name.trim() || !expForm.amount) return;
@@ -420,7 +422,8 @@ function ReportsInner() {
                     {pay.totalTransferFees > 0 && (
                       <p className="text-xs text-navy-400">
                         What engineers received. {gbp(pay.totalCashOut)} left the account in total —
-                        the {gbp(pay.totalTransferFees)} of bank fees is counted under expenses below.
+                        the {gbp(pay.totalTransferFees)} of bank fees for these jobs is logged as its own
+                        expense and counted under expenses below.
                       </p>
                     )}
                   </div>

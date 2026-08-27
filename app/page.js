@@ -144,7 +144,11 @@ export default function Dashboard() {
     const periodStats = computeStats(jobs, monthRange, engineers, engineerPayments);
     const expBreakdown = expensesForRange(expenses, monthRange);
     const pay = computeEngineerPay(jobs, monthRange, engineers, engineerPayments);
-    const companyExpenses = expBreakdown.total + (pay.totalTransferFees ?? 0);
+    // Bank transfer fees are now logged as a real, dated expense the moment
+    // a payment is recorded (see addEngineerPayment in lib/store.js), so
+    // expBreakdown.total already includes them via the normal date filter —
+    // adding pay.totalTransferFees on top would double-count every fee.
+    const companyExpenses = expBreakdown.total;
     // ACCRUAL basis, matching revenue's own basis — a job counts toward this
     // month because its WORK happened this month, so the labour cost set
     // against it must be for that same job, not whichever month the engineer
