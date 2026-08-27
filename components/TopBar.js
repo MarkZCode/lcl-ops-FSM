@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { visibleUtilityLinks } from "@/lib/nav";
 import NotificationBell from "./NotificationBell";
-import LogoMark from "./LogoMark";
 import GlobalSearch from "./GlobalSearch";
 
 // Full-width application bar pinned above BOTH the sidebar and the content,
@@ -26,28 +25,17 @@ export default function TopBar() {
       style={{ backgroundColor: "var(--surface-page)" }}
     >
       <div className="flex h-16 items-center gap-4 px-5">
-        {/* Brand sits in the bar's left slot, which is rail-width so the
-            search still centres over the content column. The header had no
-            logo at all — the mark only appeared inside the rail, so a
-            collapsed sidebar left the app unbranded entirely. */}
-        {/* Full brand lockup — mark plus a two-line name. "LCL Ops" alone
-            left most of the rail-width slot empty; the company line fills it
-            and matches the wordmark on the invoices and emails. */}
-        <Link href="/" className="flex w-[248px] shrink-0 items-center gap-3" aria-label="LCL Ops home">
-          {/* `bg-white` is remapped to --surface-card per theme, so this tile
-              is white in light and near-black in dark. The white SQUARE the
-              logo used to look like in dark mode wasn't this tile at all — it
-              was the opaque white background baked into the PNG, now keyed
-              out. The hairline + shadow keep the tile readable in light mode,
-              where white-on-#f6f6f7 otherwise disappears. */}
-          {/* No tile. The mark is line art now (see LogoMark) and inherits
-              the bar's own text colour, so boxing it in a white square just
-              put a box inside a box. */}
-          <LogoMark className="h-9 w-9 shrink-0 text-navy-900" />
-          <span className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-[15px] font-semibold tracking-tight text-navy-900">LCL Ops</span>
-            <span className="truncate text-[11px] text-navy-500">Landlord Compliance London</span>
-          </span>
+        {/* Wordmark only. The icon mark and the "Landlord Compliance London"
+            second line have both been dropped — at this size the glyph never
+            resolved into anything that read well, and the company line is
+            already on every invoice and email the app sends. The slot stays
+            rail-width so the search still centres over the content column. */}
+        <Link
+          href="/"
+          className="flex w-[248px] shrink-0 items-center text-[17px] font-semibold tracking-tight text-navy-900"
+          aria-label="LCL Ops home"
+        >
+          LCL Ops
         </Link>
 
         <GlobalSearch className="mx-auto w-full max-w-xl" />

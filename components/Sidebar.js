@@ -11,7 +11,6 @@ import {
   FiChevronRight,
 } from "react-icons/fi";
 import { useAuth } from "@/lib/auth";
-import LogoMark from "./LogoMark";
 import NotificationBell from "./NotificationBell";
 import ThemeToggle from "./ThemeToggle";
 import { visibleNavLinks, visibleUtilityLinks } from "@/lib/nav";
@@ -233,9 +232,8 @@ export default function Sidebar() {
         }`}
         style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
       >
-        <Link href="/" className="flex items-center gap-2">
-          <LogoMark className="h-7 w-7 shrink-0 text-navy-900" />
-          <span className="text-sm font-bold text-navy-900">LCL Ops</span>
+        <Link href="/" className="text-[15px] font-semibold tracking-tight text-navy-900">
+          LCL Ops
         </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle className="grid h-9 w-9 place-items-center rounded-lg border border-navy-200 text-navy-700 dark:border-white/10 dark:text-slate-300" />
@@ -322,18 +320,7 @@ export default function Sidebar() {
             <div className="flex flex-1 flex-col overflow-y-auto p-4" style={{ paddingTop: "calc(1rem + env(safe-area-inset-top))" }}>
             <div className="mb-6 flex items-center justify-between gap-2 px-2 pt-1">
               <span className="flex min-w-0 items-center gap-2.5">
-                {/* The drawer is dark chrome in BOTH themes, so the mark is
-                    pinned dark rather than following the theme — an auto mark
-                    here put a white glyph on a forced-white tile in dark mode. */}
-                {/* The drawer is a fixed dark surface, so the mark takes an
-                    explicit white — `variant="dark"` now means "pinned dark
-                    strokes for a white tile", which is the opposite of what
-                    this needs. Line art, no tile, same as the rest of the
-                    chrome. */}
-                <LogoMark className="h-8 w-8 shrink-0 text-white" />
-                {/* Single-line wordmark. The old two-line "LCL Ops / FIELD
-                    SERVICE" lockup had no room beside the controls and was
-                    clipping mid-word. */}
+                {/* Wordmark only — the icon mark is gone from the chrome. */}
                 <p className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-white">LCL Ops</p>
               </span>
               <button
