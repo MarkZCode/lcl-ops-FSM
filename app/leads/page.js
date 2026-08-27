@@ -434,18 +434,18 @@ function ColdLeadsInner() {
 
               <div className="hidden overflow-x-auto rounded-xl border border-navy-200 bg-white lg:block dark:border-white/10 dark:bg-navy-900">
                 <table className="w-full text-sm">
-                  <thead className="bg-navy-50 text-left text-navy-600 dark:bg-white/5 dark:text-slate-300">
+                  <thead className="sticky top-0 z-10 bg-navy-50 text-left text-navy-600 dark:bg-navy-900 dark:text-slate-300">
                     <tr>
-                      <th className="px-3 py-3 w-8">
+                      <th className="px-3 py-2.5 w-8">
                         <input type="checkbox" checked={allOnPageSelected} onChange={toggleSelectAll}
                           className="h-4 w-4 cursor-pointer rounded border-navy-300" />
                       </th>
-                      <th className="px-4 py-3 font-semibold">Contact / Address</th>
-                      <th className="px-4 py-3 font-semibold">Segment</th>
-                      <th className="px-4 py-3 font-semibold">Phone</th>
-                      <th className="px-4 py-3 font-semibold">Email</th>
-                      <th className="px-4 py-3 font-semibold">Stage</th>
-                      <th className="px-4 py-3"></th>
+                      <th className="px-4 py-2.5 font-semibold">Contact / Address</th>
+                      <th className="px-4 py-2.5 font-semibold">Segment</th>
+                      <th className="px-4 py-2.5 font-semibold">Phone</th>
+                      <th className="px-4 py-2.5 font-semibold">Email</th>
+                      <th className="px-4 py-2.5 font-semibold">Stage</th>
+                      <th className="px-4 py-2.5"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -455,11 +455,11 @@ function ColdLeadsInner() {
                       return (
                         <tr key={l.id} onClick={() => setActive(l)}
                             className={`cursor-pointer border-t border-navy-100 transition dark:border-white/10 ${isSel ? "bg-brand-50/60 dark:bg-brand-500/10" : "hover:bg-navy-50 dark:hover:bg-white/5"}`}>
-                          <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                          <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                             <input type="checkbox" checked={isSel} onChange={() => toggleSel(l.id)}
                               className="h-4 w-4 cursor-pointer rounded border-navy-300" />
                           </td>
-                          <td className="px-4 py-3 max-w-xs">
+                          <td className="px-4 py-2.5 max-w-xs">
                             <div className="flex items-center gap-1.5">
                               <span className="font-medium text-navy-900 truncate dark:text-slate-100">{l.name}</span>
                               {l.tier && (
@@ -478,26 +478,26 @@ function ColdLeadsInner() {
                                   : (l.address || l.area || "")}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-2.5">
                             <span className="rounded-full bg-navy-100 px-2 py-0.5 text-[11px] font-bold text-navy-700 dark:bg-white/10 dark:text-slate-300">
                               {sm.short}
                             </span>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-2.5">
                             {l.phone ? (
                               <a href={`tel:${l.phone}`} onClick={(e) => e.stopPropagation()}
                                  className="font-medium text-brand-600 hover:underline">{l.phone}</a>
                             ) : <span className="text-navy-300">—</span>}
                           </td>
-                          <td className="px-4 py-3 max-w-[180px]">
+                          <td className="px-4 py-2.5 max-w-[280px]">
                             {l.email ? (
                               <span className="truncate block text-navy-700 dark:text-slate-300">{l.email}</span>
                             ) : <span className="text-navy-300">—</span>}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-2.5">
                             <StagePill l={l} onStage={updateColdLead} />
                           </td>
-                          <td className="px-4 py-3 text-navy-400"><FiChevronRight /></td>
+                          <td className="px-4 py-2.5 text-navy-400"><FiChevronRight /></td>
                         </tr>
                       );
                     })}
