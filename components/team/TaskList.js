@@ -155,7 +155,7 @@ export default function TaskList({ tasks, onOpen, onToggleDone, selected, onTogg
                     <span className="text-navy-300 text-xs">—</span>
                   )}
                 </td>
-                <td className={`px-3 py-2.5 text-xs font-semibold ${overdue ? "text-rose-600" : dueSoon ? "text-amber-600" : "text-navy-500"}`}>
+                <td className={`tnum px-3 py-2.5 text-xs font-semibold ${overdue ? "text-rose-600" : dueSoon ? "text-amber-600" : "text-navy-500"}`}>
                   {dueLabel}
                 </td>
                 <td className="px-3 py-2.5">
