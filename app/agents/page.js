@@ -342,13 +342,12 @@ function AgentsInner() {
                 <table className="w-full text-sm">
                   <thead className="bg-navy-50 text-left text-navy-600 dark:bg-white/5 dark:text-slate-300">
                     <tr>
-                      <th className="px-4 py-3 font-semibold">Agency · contact</th>
-                      <th className="px-4 py-3 font-semibold">Portfolio</th>
-                      <th className="px-4 py-3 font-semibold">£/yr</th>
-                      <th className="px-4 py-3 font-semibold">Area</th>
-                      <th className="px-4 py-3 font-semibold">Stage</th>
-                      <th className="px-4 py-3 font-semibold">Outreach</th>
-                      <th className="px-4 py-3"></th>
+                      <th className="px-4 py-2.5 font-semibold">Agency · contact</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">Portfolio</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">£/yr</th>
+                      <th className="px-4 py-2.5 font-semibold">Stage</th>
+                      <th className="px-4 py-2.5 font-semibold">Outreach</th>
+                      <th className="px-4 py-2.5"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -409,7 +408,7 @@ const AgentRow = memo(function AgentRow({ a, onOpen, onLog, onEmail }) {
   const n = a.portfolio_size || a.properties?.length || 0;
   return (
     <tr className="border-t border-navy-100 dark:border-white/10 hover:bg-navy-50 dark:hover:bg-white/5">
-      <td className="px-4 py-3 cursor-pointer max-w-xs" onClick={() => onOpen(a)}>
+      <td className="px-4 py-2.5 cursor-pointer max-w-xs" onClick={() => onOpen(a)}>
         <div className="flex items-center gap-1.5">
           <FiHome className="h-3 w-3 shrink-0 text-brand-600" />
           <span className="truncate font-medium text-navy-900 dark:text-slate-100">{a.agency_name}</span>
@@ -419,20 +418,18 @@ const AgentRow = memo(function AgentRow({ a, onOpen, onLog, onEmail }) {
         </div>
         <div className="truncate text-xs text-navy-500 dark:text-slate-400">
           {a.contact_name || "—"}{a.decision_maker_role ? ` · ${a.decision_maker_role}` : ""}
+          {(a.area_focus || []).length > 0 ? ` · ${a.area_focus.slice(0, 2).join(", ")}` : ""}
         </div>
       </td>
-      <td className="px-4 py-3 cursor-pointer" onClick={() => onOpen(a)}>
+      <td className="tnum px-4 py-2.5 cursor-pointer text-right" onClick={() => onOpen(a)}>
         <div className="font-bold text-navy-900 dark:text-slate-100">{n}</div>
         {band && <div className="text-[10px] text-navy-500 dark:text-slate-400">{band.label}</div>}
       </td>
-      <td className="px-4 py-3 cursor-pointer font-semibold text-emerald-700 dark:text-emerald-300" onClick={() => onOpen(a)}>
+      <td className="tnum px-4 py-2.5 cursor-pointer text-right font-semibold text-emerald-700 dark:text-emerald-300" onClick={() => onOpen(a)}>
         £{value.toLocaleString()}
       </td>
-      <td className="px-4 py-3 cursor-pointer text-xs text-navy-500" onClick={() => onOpen(a)}>
-        {(a.area_focus || []).slice(0, 2).join(", ") || "—"}
-      </td>
-      <td className="px-4 py-3 cursor-pointer" onClick={() => onOpen(a)}><StageBadge stage={a.stage} size="sm" /></td>
-      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+      <td className="px-4 py-2.5 cursor-pointer" onClick={() => onOpen(a)}><StageBadge stage={a.stage} size="sm" /></td>
+      <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
         <OutreachToolbar
           compact hideAiCall
           contact={{ phone: a.phone, email: a.email, name: a.contact_name || a.agency_name }}
@@ -441,7 +438,7 @@ const AgentRow = memo(function AgentRow({ a, onOpen, onLog, onEmail }) {
              Stage moves only on actual Send / dialer disposition / explicit chip. */
         />
       </td>
-      <td className="px-4 py-3 cursor-pointer text-navy-400" onClick={() => onOpen(a)}><FiChevronRight /></td>
+      <td className="px-4 py-2.5 cursor-pointer text-navy-400" onClick={() => onOpen(a)}><FiChevronRight /></td>
     </tr>
   );
 });
