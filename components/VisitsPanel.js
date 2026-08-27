@@ -124,28 +124,37 @@ export default function VisitsPanel({ job }) {
           <div className="min-w-0">
             <span className="panel-title">Visits</span>
             <p className="panel-sub">
-              {realLines.length} services on one appointment. Split them if different engineers or days are needed.
+              All {realLines.length} services are on one appointment, with one engineer.
+              Split them if they need different engineers or different days.
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap gap-2">
             <button
               className="btn-outline py-1.5 text-xs"
               onClick={() => { save(splitPerService(job)); setOpen(true); }}
               title={`Creates ${realLines.length} separate visits — one per service, each with its own engineer, date and time`}
             >
-              <LuSplit className="h-3.5 w-3.5" /> Split into {realLines.length} visits
+              <LuSplit className="h-3.5 w-3.5" /> One visit per service ({realLines.length})
             </button>
+            {/* This button does NOT assign anyone. It buckets the services by
+                whoever is ALREADY set on each service line, so it only does
+                anything when those lines genuinely name different engineers —
+                which is rare, because engineers are normally picked after
+                splitting. Labelled "Group by engineer" it read as though it
+                would work out the assignments for you, which is exactly the
+                opposite of what it does, and it looked broken when it
+                produced one visit containing everything. */}
             <button
               className="btn-outline py-1.5 text-xs disabled:opacity-40"
               onClick={startSplit}
               disabled={!canGroup}
               title={
                 canGroup
-                  ? `Creates ${engineerCount} visits — one per engineer already assigned to these services`
-                  : "Nothing to group: these services are all on the same engineer. Assign different engineers to them first, or split per service above."
+                  ? `These services already name ${engineerCount} different engineers. This puts each engineer's services onto their own visit — it does not assign anyone.`
+                  : "Only useful when the services already have different engineers set on them individually. They don't, so this would just make one visit with everything in it. Use “One visit per service” instead."
               }
             >
-              Group by engineer{canGroup ? ` (${engineerCount})` : ""}
+              Split by who&rsquo;s already assigned{canGroup ? ` (${engineerCount})` : ""}
             </button>
           </div>
         </div>
