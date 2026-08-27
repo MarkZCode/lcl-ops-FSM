@@ -293,72 +293,78 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="hidden grid-cols-2 gap-4 lg:grid lg:grid-cols-4">
-              <Kpi
-                icon={FiCheckCircle}
-                label="Revenue this month"
-                value={gbp(stats.monthRevenue)}
-                note={stats.monthLabel}
-                link="/reports"
-              />
-              <Kpi
-                icon={FiPieChart}
-                label="Profit (Cash)"
-                value={gbp(stats.profit)}
-                note="Net after expenses"
-                link="/reports"
-              />
-              <Kpi
-                icon={FiBarChart2}
-                label="Company Expenses"
-                value={gbp(stats.companyExpenses)}
-                note="Month to date"
-                link="/reports"
-              />
-              <Kpi
-                icon={FiUsers}
-                label="Engineer Pay"
-                value={gbp(stats.engineerCost)}
-                note="Paid out this month"
-                link="/reports"
-              />
-              <Kpi
-                icon={FiAlertCircle}
-                label="Outstanding"
-                value={gbp(stats.outstanding)}
-                pill={stats.overdueCount ? `${stats.overdueCount} overdue` : null}
-                pillTone="down"
-                note={stats.overdueCount ? "Chase these" : "Nothing overdue"}
-              />
-              <Kpi
-                icon={FiLayers}
-                label="Active jobs"
-                value={stats.active}
-                note="Quote → invoiced"
-                link="/jobs"
-              />
-              <Kpi
-                icon={FiTarget}
-                label="Jobs done this month"
-                value={stats.monthDoneCount}
-                note={`Avg ${gbp(stats.avgValue)} per job`}
-                link="/jobs"
-              />
+            <div className="hidden lg:block max-w-[1400px]">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-navy-500">Money</p>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <Kpi
+                  icon={FiCheckCircle}
+                  label="Revenue this month"
+                  value={gbp(stats.monthRevenue)}
+                  note={stats.monthLabel}
+                  link="/reports"
+                />
+                <Kpi
+                  icon={FiPieChart}
+                  label="Profit (Cash)"
+                  value={gbp(stats.profit)}
+                  note="Net after expenses"
+                  link="/reports"
+                />
+                <Kpi
+                  icon={FiBarChart2}
+                  label="Company Expenses"
+                  value={gbp(stats.companyExpenses)}
+                  note="Month to date"
+                  link="/reports"
+                />
+                <Kpi
+                  icon={FiUsers}
+                  label="Engineer Pay"
+                  value={gbp(stats.engineerCost)}
+                  note="Paid out this month"
+                  link="/reports"
+                />
+                <Kpi
+                  icon={FiAlertCircle}
+                  label="Outstanding"
+                  value={gbp(stats.outstanding)}
+                  pill={stats.overdueCount ? `${stats.overdueCount} overdue` : null}
+                  pillTone="down"
+                  note={stats.overdueCount ? "Chase these" : "Nothing overdue"}
+                />
+                <Kpi
+                  icon={FiLayers}
+                  label="Active jobs"
+                  value={stats.active}
+                  note="Quote → invoiced"
+                  link="/jobs"
+                />
+                <Kpi
+                  icon={FiTarget}
+                  label="Jobs done this month"
+                  value={stats.monthDoneCount}
+                  note={`Avg ${gbp(stats.avgValue)} per job`}
+                  link="/jobs"
+                />
+              </div>
             </div>
 
-            <div className="hidden grid-cols-2 gap-4 lg:grid lg:grid-cols-4">
-              <Kpi icon={FiInbox}    label="Open quotes"      value={stats.quotes} note="Awaiting approval" link="/jobs?status=quote" />
-              <Kpi icon={FiClock}    label="Today's schedule" value={stats.today}  note="Jobs scheduled"    link="/dispatch" />
-              <Kpi icon={FiTrendingUp} label="Pipeline value" value={gbp(stats.pipelineValue)} note="All open stages" link="/jobs" />
-              <Kpi
-                icon={FiBell}
-                label="Renewals due"
-                value={stats.urgentProspects}
-                pill={stats.urgentProspects > 0 ? "fortnight" : null}
-                pillTone="down"
-                note="Next 14 days"
-                link="/prospects"
-              />
+            <div className="hidden lg:block max-w-[1400px]">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-navy-500">Work</p>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <Kpi icon={FiInbox}    label="Open quotes"      value={stats.quotes} note="Awaiting approval" link="/jobs?status=quote" />
+                <Kpi icon={FiClock}    label="Today's schedule" value={stats.today}  note="Jobs scheduled"    link="/dispatch" />
+                <Kpi icon={FiTrendingUp} label="Pipeline value" value={gbp(stats.pipelineValue)} note="All open stages" link="/jobs" />
+                <Kpi
+                  icon={FiBell}
+                  label="Renewals due"
+                  value={stats.urgentProspects}
+                  pill={stats.urgentProspects > 0 ? "fortnight" : null}
+                  pillTone="down"
+                  note="Next 14 days"
+                  link="/prospects"
+                />
+              </div>
             </div>
           </>
         )}
@@ -475,29 +481,31 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="p-4">
-                <div className="segbar">
-                  {totalValue > 0
-                    ? segs.filter((s) => s.value > 0).map((s) => (
-                        <span
-                          key={s.key}
-                          className={s.dot}
-                          style={{ width: `${(s.value / totalValue) * 100}%` }}
-                          title={`${s.label}: ${s.count} job${s.count !== 1 ? "s" : ""} · ${gbp(s.value)}`}
-                        />
-                      ))
-                    : <span className="w-full bg-navy-100" />}
-                </div>
-                <div className="segbar-legend">
-                  {segs.map((s) => (
-                    <Link key={s.key} href={`/jobs?status=${s.key}`} className="min-w-0 transition-opacity hover:opacity-70">
-                      <span className="segbar-key">
-                        <i className={s.dot} />
-                        <span className="truncate">{s.label}</span>
-                      </span>
-                      <p className="tnum mt-1 text-[13px] font-semibold text-navy-900">{gbp(s.value)}</p>
-                      <p className="tnum text-[11px] text-navy-500">{s.count} job{s.count !== 1 ? "s" : ""}</p>
-                    </Link>
-                  ))}
+                <div className="max-w-[900px]">
+                  <div className="segbar">
+                    {totalValue > 0
+                      ? segs.filter((s) => s.value > 0).map((s) => (
+                          <span
+                            key={s.key}
+                            className={s.dot}
+                            style={{ width: `${(s.value / totalValue) * 100}%` }}
+                            title={`${s.label}: ${s.count} job${s.count !== 1 ? "s" : ""} · ${gbp(s.value)}`}
+                          />
+                        ))
+                      : <span className="w-full bg-navy-100" />}
+                  </div>
+                  <div className="segbar-legend">
+                    {segs.map((s) => (
+                      <Link key={s.key} href={`/jobs?status=${s.key}`} className="min-w-0 transition-opacity hover:opacity-70">
+                        <span className="segbar-key">
+                          <i className={s.dot} />
+                          <span className="truncate">{s.label}</span>
+                        </span>
+                        <p className="tnum mt-1 text-[13px] font-semibold text-navy-900">{gbp(s.value)}</p>
+                        <p className="tnum text-[11px] text-navy-500">{s.count} job{s.count !== 1 ? "s" : ""}</p>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -547,28 +555,28 @@ export default function Dashboard() {
                       return (
                         <tr key={job.id} className="cursor-pointer transition-colors hover:bg-navy-50"
                           onClick={() => router.push(`/jobs/${job.id}`)}>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-2.5">
                             <p className="max-w-[160px] truncate font-medium text-navy-900">
                               {client?.name || "Unknown"}
                             </p>
                             <p className="text-[11px] text-navy-500">{job.id}</p>
                           </td>
-                          <td className="hidden px-3 py-3 sm:table-cell">
+                          <td className="hidden px-3 py-2.5 sm:table-cell">
                             <span className="text-xs text-navy-600">
                               {(job.services || []).join(", ") || "—"}
                             </span>
                           </td>
-                          <td className="hidden px-3 py-3 md:table-cell">
+                          <td className="hidden px-3 py-2.5 md:table-cell">
                             <span className="text-xs text-navy-500">
                               {eng && eng.id !== "unassigned" ? eng.name : "—"}
                             </span>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-3 py-2.5">
                             <span className={`pill ${STATUS_PILL[job.status] || "pill-neutral"}`}>
                               {STATUS_LABEL[job.status] || job.status}
                             </span>
                           </td>
-                          <td className="tnum px-4 py-3 text-right font-medium text-navy-900">
+                          <td className="tnum px-4 py-2.5 text-right font-medium text-navy-900">
                             {job.price ? gbp(job.price) : "—"}
                           </td>
                         </tr>

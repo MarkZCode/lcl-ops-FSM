@@ -292,7 +292,7 @@ function EmailLogInner() {
         }
       />
 
-      <div className="p-4 sm:p-8 space-y-5">
+      <div className="p-4 sm:p-8 space-y-6">
         {error && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
             {error}

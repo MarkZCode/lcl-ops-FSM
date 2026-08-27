@@ -814,7 +814,7 @@ function PipelineView({ pipeline }) {
   ];
   const max = Math.max(...bars.map(b => b.value), 1);
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="card p-5">
         <h3 className="mb-4 section-label text-sm">Quote → Paid funnel (all time)</h3>
         <div className="space-y-3">

@@ -368,7 +368,7 @@ function TeamInner() {
         </nav>
       </div>
 
-      <div className="page space-y-5">
+      <div className="page space-y-6">
         {/* KPI strip — always visible so the top of the page tells the whole state */}
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Kpi label="My open"    value={counts.mine}    icon={FiUser}  tone="navy" />

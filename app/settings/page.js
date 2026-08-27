@@ -374,7 +374,7 @@ function SettingsInner() {
       {/* Tight rhythm on a phone, where the sections are collapsed rows and a
           32px gutter between each makes an index look scattered. Desktop keeps
           the generous spacing between full, open sections. */}
-      <div className="page space-y-2.5 sm:space-y-8">
+      <div className="page space-y-2.5 sm:space-y-6">
         <SettingsGroup title="Configuration">
   {/* Configuration shortcuts */}
           <section>

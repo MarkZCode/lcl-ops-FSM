@@ -95,7 +95,7 @@ export default function EmailSettingsPage() {
         </div>
       </div>
 
-      <div className="space-y-8 p-4 sm:p-8">
+      <div className="space-y-6 p-4 sm:p-8">
         {/* Phase note */}
         <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
           <FiInfo className="mt-0.5 shrink-0" />
@@ -108,7 +108,7 @@ export default function EmailSettingsPage() {
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* Provider + sender */}
-          <section className="space-y-5">
+          <section className="space-y-4">
             <div className="card p-5">
               <h2 className="mb-4 section-label text-sm">
                 Email provider
@@ -246,7 +246,7 @@ export default function EmailSettingsPage() {
           </section>
 
           {/* Templates */}
-          <section className="space-y-5">
+          <section className="space-y-4">
             <div className="card p-5">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="section-label text-sm">

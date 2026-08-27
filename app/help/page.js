@@ -156,7 +156,7 @@ function WorkflowGuide() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="card border-l-4 border-l-brand-500 p-5">
         <h3 className="text-base font-bold text-navy-900">
           How a job flows through LCL Ops
