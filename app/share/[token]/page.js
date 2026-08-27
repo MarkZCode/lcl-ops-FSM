@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { gbp, fmtDate, serviceName } from "@/lib/format";
 import { statusMeta } from "@/lib/constants";
 import LogoMark from "@/components/LogoMark";
+import { invoiceConfig } from "@/lib/invoiceConfig";
 
 const STATUS_STEPS = ["quote", "scheduled", "in_progress", "completed", "invoiced", "paid"];
 const STATUS_LABELS = { quote: "Quote", scheduled: "Booked", in_progress: "In progress", completed: "Done", invoiced: "Invoice sent", paid: "Paid" };
@@ -112,7 +113,9 @@ export default function SharePage() {
         {/* Footer */}
         <p className="pb-8 text-center text-xs text-navy-400">
           Questions? Call us on <a href="tel:07426409342" className="font-semibold text-navy-600">07426 409342</a> or email{" "}
-          <a href="mailto:landlordcompliancelondon@gmail.com" className="font-semibold text-navy-600">landlordcompliancelondon@gmail.com</a>
+          {/* Same company address the quotes and invoices carry — a client
+              looking at their certificate shouldn't be handed a gmail. */}
+          <a href={`mailto:${invoiceConfig.email}`} className="font-semibold text-navy-600">{invoiceConfig.email}</a>
         </p>
       </div>
     </div>
