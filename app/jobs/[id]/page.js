@@ -342,11 +342,11 @@ export default function JobDetailPage() {
                 <FiDownload /> Invoice
               </button>
             )}
-            <button className="btn-outline sm:hidden" onClick={handleShare} title="Copy shareable client link">
+            <button className="btn-outline" onClick={handleShare} title="Copy shareable client link">
               {shareCopied ? <FiCheck className="text-brand-600" /> : <FiShare2 />}
               {shareCopied ? "Copied!" : "Share"}
             </button>
-            <div className="relative sm:hidden">
+            <div className="relative">
               <button
                 className="btn-outline"
                 onClick={() => setMoreOpen((o) => !o)}
@@ -358,7 +358,7 @@ export default function JobDetailPage() {
               {moreOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} aria-hidden />
-                  <div className="absolute left-0 top-full z-20 mt-1 min-w-[10.5rem] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg">
+                  <div className="absolute right-0 top-full z-20 mt-1 min-w-[10.5rem] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg sm:left-0 sm:right-auto">
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setJobCardOpen(true); setMoreOpen(false); }}>
                       <FiClipboard className="h-4 w-4" /> Job card
                     </button>
@@ -378,43 +378,13 @@ export default function JobDetailPage() {
                 </>
               )}
             </div>
-            <div className="hidden flex-wrap items-center gap-2 sm:flex">
-              <button className="btn-outline" onClick={handleShare} title="Copy shareable client link">
-                {shareCopied ? <FiCheck className="text-brand-600" /> : <FiShare2 />}
-                {shareCopied ? "Copied!" : "Share"}
-              </button>
-              <button className="btn-outline" onClick={() => setJobCardOpen(true)}>
-                <FiClipboard /> Job card
-              </button>
-              <button
-                className="btn-outline"
-                onClick={() => {
-                  setInvoiceMode("quote");
-                  setInvoiceOpen(true);
-                }}
-              >
-                <FiFileText /> Quote
-              </button>
-              <button className="btn-outline" onClick={() => setEmailOpen(true)}>
-                <FiSend /> Email
-              </button>
-              <button className="btn-outline" onClick={() => setEditOpen(true)}>
-                <FiEdit2 /> Edit
-              </button>
-              <button
-                className="btn-outline text-rose-600 hover:bg-rose-50"
-                onClick={() => setConfirmDel(true)}
-              >
-                <FiTrash2 /> Delete
-              </button>
-            </div>
           </div>
         </div>
       </div>
 
-      <div className="page grid grid-cols-1 gap-6 overflow-x-hidden lg:grid-cols-3">
+      <div className="page grid grid-cols-1 gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,900px)_380px]">
         {/* Main */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className="min-w-0 space-y-6">
           {/* Status workflow */}
           <section className="card p-5">
             <h2 className="mb-3 section-label text-sm">

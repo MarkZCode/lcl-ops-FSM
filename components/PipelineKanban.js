@@ -48,14 +48,14 @@ export default function PipelineKanban({ items, stages, onMove, renderCard, onCa
   const handleDragEnd = () => { setDraggingId(null); setOverStage(null); };
 
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
+    <div className="flex w-full gap-3 overflow-x-auto pb-2">
       {stages.map((s) => {
         const list = byStage[s.key] || [];
         const isOver = overStage === s.key;
         return (
           <div
             key={s.key}
-            className={`flex w-72 shrink-0 flex-col rounded-xl border bg-navy-50 transition-colors dark:bg-white/5 ${
+            className={`flex flex-1 min-w-[18rem] flex-col rounded-xl border bg-navy-50 transition-colors dark:bg-white/5 ${
               isOver ? "border-brand-500 ring-2 ring-brand-300" : "border-navy-200 dark:border-white/10"
             }`}
             onDragOver={(e) => handleDragOver(e, s.key)}

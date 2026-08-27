@@ -198,7 +198,7 @@ export default function JobsPage() {
         ) : view === "funnel" ? (
           <JobFunnelView jobs={filtered} clients={clients} onJobCard={setCardJob} />
         ) : view === "board" ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {filtered.map((job) => (
               <JobCard key={job.id} job={job} onJobCard={setCardJob} />
             ))}
@@ -258,14 +258,14 @@ function ListView({ jobs, clients, onJobCard }) {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-navy-100 bg-navy-50 text-xs uppercase tracking-wide text-navy-500">
             <tr>
-              <th className="px-4 py-3 font-semibold">Job</th>
-              <th className="px-4 py-3 font-semibold">Client</th>
-              <th className="px-4 py-3 font-semibold">Services</th>
-              <th className="px-4 py-3 font-semibold">Engineer</th>
-              <th className="px-4 py-3 font-semibold">Scheduled</th>
-              <th className="px-4 py-3 font-semibold">Status</th>
-              <th className="px-4 py-3 text-right font-semibold">Price</th>
-              <th className="px-4 py-3 text-right font-semibold">Card</th>
+              <th className="px-4 py-2.5 font-semibold">Job</th>
+              <th className="px-4 py-2.5 font-semibold">Client</th>
+              <th className="px-4 py-2.5 font-semibold">Services</th>
+              <th className="px-4 py-2.5 font-semibold">Engineer</th>
+              <th className="px-4 py-2.5 font-semibold">Scheduled</th>
+              <th className="px-4 py-2.5 font-semibold">Status</th>
+              <th className="px-4 py-2.5 text-right font-semibold">Price</th>
+              <th className="px-4 py-2.5 text-right font-semibold">Card</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-navy-100">
@@ -278,7 +278,7 @@ function ListView({ jobs, clients, onJobCard }) {
                   onClick={() => router.push(`/jobs/${job.id}`)}
                   className="cursor-pointer transition hover:bg-navy-50"
                 >
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5">
                     <Link
                       href={`/jobs/${job.id}`}
                       className="font-semibold text-navy-900 hover:text-brand-600"
@@ -286,8 +286,8 @@ function ListView({ jobs, clients, onJobCard }) {
                       {job.id}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-navy-700">{client?.name || "—"}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5 text-navy-700">{client?.name || "—"}</td>
+                  <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-1">
                       {(job.services || []).map((c) => (
                         <span
@@ -299,7 +299,7 @@ function ListView({ jobs, clients, onJobCard }) {
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5">
                     <span className="inline-flex items-center gap-1.5 text-navy-700">
                       <span
                         className="h-2 w-2 rounded-full"
@@ -308,16 +308,16 @@ function ListView({ jobs, clients, onJobCard }) {
                       {engineer.name}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-navy-600">
+                  <td className="px-4 py-2.5 text-navy-600">
                     {fmtDateTime(job.scheduledAt)}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5">
                     <StatusBadge status={job.status} size="sm" />
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-navy-900">
+                  <td className="tnum px-4 py-2.5 text-right font-semibold text-navy-900">
                     {gbp(job.price)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-2.5 text-right">
                     <button
                       onClick={(e) => { e.stopPropagation(); onJobCard(job); }}
                       className="inline-grid h-8 w-8 place-items-center rounded-lg border border-navy-200 text-navy-500 hover:border-brand-300 hover:text-brand-600"
