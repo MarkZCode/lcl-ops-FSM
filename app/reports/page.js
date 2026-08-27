@@ -336,21 +336,21 @@ function ReportsInner() {
                 figure being wrong rather than just a different definition.
                 No trend arrow: comparing to the previous period would need
                 that period's expenses too, which isn't computed here. */}
-            {/* Headline is the CASH figure — the money actually kept once
-                engineers have been paid and expenses cleared. The accrual
-                figure sits underneath rather than replacing it, because a
-                headline that ignored real payments read as simply wrong next
-                to the "Paid to engineers" card. */}
-            <StatCard tone="green" icon={FiPieChart} label="Money kept" value={gbp(cashProfit)}
-              sub={`${cashProfitPct}% of revenue · after real payments & expenses`} />
+            {/* Headline is the ACCRUAL figure — same basis as Revenue above
+                it and as the Dashboard's own Profit card: a job's cost counts
+                toward the period its WORK fell in, not whichever period the
+                payment run happened to land in. The cash figure (what
+                actually left the bank) sits in the P&L breakdown below,
+                still visible, just no longer the headline — a payment that
+                settles jobs from outside this range used to make the
+                headline jump around for reasons that had nothing to do with
+                this period's own performance. */}
+            <StatCard tone="green" icon={FiPieChart} label="Money kept" value={gbp(accrualProfit)}
+              sub={`${accrualProfitPct}% of revenue · after engineer costs & expenses`} />
             <StatCard tone="light" icon={FiBarChart2} label="Company expenses" value={gbp(totalExpenses)}
               sub={`${periodExpenses.length} expense${periodExpenses.length !== 1 ? "s" : ""} this period`} />
-            <StatCard tone="light" icon={FiUsers} label="Paid to engineers" value={gbp(pay.totalCashOut ?? pay.totalPaid)}
-              sub={
-                pay.totalTransferFees > 0
-                  ? `${gbp(pay.totalPaid)} to them + ${gbp(pay.totalTransferFees)} fees`
-                  : pay.totalBalance > 0 ? `${gbp(pay.totalBalance)} still owed` : "Nothing owed this period"
-              } />
+            <StatCard tone="light" icon={FiUsers} label="Engineer cost" value={gbp(pay.totalAccrued ?? 0)}
+              sub="Work done this period" />
             <StatCard tone="light" icon={FiCheckSquare} label="Jobs completed" value={stats.completed}
               sub={`${stats.total} in period`} trend={trendVs(stats.completed, prevStats.completed)} />
             <StatCard tone="light" icon={FiClock} label="Avg job value" value={gbp(stats.avgValue)}
@@ -451,33 +451,35 @@ function ReportsInner() {
                 </div>
                 <span className="text-base font-black text-rose-600">− {gbp(totalExpenses)}</span>
               </div>
-              {/* Bottom line — the CASH answer, because "what did we keep"
-                  is the question this row is actually asked. The accrual
-                  version sits under it, named, so the two can never look
-                  like the same number disagreeing with itself. */}
-              <div className={`flex items-center justify-between px-5 py-4 ${cashProfit >= 0 ? "bg-emerald-50 dark:bg-emerald-500/[0.10]" : "bg-rose-50 dark:bg-rose-500/[0.10]"}`}>
+              {/* Bottom line — the ACCRUAL answer, matching the headline
+                  "Money kept" card and the Dashboard's own Profit figure:
+                  this period's revenue against what this period's OWN jobs
+                  actually cost in labour, regardless of when that labour got
+                  paid. The cash version sits under it, named, so the two can
+                  never look like the same number disagreeing with itself. */}
+              <div className={`flex items-center justify-between px-5 py-4 ${accrualProfit >= 0 ? "bg-emerald-50 dark:bg-emerald-500/[0.10]" : "bg-rose-50 dark:bg-rose-500/[0.10]"}`}>
                 <div className="flex items-center gap-3">
-                  <span className={`grid h-9 w-9 place-items-center rounded-lg font-bold text-lg ${cashProfit >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-600"}`}>£</span>
+                  <span className={`grid h-9 w-9 place-items-center rounded-lg font-bold text-lg ${accrualProfit >= 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-600"}`}>£</span>
                   <div>
-                    <p className="text-sm font-bold text-navy-900">Money actually kept</p>
+                    <p className="text-sm font-bold text-navy-900">Money kept</p>
                     <p className="text-xs text-navy-400">
-                      Revenue − {gbp(pay.totalCashOut ?? pay.totalPaid)} really paid to engineers − {gbp(totalExpenses)} expenses
+                      Revenue − {gbp(pay.totalOwed)} this period&rsquo;s jobs cost in labour − {gbp(totalExpenses)} expenses
                     </p>
                   </div>
                 </div>
-                <span className={`text-xl font-black ${cashProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>{gbp(Math.abs(cashProfit))}</span>
+                <span className={`text-xl font-black ${accrualProfit >= 0 ? "text-emerald-700" : "text-rose-600"}`}>{gbp(Math.abs(accrualProfit))}</span>
               </div>
-              {/* Accrual view — only worth showing when it genuinely differs. */}
+              {/* Cash view — only worth showing when it genuinely differs. */}
               {Math.abs(accrualProfit - cashProfit) > 0.005 && (
                 <div className="flex items-center justify-between border-t border-navy-100 px-5 py-3">
                   <div className="pl-11">
-                    <p className="text-sm font-semibold text-navy-600">On an accrual basis</p>
+                    <p className="text-sm font-semibold text-navy-600">On a cash basis</p>
                     <p className="text-xs text-navy-400">
-                      Using the {gbp(pay.totalOwed)} these jobs cost in labour rather than what was paid out —
-                      the two differ when a payment settles jobs from outside this range.
+                      Using the {gbp(pay.totalCashOut ?? pay.totalPaid)} that actually left the bank this period rather than what this
+                      period&rsquo;s jobs cost — the two differ when a payment settles jobs from outside this range.
                     </p>
                   </div>
-                  <span className="text-sm font-bold text-navy-800">{gbp(accrualProfit)}</span>
+                  <span className="text-sm font-bold text-navy-800">{gbp(cashProfit)}</span>
                 </div>
               )}
             </div>
