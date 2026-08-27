@@ -873,6 +873,16 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                             : `${gbp(l.unit)} each`}
                         </p>
                       )}
+                      {/* Guidance for tiers whose label alone doesn't say
+                          when to pick them — the residential and commercial
+                          FRAs both offer a "communal areas" tier at different
+                          prices, and nothing on screen said which was which. */}
+                      {tiers && (() => {
+                        const sel = tiers.find((x) => x.label === (l.tier || tiers[0].label));
+                        return sel?.hint ? (
+                          <p className="mt-1 text-[10.5px] leading-snug text-navy-500">{sel.hint}</p>
+                        ) : null;
+                      })()}
                     </div>
 
                     {/* qty stepper + price — row on sm+, stacked on narrow screens */}

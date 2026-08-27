@@ -32,6 +32,7 @@ import { gbp, fmtDate, getJobLines, lineTotal, lineGross, jobDiscount, jobPayabl
 import { jobFinancialsSplit } from "@/lib/finance";
 import { dateLine, certLabel, acceptanceProgress } from "@/lib/jobCard";
 import { computeCertExpiry } from "@/lib/renewals";
+import { isSplit } from "@/lib/visits";
 import { supabase } from "@/lib/supabase";
 import StatusBadge from "@/components/StatusBadge";
 import JobModal from "@/components/JobModal";
@@ -209,6 +210,17 @@ export default function JobDetailPage() {
     if (DONE_STATUSES.includes(s) && !job.certExpiry) {
       const exp = computeCertExpiry(job);
       if (exp) patch.certExpiry = exp;
+    }
+    // A split job's status is normally DERIVED from its visits (see
+    // lib/visits.js deriveJobStatus) — every visit fully booked = Scheduled,
+    // otherwise Quote. Manually forcing "Quote" here without touching the
+    // visits meant the very next visit edit recomputed "Scheduled" right back
+    // (they were all still booked), so the manual change silently undid
+    // itself — reported as "converting back to quote glitches back to
+    // scheduled." Clearing each visit's engineer/date makes the button do
+    // what it says: actually unschedule the job, not just relabel it.
+    if (s === "quote" && isSplit(job)) {
+      patch.visits = job.visits.map((v) => ({ ...v, engineerId: "", scheduledAt: null, status: "pending" }));
     }
     updateJob(job.id, patch);
     const nextJob = { ...job, ...patch };

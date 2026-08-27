@@ -8,7 +8,7 @@ import { TIME_PARTS, WINDOW_PRESETS } from "@/lib/constants";
 import { certLabel } from "@/lib/jobCard";
 import {
   getVisits, isSplit, visitLines, unassignedLines, schedulableLines,
-  deriveJobStatus, visitProgress, readyToInvoice,
+  deriveJobStatus, visitProgress, readyToInvoice, isVisitBooked,
   autoSplitByEngineer, splitPerService, assignLineToVisit,
   makeVisit, syncJobFromVisits, VISIT_STATUSES, VISIT_OUTCOMES,
 } from "@/lib/visits";
@@ -48,8 +48,20 @@ export default function VisitsPanel({ job }) {
     setOpen(true);
   };
 
+  // Assigning an engineer or picking a date is what actually books a visit —
+  // the status label should follow that, not sit stuck on whatever it said
+  // before. Only nudges it between pending <-> scheduled; a visit already
+  // in_progress/completed/cancelled is a real workflow state and is never
+  // silently overwritten just because its engineer or date field changed.
   const patchVisit = (id, patch) =>
-    save(visits.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+    save(visits.map((v) => {
+      if (v.id !== id) return v;
+      const next = { ...v, ...patch };
+      if (patch.status === undefined && ["pending", "scheduled"].includes(v.status)) {
+        next.status = isVisitBooked(next) ? "scheduled" : "pending";
+      }
+      return next;
+    }));
 
   // Picking Morning/Afternoon fills the arrival window the same way job
   // creation does — same presets, same behaviour — and the times stay
