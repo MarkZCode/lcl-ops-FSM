@@ -36,6 +36,18 @@ import UserManagement from "@/components/UserManagement";
 import EngineerModal from "@/components/EngineerModal";
 import { useConfirm } from "@/components/ConfirmProvider";
 
+const SETTINGS_NAV = [
+  { id: "config", label: "Configuration" },
+  { id: "profile", label: "Users & access" },
+  { id: "engineers", label: "Engineers" },
+  { id: "services", label: "Service catalogue & pricing" },
+  { id: "push", label: "Urgent outreach alerts" },
+  { id: "auto-notify", label: "Auto-notifications" },
+  { id: "gmail", label: "Gmail push notifications" },
+  { id: "integrations", label: "Integrations roadmap" },
+  { id: "data", label: "Data" },
+];
+
 const integrations = [
   // ---- Live now ----
   {
@@ -195,7 +207,7 @@ function PushNotificationsSection() {
             <p className="text-sm font-semibold text-navy-900">
               Push notifications to this device
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-navy-500">
+            <p className="measure mt-1 text-xs leading-relaxed text-navy-500">
               Once a day (~8am) LCL Ops checks for renewals overdue or due
               within 14 days that haven&apos;t been chased recently, plus any
               new client replies — and sends one reminder to every device
@@ -286,7 +298,7 @@ function GmailPushSection() {
             <p className="text-sm font-semibold text-navy-900">
               Instant inbound email replies
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-navy-500">
+            <p className="measure mt-1 text-xs leading-relaxed text-navy-500">
               Google notifies LCL Ops the moment a client replies — replies appear in
               the job thread instantly instead of every 5 seconds. Requires a Gmail
               API + Pub/Sub setup (see <code className="text-navy-700">GMAIL_SETUP.md</code>).
@@ -373,9 +385,20 @@ function SettingsInner() {
 
       {/* Tight rhythm on a phone, where the sections are collapsed rows and a
           32px gutter between each makes an index look scattered. Desktop keeps
-          the generous spacing between full, open sections. */}
-      <div className="page space-y-2.5 sm:space-y-6">
-        <SettingsGroup title="Configuration">
+          the generous spacing between full, open sections. From lg up, a
+          sticky sub-nav on the left replaces scrolling through all 9 open
+          sections to find one. */}
+      <div className="page lg:grid lg:grid-cols-[200px_1fr] lg:items-start lg:gap-10">
+        <nav className="hidden lg:sticky lg:top-24 lg:block lg:space-y-1">
+          {SETTINGS_NAV.map((s) => (
+            <a key={s.id} href={`#${s.id}`}
+              className="block rounded-lg px-3 py-1.5 text-sm text-navy-500 transition-colors hover:bg-navy-50 hover:text-navy-900">
+              {s.label}
+            </a>
+          ))}
+        </nav>
+        <div className="space-y-2.5 sm:space-y-6">
+        <SettingsGroup title="Configuration" id="config">
   {/* Configuration shortcuts */}
           <section>
             <h2 className="mb-3 section-label text-sm">
@@ -409,7 +432,7 @@ function SettingsInner() {
           </div>
         </SettingsGroup>
 
-        <SettingsGroup title="Engineers">
+        <SettingsGroup title="Engineers" id="engineers">
   {/* Engineers */}
           <section>
             <div className="mb-3 flex items-center justify-between">
@@ -504,7 +527,7 @@ function SettingsInner() {
           </section>
         </SettingsGroup>
 
-        <SettingsGroup title="Service catalogue &amp; pricing">
+        <SettingsGroup title="Service catalogue &amp; pricing" id="services">
   {/* Service catalogue */}
           <section>
             <div className="mb-3 flex items-center justify-between">
@@ -618,22 +641,22 @@ function SettingsInner() {
           </section>
         </SettingsGroup>
 
-        <SettingsGroup title="Urgent outreach alerts">
+        <SettingsGroup title="Urgent outreach alerts" id="push">
   {/* Urgent outreach push notifications (phone + laptop) */}
           <PushNotificationsSection />
         </SettingsGroup>
 
-        <SettingsGroup title="Auto-notifications">
+        <SettingsGroup title="Auto-notifications" id="auto-notify">
   {/* Auto-notifications */}
           <AutoNotifySection />
         </SettingsGroup>
 
-        <SettingsGroup title="Gmail push notifications">
+        <SettingsGroup title="Gmail push notifications" id="gmail">
   {/* Gmail push notifications */}
           <GmailPushSection />
         </SettingsGroup>
 
-        <SettingsGroup title="Integrations roadmap">
+        <SettingsGroup title="Integrations roadmap" id="integrations">
   {/* Integrations roadmap */}
           <section>
             <h2 className="mb-3 section-label text-sm">
@@ -659,7 +682,7 @@ function SettingsInner() {
                       </span>
                     </div>
                     <p className="mt-3 text-sm font-semibold text-navy-900">{it.name}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-navy-500">{it.desc}</p>
+                    <p className="measure mt-1 text-xs leading-relaxed text-navy-500">{it.desc}</p>
                   </div>
                 );
               })}
@@ -667,7 +690,7 @@ function SettingsInner() {
           </section>
         </SettingsGroup>
 
-        <SettingsGroup title="Data">
+        <SettingsGroup title="Data" id="data">
   {/* Data */}
           <section>
             <h2 className="mb-3 section-label text-sm">
@@ -770,6 +793,7 @@ function SettingsInner() {
             </div>
           </section>
         </SettingsGroup>
+        </div>
       </div>
 
       <EngineerModal
