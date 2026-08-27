@@ -347,7 +347,7 @@ export default function ImportPage() {
       />
 
       <div className="p-4 sm:p-8">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="mx-auto max-w-3xl grid grid-cols-1 gap-6 sm:grid-cols-2">
           {/* CSV Upload */}
           <div className="card p-8 text-center">
             <div className="mb-4 inline-block rounded-lg bg-brand-100 p-4">
@@ -387,7 +387,7 @@ export default function ImportPage() {
         </div>
 
         {/* Template Download */}
-        <div className="mt-8 rounded-lg border-2 border-dashed border-navy-200 p-8 text-center">
+        <div className="mx-auto mt-8 max-w-3xl rounded-lg border-2 border-dashed border-navy-200 p-8 text-center">
           <p className="mb-4 text-sm text-navy-600">
             Need the CSV template? Download it to understand the required format.
           </p>
