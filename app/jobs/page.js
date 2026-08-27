@@ -7,7 +7,7 @@ import JobFunnelView from "@/components/JobFunnelView";
 import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { JOB_STATUSES } from "@/lib/constants";
-import { serviceShort, gbp, fmtDateTime } from "@/lib/format";
+import { serviceShort, gbp, fmtDateTime, jobTags } from "@/lib/format";
 import PageHeader from "@/components/PageHeader";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange } from "@/lib/usePeriodRange";

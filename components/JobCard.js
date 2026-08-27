@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FiMapPin, FiUser, FiClock, FiClipboard } from "react-icons/fi";
 import { useStore } from "@/lib/store";
-import { serviceShort, fmtDateTime, gbp } from "@/lib/format";
+import { fmtDateTime, gbp, jobTags } from "@/lib/format";
 import StatusBadge from "./StatusBadge";
 
 // Left-border accent colour per job status
@@ -23,6 +23,7 @@ export default function JobCard({ job, onJobCard }) {
   const property = client?.properties.find((p) => p.id === job.propertyId);
   const engineer = engineerById(job.engineerId);
   const accent = STATUS_ACCENT[job.status] || "border-l-navy-200";
+  const tags = jobTags(job);
 
   return (
     <Link
@@ -55,9 +56,9 @@ export default function JobCard({ job, onJobCard }) {
 
       {/* Service tags */}
       <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {(job.services || []).map((code) => (
-          <span key={code} className="rounded-lg bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
-            {serviceShort(code)}
+        {tags.map((t) => (
+          <span key={t.key} className="rounded-lg bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">
+            {t.label}
           </span>
         ))}
       </div>
@@ -85,7 +86,7 @@ export default function JobCard({ job, onJobCard }) {
 
       {/* Footer */}
       <div className="mt-3 flex items-center justify-between border-t border-navy-100 pt-3">
-        <span className="text-xs text-navy-400">{(job.services || []).length} service{(job.services || []).length !== 1 ? "s" : ""}</span>
+        <span className="text-xs text-navy-400">{tags.length} service{tags.length !== 1 ? "s" : ""}</span>
         <span className="text-base font-black text-navy-900">{gbp(job.price)}</span>
       </div>
     </Link>
