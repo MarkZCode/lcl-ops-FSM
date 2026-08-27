@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { JOB_STATUSES } from "@/lib/constants";
 import { gbp, fmtDateTime, jobTags } from "@/lib/format";
+import { jobEngineerIds } from "@/lib/visits";
 import PageHeader from "@/components/PageHeader";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange } from "@/lib/usePeriodRange";
@@ -282,7 +283,7 @@ function ListView({ jobs, clients, onJobCard }) {
           <tbody className="divide-y divide-navy-100">
             {jobs.map((job) => {
               const client = clients.find((c) => c.id === job.clientId);
-              const engineer = engineerById(job.engineerId);
+              const engineers = jobEngineerIds(job).map(engineerById);
               return (
                 <tr
                   key={job.id}
@@ -311,12 +312,16 @@ function ListView({ jobs, clients, onJobCard }) {
                     </div>
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="inline-flex items-center gap-1.5 text-navy-700">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: engineer.color }}
-                      />
-                      {engineer.name}
+                    <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-navy-700">
+                      {engineers.map((e) => (
+                        <span key={e.id} className="inline-flex items-center gap-1.5">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: e.color }}
+                          />
+                          {e.name}
+                        </span>
+                      ))}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-navy-600">

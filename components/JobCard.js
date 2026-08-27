@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FiMapPin, FiUser, FiClock, FiClipboard } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { fmtDateTime, gbp, jobTags } from "@/lib/format";
+import { jobEngineerIds } from "@/lib/visits";
 import StatusBadge from "./StatusBadge";
 
 // Left-border accent colour per job status
@@ -21,7 +22,7 @@ export default function JobCard({ job, onJobCard }) {
   const { clientById, engineerById } = useStore();
   const client = clientById(job.clientId);
   const property = client?.properties.find((p) => p.id === job.propertyId);
-  const engineer = engineerById(job.engineerId);
+  const engineers = jobEngineerIds(job).map(engineerById);
   const accent = STATUS_ACCENT[job.status] || "border-l-navy-200";
   const tags = jobTags(job);
 
@@ -75,11 +76,15 @@ export default function JobCard({ job, onJobCard }) {
           <FiClock className="shrink-0 text-navy-400" />
           {fmtDateTime(job.scheduledAt)}
         </p>
-        <p className="flex items-center gap-2">
-          <FiUser className="shrink-0 text-navy-400" />
-          <span className="inline-flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: engineer.color }} />
-            {engineer.name}
+        <p className="flex items-start gap-2">
+          <FiUser className="mt-0.5 shrink-0 text-navy-400" />
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+            {engineers.map((e) => (
+              <span key={e.id} className="inline-flex min-w-0 items-center gap-1.5">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: e.color }} />
+                <span className="truncate">{e.name}</span>
+              </span>
+            ))}
           </span>
         </p>
       </div>
