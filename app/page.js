@@ -58,7 +58,25 @@ export default function Dashboard() {
   const { jobs: allJobs, clients, hydrated, prospectsReady, engineers, prospects, requestBigTables, expenses, engineerPayments } = useStore();
   // The renewals KPI counts prospects, so the dashboard needs that table — but
   // it never touches leads, which is 25MB it shouldn't be paying for.
-  useEffect(() => { requestBigTables("prospects"); }, [requestBigTables]);
+  //
+  // DEFERRED until the browser is idle. This is the landing page, and the
+  // prospects table is ~14.5k rows / ~13MB over ~15 paginated requests. Firing
+  // it synchronously on mount meant every single app open spent its first
+  // seconds downloading and parsing that, on the main thread, while the user
+  // was already trying to tap something — which is most of the "app feels
+  // drastically slow" and "I have to tap two or three times" behaviour on a
+  // phone. Every other figure on this page comes from jobs/clients, which are
+  // already loaded, so the whole dashboard is fully usable before this lands;
+  // only the renewals count fills in a beat later.
+  useEffect(() => {
+    const kick = () => requestBigTables("prospects");
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(kick, { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(kick, 1200);
+    return () => clearTimeout(t);
+  }, [requestBigTables]);
   const { user, can } = useAuth();
   const router = useRouter();
 
