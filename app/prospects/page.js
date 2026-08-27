@@ -888,21 +888,19 @@ function ProspectTable({ rows, onOpen, selected, onToggle, allOnPageSelected, on
 
     <div className="hidden overflow-x-auto rounded-xl border border-navy-200 bg-white lg:block dark:border-white/10 dark:bg-navy-900">
       <table className="w-full text-sm">
-        <thead className="bg-navy-50 text-left text-navy-600 dark:bg-white/5 dark:text-slate-300">
+        <thead className="sticky top-0 z-10 bg-navy-50 text-left text-navy-600 dark:bg-navy-900 dark:text-slate-300">
           <tr>
-            <th className="px-3 py-3 w-8">
+            <th className="px-3 py-2.5 w-8">
               <input type="checkbox" checked={allOnPageSelected} onChange={onToggleAll}
                 className="h-4 w-4 cursor-pointer rounded border-navy-300" />
             </th>
-            <th className="px-4 py-3 font-semibold">Contact / Property</th>
-            <th className="px-4 py-3 font-semibold">Cert</th>
-            <th className="px-4 py-3 font-semibold">Last £</th>
-            <th className="px-4 py-3 font-semibold">Last done</th>
-            <th className="px-4 py-3 font-semibold">Due</th>
-            <th className="px-4 py-3 font-semibold">Last contact</th>
-            <th className="px-4 py-3 font-semibold">Stage</th>
-            <th className="px-4 py-3 font-semibold">Outreach</th>
-            <th className="px-4 py-3"></th>
+            <th className="px-4 py-2.5 font-semibold">Contact / Property</th>
+            <th className="px-4 py-2.5 font-semibold">Cert</th>
+            <th className="px-4 py-2.5 font-semibold">Last job</th>
+            <th className="px-4 py-2.5 font-semibold">Due</th>
+            <th className="px-4 py-2.5 font-semibold">Stage / contact</th>
+            <th className="px-4 py-2.5 font-semibold">Outreach</th>
+            <th className="px-4 py-2.5"></th>
           </tr>
         </thead>
         <tbody>
@@ -1006,37 +1004,34 @@ const ProspectRow = memo(function ProspectRow({ p, onOpen, selected, onToggle, o
 
   return (
     <tr className={`border-t border-navy-100 dark:border-white/10 hover:bg-navy-50 dark:hover:bg-white/5 ${urgentBg}`}>
-      <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+      <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
         <input type="checkbox" checked={selected} onChange={() => onToggle(p.id)}
           className="h-4 w-4 cursor-pointer rounded border-navy-300" />
       </td>
-      <td className="px-4 py-3 max-w-xs cursor-pointer" onClick={() => onOpen(p)}>
+      <td className="px-4 py-2.5 max-w-xs cursor-pointer" onClick={() => onOpen(p)}>
         <div className="flex items-center gap-1.5">
           <span className="truncate font-medium text-navy-900 dark:text-slate-100">{p.nameOnCert || p.ownerName || "—"}</span>
           {p.isAgent && <FiHome className="h-3 w-3 shrink-0 text-brand-600" title="Letting agent" />}
         </div>
         <div className="truncate text-xs text-navy-500 dark:text-slate-400">{p.address}</div>
       </td>
-      <td className="px-4 py-3 cursor-pointer" onClick={() => onOpen(p)}>
+      <td className="px-4 py-2.5 cursor-pointer" onClick={() => onOpen(p)}>
         <div className="flex flex-wrap gap-1">
           {svcs.map((s) => <span key={s} className="rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-bold text-navy-700 dark:bg-white/10 dark:text-slate-300">{s}</span>)}
         </div>
       </td>
-      <td className="px-4 py-3 cursor-pointer text-sm font-medium text-navy-800 dark:text-slate-200" onClick={() => onOpen(p)}>
-        {lastInvoice}
+      <td className="tnum px-4 py-2.5 cursor-pointer" onClick={() => onOpen(p)} title={p.jobDate || ""}>
+        <div className="text-sm font-medium text-navy-800 dark:text-slate-200">{lastInvoice}</div>
+        <div className="text-xs text-navy-500 dark:text-slate-400">{formatLastDone(p)}</div>
       </td>
-      <td className="px-4 py-3 cursor-pointer text-xs text-navy-700 dark:text-slate-200" onClick={() => onOpen(p)}
-          title={p.jobDate || ""}>
-        {formatLastDone(p)}
-      </td>
-      <td className="px-4 py-3 cursor-pointer" onClick={() => onOpen(p)}>
+      <td className="tnum px-4 py-2.5 cursor-pointer text-right" onClick={() => onOpen(p)}>
         {due ? (
           <div>
             <div className="text-xs font-semibold text-navy-800 dark:text-slate-200">
               {due.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
             </div>
             {daysLeft != null && (
-              <div className={`text-[11px] font-bold ${
+              <div className={`inline-block rounded px-1.5 text-[11px] font-bold ${
                 daysLeft < 0 ? "text-rose-600"
                 : daysLeft <= 7 ? "text-rose-600"
                 : daysLeft <= 30 ? "text-amber-600"
@@ -1049,9 +1044,11 @@ const ProspectRow = memo(function ProspectRow({ p, onOpen, selected, onToggle, o
           </div>
         ) : <span className="text-navy-300">—</span>}
       </td>
-      <td className="px-4 py-3 text-xs text-navy-500 cursor-pointer" onClick={() => onOpen(p)}>{lastContact}</td>
-      <td className="px-4 py-3 cursor-pointer" onClick={() => onOpen(p)}><StageBadge stage={p.stage} size="sm" /></td>
-      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+      <td className="px-4 py-2.5 cursor-pointer" onClick={() => onOpen(p)}>
+        <StageBadge stage={p.stage} size="sm" />
+        <div className="mt-1 text-xs text-navy-500 dark:text-slate-400">{lastContact !== "—" ? `Last contact ${lastContact}` : "No contact logged"}</div>
+      </td>
+      <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
         <OutreachToolbar
           compact
           contact={{
@@ -1066,7 +1063,7 @@ const ProspectRow = memo(function ProspectRow({ p, onOpen, selected, onToggle, o
           onChannelClick={(channel) => onLogContact(p.id, { channel, note: `${channel} outreach` })}
         />
       </td>
-      <td className="px-4 py-3 cursor-pointer text-navy-400" onClick={() => onOpen(p)}><FiChevronRight /></td>
+      <td className="px-4 py-2.5 cursor-pointer text-navy-400" onClick={() => onOpen(p)}><FiChevronRight /></td>
     </tr>
   );
 });
