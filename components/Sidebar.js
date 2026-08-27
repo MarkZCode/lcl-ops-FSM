@@ -37,6 +37,7 @@ function NavLinks({ pathname, onNavigate, can, role, expanded = true, includeUti
             data-tour-nav={link.href}
             onClick={onNavigate}
             title={link.label}
+            data-active={active ? "true" : "false"}
             className={`nav-item relative z-10 ${expanded ? "" : "justify-center !px-0"} ${
               active ? "text-navy-900" : "text-navy-500 hover:text-navy-900"
             }`}

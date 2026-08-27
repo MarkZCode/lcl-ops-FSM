@@ -572,6 +572,15 @@ h1, h2, h3, h4 {
     letter-spacing: -0.008em;
     transition: background-color 0.15s ease, color 0.15s ease;
   }
+  /* Hover was a text-colour change ONLY (navy-500 -> navy-900), which in dark
+     mode is muted-grey -> near-white on an already-dark rail: almost nothing
+     to see, so you couldn't tell which row you were pointing at. A real
+     surface change under the cursor reads instantly in both themes. The
+     active row draws its own raised surface (see the motion.div in
+     Sidebar.js), so this only ever applies to non-active rows. */
+  .nav-item:not([data-active="true"]):hover {
+    background-color: var(--surface-raised);
+  }
 
   /* Delta — plain coloured text beside the figure, never a pill. */
   .delta {
@@ -812,6 +821,12 @@ h1, h2, h3, h4 {
 :root.dark .hover\:text-navy-800:hover,
 :root.dark .hover\:text-navy-700:hover,
 :root.dark .hover\:text-navy-600:hover { color: var(--text-primary); }
+/* `placeholder:text-navy-*` compiles to a ::placeholder selector, which the
+   plain `.text-navy-*` remaps above never match — so every placeholder kept
+   its raw, genuinely-blue navy value on a dark surface (the global search bar
+   being the most visible one). Remap the pseudo-element explicitly. */
+:root .placeholder\:text-navy-500::placeholder,
+:root .placeholder\:text-navy-400::placeholder { color: var(--text-muted); }
 
 /* Borders, dividers, rings */
 :root .border-navy-100,

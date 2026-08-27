@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import {
   FiTrendingUp, FiCheckSquare,
   FiClock, FiDollarSign, FiPieChart, FiPlus, FiTrash2, FiEdit2,
-  FiCheckCircle, FiX, FiUsers, FiBarChart2, FiActivity,
+  FiCheckCircle, FiX, FiUsers, FiBarChart2, FiActivity, FiChevronDown, FiExternalLink,
 } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
@@ -12,8 +12,9 @@ import { gbp } from "@/lib/format";
 import { statusMeta, DEFAULT_TRANSFER_FEE } from "@/lib/constants";
 import {
   getPeriodRange, shiftRef, computeStats, buildSeries, expensesForRange,
-  computeEngineerPay, computePipeline, computeCashflow, trendVs,
+  computeEngineerPay, computePipeline, computeCashflow, trendVs, jobInRange,
 } from "@/lib/stats";
+import { parkingSummary, congestionSummary } from "@/lib/finance";
 import { serviceShort } from "@/lib/format";
 import { isWithinInterval, parseISO, getDay } from "date-fns";
 import EngineerPayModal from "@/components/EngineerPayModal";
@@ -50,6 +51,7 @@ const CAT_COLORS = {
   Legal: "bg-navy-100 text-navy-700",
   Vehicles: "bg-orange-100 text-orange-700",
   Insurance: "bg-teal-100 text-teal-700",
+  "Bank Transfer Fees": "bg-slate-100 text-slate-600",
   Other: "bg-gray-100 text-gray-600",
 };
 
@@ -114,6 +116,7 @@ function ReportsInner() {
   const { period, ref, setRef, range, isCurrent } = ctl;
 
   const [editingExp, setEditingExp] = useState(null); // { id } or "new"
+  const [feesOpen, setFeesOpen] = useState(false);
   const [expForm, setExpForm] = useState({ name: "", amount: "", category: "Operations", date: new Date().toISOString().slice(0, 10), recurring: false });
 
   const stats = useMemo(() => computeStats(jobs, range, engineers, engineerPayments), [jobs, range, engineers, engineerPayments]);
@@ -128,7 +131,18 @@ function ReportsInner() {
   const cashflow = useMemo(() => computeCashflow(jobs, range), [jobs, range]);
   const series = useMemo(() => buildSeries(jobs, period, range), [jobs, period, range]);
   const pay = useMemo(() => computeEngineerPay(jobs, range, engineers, engineerPayments), [jobs, range, engineers, engineerPayments]);
-  const pipeline = useMemo(() => computePipeline(jobs), [jobs]);
+  // Pipeline used to be computed over EVERY job ever, ignoring the period
+  // selector sitting directly above it — changing Month/Year/Range did
+  // nothing to these figures, which is what made the tab look broken.
+  const pipelineJobs = useMemo(() => jobs.filter((j) => jobInRange(j, range)), [jobs, range]);
+  const pipeline = useMemo(() => computePipeline(pipelineJobs), [pipelineJobs]);
+  // Add-on charges (parking, congestion) billed on top of the job. Same
+  // "did the visit actually happen" gate revenue uses — a quote carrying a
+  // parking line hasn't collected anything yet.
+  const addons = useMemo(() => {
+    const done = jobs.filter((j) => jobInRange(j, range) && ["completed", "invoiced", "paid"].includes(j.status));
+    return { parking: parkingSummary(done), congestion: congestionSummary(done) };
+  }, [jobs, range]);
 
   // Most recent job activity — used both to auto-jump on first load and to
   // power the "jump to latest activity" hint when a viewed period is empty.
@@ -171,9 +185,12 @@ function ReportsInner() {
   // loggedExpenses via the normal date-range filter above — it used to be a
   // derived number tacked on here instead, invisible in the expense list
   // itself and impossible to edit or delete if it was ever wrong.
-  const transferFeeExpense = periodExpenses
-    .filter((e) => e.category === "Bank Transfer Fees")
-    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  // Split the period's expenses so the auto-generated transfer fees can be
+  // grouped behind one expandable row instead of flooding the list.
+  const feeExpenses = periodExpenses.filter((e) => e.category === "Bank Transfer Fees");
+  const otherExpenses = periodExpenses.filter((e) => e.category !== "Bank Transfer Fees");
+  const feeTotal = feeExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const transferFeeExpense = feeTotal;
   const totalExpenses = loggedExpenses;
   // TWO different profit questions, and they are NOT interchangeable:
   //
@@ -349,15 +366,60 @@ function ReportsInner() {
                 this period's own performance. */}
             <StatCard tone="green" icon={FiPieChart} label="Money kept" value={gbp(accrualProfit)}
               sub={`${accrualProfitPct}% of revenue · after engineer costs & expenses`} />
-            <StatCard tone="light" icon={FiBarChart2} label="Company expenses" value={gbp(totalExpenses)}
-              sub={`${periodExpenses.length} expense${periodExpenses.length !== 1 ? "s" : ""} this period`} />
+            {/* The two money-OUT figures sit together, in red, immediately
+                after the bottom line — they're the pair you read against each
+                other, and engineer cost being stranded in the second row
+                separated it from the expenses it belongs beside. */}
             <StatCard tone="light" icon={FiUsers} label="Engineer cost" value={gbp(pay.totalAccrued ?? 0)}
-              sub="Work done this period" />
+              valueTone="negative" sub="Work done this period" onClick={() => setView("pay")} />
+            <StatCard tone="light" icon={FiBarChart2} label="Company expenses" value={gbp(totalExpenses)}
+              valueTone="negative"
+              sub={`${periodExpenses.length} expense${periodExpenses.length !== 1 ? "s" : ""} this period`}
+              onClick={() => setView("expenses")} />
             <StatCard tone="light" icon={FiCheckSquare} label="Jobs completed" value={stats.completed}
               sub={`${stats.total} in period`} trend={trendVs(stats.completed, prevStats.completed)} />
             <StatCard tone="light" icon={FiClock} label="Avg job value" value={gbp(stats.avgValue)}
               sub="Per completed job" trend={trendVs(stats.avgValue, prevStats.avgValue)} />
           </div>
+
+          {/* ── ADD-ON CHARGES — parking and congestion are billed on top of
+              the job and reimbursed separately, so what the business actually
+              KEEPS on them is a genuine (small) profit line that nothing on
+              this page surfaced. Deliberately a compact row: these are tens of
+              pounds next to hundreds, and sizing them like the headline KPIs
+              would overstate them. */}
+          {(addons.parking.collected > 0 || addons.congestion.collected > 0) && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="metric-card">
+                <p className="metric-label">Parking collected</p>
+                <p className="metric-value mt-1.5 text-xl">{gbp(addons.parking.collected)}</p>
+                <p className="mt-1 text-xs text-navy-400 dark:text-slate-500">From customers</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Parking kept</p>
+                <p className={`metric-value mt-1.5 text-xl ${addons.parking.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {gbp(Math.abs(addons.parking.net))}
+                </p>
+                <p className="mt-1 text-xs text-navy-400 dark:text-slate-500">
+                  After {gbp(addons.parking.reimbursed)} reimbursed
+                </p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Congestion collected</p>
+                <p className="metric-value mt-1.5 text-xl">{gbp(addons.congestion.collected)}</p>
+                <p className="mt-1 text-xs text-navy-400 dark:text-slate-500">From customers</p>
+              </div>
+              <div className="metric-card">
+                <p className="metric-label">Congestion kept</p>
+                <p className={`metric-value mt-1.5 text-xl ${addons.congestion.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                  {gbp(Math.abs(addons.congestion.net))}
+                </p>
+                <p className="mt-1 text-xs text-navy-400 dark:text-slate-500">
+                  After {gbp(addons.congestion.reimbursed)} reimbursed
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* ── CASHFLOW HEALTH — collection efficiency, not just totals ── */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -549,34 +611,91 @@ function ReportsInner() {
               </div>
             )}
 
-            {/* Expenses list */}
-            {expenses.length === 0 ? (
-              <p className="p-8 text-center text-sm text-navy-400">No expenses logged yet. Add phone bills, salaries, software costs and more.</p>
+            {/* Expenses list.
+                Only ever shows expenses that are actually IN the selected
+                period. Out-of-period rows used to render dimmed with an
+                "outside period" note, which meant a list headed "August 2026"
+                was quietly padded with July's rows that no total on the page
+                counted — greyed-out noise you had to mentally filter. If you
+                want another month's expenses, change the period. */}
+            {periodExpenses.length === 0 ? (
+              <p className="p-8 text-center text-sm text-navy-400">
+                {expenses.length === 0
+                  ? "No expenses logged yet. Add phone bills, salaries, software costs and more."
+                  : `No expenses in ${range.label}. Change the period above to see others.`}
+              </p>
             ) : (
               <div className="divide-y divide-navy-100">
-                {expenses.map((exp) => {
-                  const inPeriod = periodExpenses.some(e => e.id === exp.id);
-                  return (
-                    <div key={exp.id} className={`flex items-center gap-3 px-5 py-3 ${inPeriod ? "" : "opacity-40"}`}>
-                      <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-semibold ${CAT_COLORS[exp.category] || CAT_COLORS.Other}`}>
-                        {exp.category}
+                {/* Bank transfer fees collapse into ONE row. They're generated
+                    automatically — one per engineer payment — so at any real
+                    volume they bury every hand-logged expense under a wall of
+                    identical £0.74 lines. One summary row that expands into
+                    the individual fees keeps them auditable without the mess. */}
+                {feeExpenses.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => setFeesOpen((v) => !v)}
+                      className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-navy-50"
+                    >
+                      <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-semibold ${CAT_COLORS["Bank Transfer Fees"] || CAT_COLORS.Other}`}>
+                        Bank Transfer Fees
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-navy-800">{exp.name}</p>
-                        <p className="text-xs text-navy-400">{exp.date}{exp.recurring ? " · recurring" : ""}{!inPeriod ? " · outside period" : ""}</p>
+                        <p className="truncate text-sm font-semibold text-navy-800">
+                          Bank transfer fees
+                        </p>
+                        <p className="text-xs text-navy-400">
+                          {feeExpenses.length} transfer{feeExpenses.length !== 1 ? "s" : ""} this period · tap to {feesOpen ? "hide" : "view"}
+                        </p>
                       </div>
-                      <span className="shrink-0 text-sm font-black text-navy-900">{gbp(Number(exp.amount) || 0)}</span>
-                      <div className="flex shrink-0 gap-1">
-                        <button onClick={() => startEdit(exp)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-brand-600 hover:border-brand-300">
-                          <FiEdit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button onClick={() => removeExpense(exp.id)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-rose-600 hover:border-rose-200">
-                          <FiTrash2 className="h-3.5 w-3.5" />
-                        </button>
+                      <span className="shrink-0 text-sm font-black text-navy-900">{gbp(feeTotal)}</span>
+                      <FiChevronDown className={`h-4 w-4 shrink-0 text-navy-400 transition-transform ${feesOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {feesOpen && feeExpenses.map((exp) => (
+                      <div key={exp.id} className="flex items-center gap-3 bg-navy-50/50 py-2.5 pl-12 pr-5 dark:bg-white/[0.03]">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] text-navy-700">{exp.name}</p>
+                          <p className="text-xs text-navy-400">{exp.date}</p>
+                        </div>
+                        <span className="shrink-0 text-[13px] font-semibold text-navy-800">{gbp(Number(exp.amount) || 0)}</span>
+                        <div className="flex shrink-0 gap-1">
+                          {exp.linkedPaymentId && (
+                            <button
+                              onClick={() => setView("pay")}
+                              title="Open the engineer payment this fee came from"
+                              className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:border-brand-300 hover:text-brand-600"
+                            >
+                              <FiExternalLink className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button onClick={() => startEdit(exp)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-brand-600 hover:border-brand-300">
+                            <FiEdit2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
+                    ))}
+                  </>
+                )}
+                {otherExpenses.map((exp) => (
+                  <div key={exp.id} className="flex items-center gap-3 px-5 py-3">
+                    <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-semibold ${CAT_COLORS[exp.category] || CAT_COLORS.Other}`}>
+                      {exp.category}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-navy-800">{exp.name}</p>
+                      <p className="text-xs text-navy-400">{exp.date}{exp.recurring ? " · recurring" : ""}</p>
                     </div>
-                  );
-                })}
+                    <span className="shrink-0 text-sm font-black text-navy-900">{gbp(Number(exp.amount) || 0)}</span>
+                    <div className="flex shrink-0 gap-1">
+                      <button onClick={() => startEdit(exp)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-brand-600 hover:border-brand-300">
+                        <FiEdit2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => removeExpense(exp.id)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-rose-600 hover:border-rose-200">
+                        <FiTrash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 
