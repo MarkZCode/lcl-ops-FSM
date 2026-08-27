@@ -123,32 +123,32 @@ export default function ClientsPage() {
 
           <div className="clients-list card hidden overflow-hidden lg:block">
             <div className="hidden border-b border-navy-100 bg-navy-50 px-4 py-2.5 sm:grid sm:grid-cols-12 text-[11px] font-bold uppercase tracking-wider text-navy-400">
-              <span className="col-span-3">Name</span>
-              <span className="col-span-2">Type</span>
-              <span className="col-span-3">Contact</span>
+              <span className="col-span-4">Name</span>
+              <span className="col-span-1">Type</span>
+              <span className="col-span-4">Contact</span>
               <span className="col-span-2">Properties</span>
-              <span className="col-span-2 text-right">Jobs</span>
+              <span className="col-span-1 text-right">Jobs</span>
             </div>
             <div className="divide-y divide-navy-100">
               {filtered.map((client) => {
                 const jc = jobCount(client.id);
                 return (
                   <Link key={client.id} href={`/clients/${client.id}`}
-                    className="grid grid-cols-1 gap-2 px-4 py-3.5 transition hover:bg-brand-50/50 sm:grid-cols-12 sm:items-center sm:gap-0">
+                    className="grid grid-cols-1 gap-2 px-4 py-2.5 transition hover:bg-brand-50/50 sm:grid-cols-12 sm:items-center sm:gap-0">
                     {/* Name */}
-                    <div className="col-span-3 min-w-0">
+                    <div className="col-span-4 min-w-0">
                       <p className="truncate font-semibold text-navy-900">{client.name}</p>
                       {client.company && <p className="truncate text-xs text-navy-400">{client.company}</p>}
                     </div>
                     {/* Type */}
-                    <div className="col-span-2">
+                    <div className="col-span-1">
                       <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-navy-400 sm:hidden">Type</span>
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${typeColors[client.type] || "bg-navy-100 text-navy-600"}`}>
                         {client.type || "Landlord"}
                       </span>
                     </div>
                     {/* Contact */}
-                    <div className="col-span-3 min-w-0 space-y-0.5">
+                    <div className="col-span-4 min-w-0 space-y-0.5">
                       <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-navy-400 sm:hidden">Contact</span>
                       {client.phone && (
                         <p className="flex items-center gap-1.5 text-xs text-navy-500">
@@ -170,10 +170,10 @@ export default function ClientsPage() {
                       </span>
                     </div>
                     {/* Jobs */}
-                    <div className="col-span-2 sm:text-right">
+                    <div className="col-span-1 sm:text-right">
                       <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-navy-400 sm:hidden">Jobs</span>
-                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-bold ${jc > 0 ? "bg-brand-50 text-brand-700" : "text-navy-400"}`}>
-                        {jc} job{jc !== 1 ? "s" : ""}
+                      <span className={`tnum inline-block rounded-full px-2 py-0.5 text-xs font-bold ${jc > 0 ? "bg-brand-50 text-brand-700" : "text-navy-400"}`}>
+                        {jc}
                       </span>
                     </div>
                   </Link>

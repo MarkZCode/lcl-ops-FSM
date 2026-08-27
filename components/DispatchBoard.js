@@ -143,7 +143,7 @@ export default function DispatchBoard({ day }) {
     </div>
 
     <div className="scroll-area hidden overflow-x-auto pb-2 lg:block">
-      <div className="flex gap-4" style={{ minWidth: "min-content" }}>
+      <div className="flex w-full gap-4" style={{ minWidth: "min-content" }}>
         {columns.map((eng) => {
           const colJobs = dayJobs
             .filter((j) => j.engineerId === eng.id)
@@ -158,7 +158,7 @@ export default function DispatchBoard({ day }) {
               }}
               onDragLeave={() => setOverCol((c) => (c === eng.id ? null : c))}
               onDrop={() => onDrop(eng.id)}
-              className={`flex w-72 shrink-0 flex-col rounded-xl border bg-navy-50/50 transition ${
+              className={`flex flex-1 min-w-[18rem] flex-col rounded-xl border bg-navy-50/50 transition ${
                 isOver ? "border-brand-400 ring-2 ring-brand-400/30" : "border-navy-100"
               }`}
             >
