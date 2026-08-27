@@ -574,12 +574,19 @@ h1, h2, h3, h4 {
   }
   /* Hover was a text-colour change ONLY (navy-500 -> navy-900), which in dark
      mode is muted-grey -> near-white on an already-dark rail: almost nothing
-     to see, so you couldn't tell which row you were pointing at. A real
-     surface change under the cursor reads instantly in both themes. The
-     active row draws its own raised surface (see the motion.div in
-     Sidebar.js), so this only ever applies to non-active rows. */
+     to see, so you couldn't tell which row you were pointing at.
+     `--surface-raised` was the first attempt and is still far too close to
+     the rail it sits on to register: in LIGHT mode that is #f1f1f3 on a
+     #f6f6f7 page — five values out of 255 — and dark is only marginally
+     better (#1c1c1e on #0a0a0a). A translucent overlay instead, so the
+     contrast is a fixed step away from whatever is underneath rather than
+     two near-identical greys. The active row draws its own surface (the
+     motion.div in Sidebar.js), so this only applies to non-active rows. */
   .nav-item:not([data-active="true"]):hover {
-    background-color: var(--surface-raised);
+    background-color: rgba(0, 0, 0, 0.06);
+  }
+  :root.dark .nav-item:not([data-active="true"]):hover {
+    background-color: rgba(255, 255, 255, 0.09);
   }
 
   /* Delta — plain coloured text beside the figure, never a pill. */
