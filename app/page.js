@@ -145,8 +145,19 @@ export default function Dashboard() {
     const expBreakdown = expensesForRange(expenses, monthRange);
     const pay = computeEngineerPay(jobs, monthRange, engineers, engineerPayments);
     const companyExpenses = expBreakdown.total + (pay.totalTransferFees ?? 0);
-    const engineerCost = pay.totalCashOut ?? pay.totalPaid;
-    const profit = (periodStats.netProfitAfterPay ?? 0) - companyExpenses;
+    // ACCRUAL basis, matching revenue's own basis — a job counts toward this
+    // month because its WORK happened this month, so the labour cost set
+    // against it must be for that same job, not whichever month the engineer
+    // happened to actually get paid. `pay.totalCashOut` (what left the bank
+    // this month) mixes jobs from other months in whenever a payment run
+    // lands late — a July job paid in August pulled its cost out of August's
+    // profit while its revenue stayed counted in July, understating one month
+    // and overstating the other. `pay.totalAccrued` is already computed on
+    // the jobs-done-this-period basis (see computeEngineerPay in lib/stats.js)
+    // — same one `periodStats.netProfit` below uses — so this is just wiring
+    // the Dashboard to the figure that was already correct elsewhere.
+    const engineerCost = pay.totalAccrued;
+    const profit = (periodStats.netProfit ?? 0) - companyExpenses;
 
     return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: monthRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, companyExpenses, engineerCost };
   }, [jobs, prospects, engineers, engineerPayments, expenses]);
@@ -249,10 +260,10 @@ export default function Dashboard() {
                 </Link>
 
                 <Link href="/reports" className="m-hero block">
-                  <p className="m-hero-label">Profit (Cash)</p>
+                  <p className="m-hero-label">Profit</p>
                   <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.profit)}</p>
                   <div className="m-hero-foot">
-                    <span>Net after expenses</span>
+                    <span>Revenue minus this month&rsquo;s own costs</span>
                   </div>
                 </Link>
 
@@ -262,7 +273,7 @@ export default function Dashboard() {
                     <p className="m-hero-value !text-3xl !mt-1 !text-rose-500">{gbp(stats.companyExpenses)}</p>
                   </Link>
                   <Link href="/reports" className="m-hero block !p-4">
-                    <p className="m-hero-label !text-[11px]">Engineer Pay</p>
+                    <p className="m-hero-label !text-[11px]">Engineer Cost</p>
                     <p className="m-hero-value !text-3xl !mt-1 !text-rose-500">{gbp(stats.engineerCost)}</p>
                   </Link>
                 </div>
@@ -309,10 +320,10 @@ export default function Dashboard() {
                     line with everything else. */}
                 <Kpi
                   icon={FiPieChart}
-                  label="Profit (Cash)"
+                  label="Profit"
                   value={gbp(stats.profit)}
                   valueClassName="bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent !text-4xl"
-                  note="Net after expenses"
+                  note="Revenue minus this month's own costs"
                   link="/reports"
                   className="lg:col-span-2"
                 />
@@ -336,10 +347,10 @@ export default function Dashboard() {
                 />
                 <Kpi
                   icon={FiUsers}
-                  label="Engineer Pay"
+                  label="Engineer Cost"
                   value={gbp(stats.engineerCost)}
                   valueClassName="text-rose-500"
-                  note="Paid out this month"
+                  note="Cost of jobs done this month"
                   link="/reports"
                 />
                 <Kpi
