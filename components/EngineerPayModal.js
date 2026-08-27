@@ -87,6 +87,18 @@ export default function EngineerPayModal({
     payableAll: sum((j) => j.owed),
     payableUnsettled: jd.filter((j) => !j.settled).reduce((s, j) => s + (Number(j.owed) || 0), 0),
     settledCount: jd.filter((j) => j.settled).length,
+    // Cash out (row.cashOut) is every payment DATED in this range, whichever
+    // job it actually covers — a transfer for a job from another period that
+    // happened to be sent this period is real money and belongs in that
+    // total, but it also means "Cash out" can be bigger than these jobs'
+    // combined value for a reason that has nothing to do with them. Flag it
+    // rather than let the two numbers look like they've drifted apart.
+    otherPeriodCash: (() => {
+      const periodJobIds = new Set(jd.map((j) => j.jobId));
+      return (row.payments || [])
+        .filter((p) => !(p.jobIds || []).some((id) => periodJobIds.has(id)))
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    })(),
   };
 
   const handleFile = async (file) => {
@@ -243,6 +255,9 @@ export default function EngineerPayModal({
                 {row.transferFees > 0
                   ? `${gbp(row.paid)} to them + ${gbp(row.transferFees)} bank fees`
                   : "Recorded payments"}
+                {totals.otherPeriodCash > 0.005 && (
+                  <> · incl. {gbp(totals.otherPeriodCash)} for a job outside this period</>
+                )}
               </p>
             </div>
             <div className="metric-cell">
@@ -552,16 +567,28 @@ export default function EngineerPayModal({
 
         {/* Reconciliation guard. A payment can only honestly settle jobs worth
           what it paid. Silent drift here is what let three jobs read "Paid"
-          off two payments that didn't cover them. */}
+          off two payments that didn't cover them.
+          Must only compare a payment against the SAME jobs it actually names
+          (p.jobIds) — row.payments is every payment dated inside this range,
+          which routinely includes a transfer settling a job from a DIFFERENT
+          period (paid late, or paid early). Comparing that payment's full
+          amount against only this period's job total made an unrelated,
+          perfectly correct payment look like a £50 overpayment on this
+          engineer's 2 jobs here, when it was really the full, correct amount
+          for a 3rd job that simply isn't one of this period's jobs. */}
       {(() => {
+        const periodJobIds = new Set(jd.map((j) => j.jobId));
+        const relevantPayments = (row.payments || []).filter((p) =>
+          (p.jobIds || []).some((id) => periodJobIds.has(id))
+        );
         const paidWork = jd.filter((j) => j.settled).reduce((s2, j) => s2 + (Number(j.owed) || 0), 0);
-        const paidCash = (row.payments || []).reduce((s2, p) => s2 + (Number(p.amount) || 0), 0);
+        const paidCash = relevantPayments.reduce((s2, p) => s2 + (Number(p.amount) || 0), 0);
         const diff = Math.round((paidCash - paidWork) * 100) / 100;
         if (Math.abs(diff) < 0.01) return null;
         return (
           <p className={`rounded-lg px-3 py-2 text-xs ${diff < 0 ? "bg-rose-50 text-rose-700 dark:bg-rose-500/10" : "bg-amber-50 text-amber-800 dark:bg-amber-500/10"}`}>
             {diff < 0
-              ? `Jobs marked paid are worth ${gbp(paidWork)} but only ${gbp(paidCash)} has been recorded — ${gbp(Math.abs(diff))} short.`
+              ? `Jobs marked paid are worth ${gbp(paidWork)} but only ${gbp(paidCash)} has been recorded against them — ${gbp(Math.abs(diff))} short.`
               : `${gbp(paidCash)} recorded against ${gbp(paidWork)} of paid jobs — ${gbp(diff)} more than the work.`}
           </p>
         );
