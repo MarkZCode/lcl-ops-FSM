@@ -247,7 +247,7 @@ function EngineersInner() {
                         how they're actually paid. */}
                     <div className="col-span-1 sm:text-center">
                       <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-navy-400 sm:hidden">Pay</span>
-                      <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700">
+                      <span className="tnum rounded-lg bg-navy-100 px-2 py-1 text-xs font-bold text-navy-700">
                         {eng.payType === "weekly" ? `£${eng.weeklyRate || 0}/wk`
                           : eng.payType === "fixed_gas" ? "Fixed · Gas"
                           : eng.payType === "fixed_service" ? "Fixed · per service"
@@ -261,14 +261,14 @@ function EngineersInner() {
                     {/* Jobs done */}
                     <div className="col-span-1 sm:text-center">
                       <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-navy-400 sm:hidden">Jobs</span>
-                      <span className="text-sm font-bold text-navy-900">{jc}</span>
+                      <span className="tnum text-sm font-bold text-navy-900">{jc}</span>
                       <p className="text-[10px] text-navy-400">jobs</p>
                     </div>
 
                     {/* Revenue */}
                     <div className="col-span-1 sm:text-right">
                       <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wider text-navy-400 sm:hidden">Revenue</span>
-                      <span className="text-sm font-bold text-navy-900">{gbp(rev)}</span>
+                      <span className="tnum text-sm font-bold text-navy-900">{gbp(rev)}</span>
                     </div>
 
                     {/* Actions */}
@@ -287,6 +287,18 @@ function EngineersInner() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* Totals row */}
+            <div className="hidden border-t-2 border-navy-200 bg-navy-50/80 px-5 py-3 lg:grid lg:grid-cols-12">
+              <div className="col-span-9 text-sm font-bold text-navy-700">Totals</div>
+              <div className="tnum col-span-1 text-center text-sm font-bold text-navy-900">
+                {engineers.reduce((s, e) => s + jobsForEngineer(e.id), 0)}
+              </div>
+              <div className="tnum col-span-1 text-right text-sm font-bold text-navy-900">
+                {gbp(engineers.reduce((s, e) => s + revenueForEngineer(e.id), 0))}
+              </div>
+              <div className="col-span-1" />
             </div>
           </div>
         )}
