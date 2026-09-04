@@ -975,25 +975,26 @@ html, body { max-width: 100%; overflow-x: hidden; }
    about 750px, and an obvious order of importance.
    Phone only — the desktop KPI grid is untouched. */
 .m-hero {
-  padding: 1.25rem 1.25rem 1.375rem;
-  border-radius: var(--radius-card);
-  background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  padding: 1.5rem;
+  border-radius: 28px;
+  background: #000000;
+  border: none;
+  box-shadow: 0 20px 40px -15px rgba(0,0,0,0.3);
 }
-.m-hero-label { font-size: 0.8125rem; font-weight: 500; color: var(--text-muted); letter-spacing: -0.005em; }
+.m-hero-label { font-size: 0.65rem; font-weight: 700; color: #888888; letter-spacing: 0.1em; text-transform: uppercase; }
 .m-hero-value {
   margin-top: 0.25rem;
-  font-size: 2.25rem; font-weight: 680; line-height: 1.05;
-  letter-spacing: -0.038em;
+  font-size: 2.75rem; font-weight: 700; line-height: 1.1;
+  letter-spacing: -0.04em;
   font-variant-numeric: tabular-nums;
   width: fit-content;
 }
-.m-hero-foot { margin-top: 0.625rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: var(--text-muted); }
+.m-hero-foot { margin-top: 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; font-size: 0.8125rem; color: #a1a1aa; }
 .m-hero-chip {
   display: inline-flex; align-items: center; gap: 0.25rem;
   padding: 0.15rem 0.5rem; border-radius: 999px;
   font-size: 0.75rem; font-weight: 600;
-  background: rgba(63,163,77,0.14); color: var(--accent-text);
+  background: #ffffff; color: #000000;
 }
 
 .m-group-title { margin: 1.5rem 0 0.5rem; font-size: 0.75rem; font-weight: 600; color: var(--text-muted); }

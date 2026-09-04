@@ -27,6 +27,7 @@ import {
   scopeAccepted,
   scopeConfirmedAt,
   setScopeConfirmed,
+  nameOnCert,
 } from "@/lib/jobCard";
 import { visitForScope } from "@/lib/visits";
 
@@ -80,15 +81,21 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
       // so the engineer still sees what they can claim.
       return allLines.filter((l) => l.id === id || isAddonCode(l.code));
     }
+    if (engFilter.startsWith("visit:")) {
+      const visit = (job.visits || []).find((v) => v.id === engFilter.slice(6));
+      return allLines.filter((l) => (visit?.lineIds || []).includes(l.id) || isAddonCode(l.code));
+    }
     return allLines.filter((l) => lineEng(l) === engFilter);
   })();
 
   // Whose card is this? (a specific filter, or the single engineer on the job)
-  const cardEngId = engFilter.startsWith("line:")
-    ? lineEng(allLines.find((l) => l.id === engFilter.slice(5)) || {})
-    : engFilter !== "all"
-      ? engFilter
-      : engGroups.length === 1 ? engGroups[0] : null;
+  const cardEngId = engFilter.startsWith("visit:")
+    ? (job.visits || []).find((v) => v.id === engFilter.slice(6))?.engineerId || "unassigned"
+    : engFilter.startsWith("line:")
+      ? lineEng(allLines.find((l) => l.id === engFilter.slice(5)) || {})
+      : engFilter !== "all"
+        ? engFilter
+        : scopes.length === 1 ? scopes[0].engineerId : null;
   const engineerName =
     cardEngId && cardEngId !== "unassigned" ? engineerById(cardEngId).name : "";
 
@@ -228,10 +235,10 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
             SEE that a card can be split before you think to split it, and
             sending one engineer the whole multi-service job is the mistake
             this is here to prevent. */}
-        {(multiEng || splitByLine) && (
+        {scopes.length > 1 && (
           <div>
             <p className="mb-1.5 text-xs font-semibold text-navy-600">
-              {multiEng
+              {scopes.some(s => s.key.startsWith("visit:")) || new Set(scopes.map(s => s.engineerId)).size > 1
                 ? "This job has services for different engineers — pick whose card to send:"
                 : "Sending one service to a specific engineer? Pick their card:"}
             </p>
@@ -246,39 +253,19 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
               >
                 All (combined)
               </button>
-              {multiEng
-                ? engGroups.map((id) => {
-                    const e = engineerById(id);
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => setEngFilter(id)}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                          engFilter === id
-                            ? "border-brand-500 bg-brand-500 text-white"
-                            : "border-navy-200 bg-white text-navy-600 hover:border-navy-300"
-                        }`}
-                      >
-                        {e.name}
-                      </button>
-                    );
-                  })
-                : addonFree.map((l) => {
-                    const key = `line:${l.id}`;
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => setEngFilter(key)}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-                          engFilter === key
-                            ? "border-brand-500 bg-brand-500 text-white"
-                            : "border-navy-200 bg-white text-navy-600 hover:border-navy-300"
-                        }`}
-                      >
-                        {l.code === "CUSTOM" ? l.name : certLabel(l.code)}
-                      </button>
-                    );
-                  })}
+              {scopes.map((sc) => (
+                <button
+                  key={sc.key}
+                  onClick={() => setEngFilter(sc.key)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                    engFilter === sc.key
+                      ? "border-brand-500 bg-brand-500 text-white"
+                      : "border-navy-200 bg-white text-navy-600 hover:border-navy-300"
+                  }`}
+                >
+                  {sc.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -332,14 +319,12 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
             )}
             {assigned ? (
               <>
-                {job.nameOnCert && (
-                  <p className="text-xs text-navy-500">
-                    Name on cert:{" "}
-                    <span className="font-semibold text-navy-700">
-                      {job.nameOnCert}
-                    </span>
-                  </p>
-                )}
+                <p className="text-xs text-navy-500">
+                  Name on cert:{" "}
+                  <span className="font-semibold text-navy-700">
+                    {nameOnCert(job, client)}
+                  </span>
+                </p>
                 {accessName(job) && (
                   <p className="text-xs text-navy-500">
                     Access via{" "}
