@@ -1,41 +1,58 @@
 "use client";
 
-// Branded full-screen loader, shown while the session resolves.
-//
-// The previous version leaned on hard edges and busy motion: a tiled grid
-// background, a hard-cornered white tile, a ring spinning at one revolution a
-// second, wide-tracked caps and a thick two-tone progress bar. Lots of
-// separate things moving and shouting at once, which reads cheap.
-//
-// This is the same information with the volume down — one soft light source,
-// one circular surface, and slow motion. Nothing spins; the mark settles and
-// breathes, and the progress line drifts rather than races.
-import LogoMark from "./LogoMark";
+import { useState, useEffect } from "react";
 
-export default function SplashScreen({ label = "Loading your workspace" }) {
+const ROTATING_WORDS = ["simple.", "seamless.", "effortless.", "intelligent."];
+
+export default function SplashScreen({ label }) {
+  const [index, setIndex] = useState(0);
+  const [animState, setAnimState] = useState("enter"); // "enter" | "exit"
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setAnimState("exit");
+      setTimeout(() => {
+        setIndex((prev) => (prev + 1) % ROTATING_WORDS.length);
+        setAnimState("enter");
+      }, 250);
+    }, 2200);
+
+    return () => clearInterval(timer);
+  }, []);
+
   return (
-    <div className="splash-bg fixed inset-0 z-[100] grid place-items-center px-6">
-      <div className="splash-in flex flex-col items-center">
-        {/* One soft light behind a circular surface — no hard tile, no ring. */}
-        <div className="relative grid h-24 w-24 place-items-center">
-          <span aria-hidden="true" className="splash-halo absolute h-32 w-32 rounded-full" />
-          <span className="splash-disc relative grid h-[4.5rem] w-[4.5rem] place-items-center rounded-full">
-            <LogoMark className="h-10 w-10" variant="light" />
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#09090b] px-6 select-none">
+      <div className="flex flex-col items-center text-center">
+        {/* Subtle top pill */}
+        <span className="mb-6 rounded-full bg-white/[0.06] border border-white/10 px-3 py-1 text-[11px] font-medium tracking-wide text-zinc-400">
+          LCL Console
+        </span>
+
+        {/* Apple-inspired typography statement */}
+        <div className="flex flex-wrap items-center justify-center gap-x-2 text-2xl font-normal tracking-tight text-zinc-200 sm:text-3xl">
+          <span className="text-zinc-300">Managing compliance made</span>
+          <span className="relative inline-flex overflow-hidden font-semibold text-emerald-400 min-w-[130px] justify-start text-left">
+            <span
+              className={`transition-all duration-300 ease-out transform ${
+                animState === "exit"
+                  ? "-translate-y-4 opacity-0 scale-95"
+                  : "translate-y-0 opacity-100 scale-100"
+              }`}
+            >
+              {ROTATING_WORDS[index]}
+            </span>
           </span>
         </div>
 
-        <p className="mt-7 text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-400/90">
-          Landlord Compliance London
+        {/* Muted indicator label */}
+        <p className="mt-8 text-xs font-normal text-zinc-500 tracking-wide">
+          {label || "Connecting workspace"}
         </p>
-        <h1 className="mt-1.5 text-[1.375rem] font-semibold tracking-tight text-white/95">
-          LCL Ops
-        </h1>
 
-        {/* Hairline track with a sweep that fades at both ends. */}
-        <div className="mt-7 h-px w-40 overflow-hidden rounded-full bg-white/[0.08]">
-          <div className="splash-sweep h-full w-1/3 rounded-full" />
+        {/* Subtle hairline pulse bar */}
+        <div className="mt-4 h-0.5 w-24 overflow-hidden rounded-full bg-zinc-800">
+          <div className="h-full w-1/2 animate-[pulse_1.5s_ease-in-out_infinite] rounded-full bg-emerald-500/60" />
         </div>
-        <p className="mt-3.5 text-[11px] font-medium text-white/35">{label}…</p>
       </div>
     </div>
   );
