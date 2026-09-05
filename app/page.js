@@ -179,9 +179,14 @@ export default function Dashboard() {
     // — same one `periodStats.netProfit` below uses — so this is just wiring
     // the Dashboard to the figure that was already correct elsewhere.
     const engineerCost = pay.totalAccrued;
-    const profit = (periodStats.netProfit ?? 0) - companyExpenses;
+    const paidRatio = monthRevenue > 0 ? (periodStats.collected / monthRevenue) : 1;
+    const realizedProfit = (periodStats.collected ?? 0) - (engineerCost * paidRatio) - companyExpenses;
+    const profit = Math.round(realizedProfit * 100) / 100;
+    const profitNote = monthRevenue > periodStats.collected && periodStats.collected > 0
+      ? `Realized paid profit (${gbp(periodStats.collected)} collected)`
+      : "Paid revenue minus costs";
 
-    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: monthRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, companyExpenses, engineerCost };
+    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: monthRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, profitNote, companyExpenses, engineerCost };
   }, [jobs, prospects, engineers, engineerPayments, expenses]);
 
   // How the business is running, not just what it billed — measured over the
@@ -303,7 +308,7 @@ export default function Dashboard() {
 
               <p className="m-group-title mt-8">Money</p>
               <div className="m-group">
-                <MRow icon={FiAlertCircle} label="Outstanding"
+                <MRow icon={FiAlertCircle} label="Outstanding Invoices"
                   sub={stats.overdueCount ? `${stats.overdueCount} overdue — chase these` : "Nothing overdue"}
                   value={gbp(stats.outstanding)} alert={stats.overdueCount > 0} href="/reports" />
                 <MRow icon={FiTrendingUp} label="Pipeline value" sub="All open stages"
@@ -336,26 +341,23 @@ export default function Dashboard() {
                   note={stats.monthLabel}
                   link="/reports"
                 />
-                {/* Profit is the number that matters most, so it gets the
-                    same emerald gradient + featured double-width treatment
-                    the mobile hero card uses, instead of sitting flat in
-                    line with everything else. */}
                 <Kpi
                   icon={FiPieChart}
                   label="Profit"
                   value={gbp(stats.profit)}
                   valueClassName="bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent !text-4xl"
-                  note="Revenue minus this month's own costs"
+                  note={stats.profitNote}
                   link="/reports"
                   className="lg:col-span-2"
                 />
                 <Kpi
                   icon={FiAlertCircle}
-                  label="Outstanding"
+                  label="Outstanding Invoices"
                   value={gbp(stats.outstanding)}
                   pill={stats.overdueCount ? `${stats.overdueCount} overdue` : null}
                   pillTone="down"
                   note={stats.overdueCount ? "Chase these" : "Nothing overdue"}
+                  link="/reports"
                 />
                 {/* Cash-out figures — bold red, same signal as mobile's
                     Company Exp. / Engineer Pay pair. */}

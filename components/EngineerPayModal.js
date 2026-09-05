@@ -516,6 +516,25 @@ export default function EngineerPayModal({
                     </button>
                   </div>
 
+                  {Array.isArray(j.lines) && j.lines.length > 0 && (
+                    <div className="my-2.5 rounded-lg border border-navy-100 bg-navy-50/70 p-2.5 text-xs">
+                      <p className="mb-1.5 font-semibold text-navy-800">Services in this job:</p>
+                      <div className="space-y-1 divide-y divide-navy-100/50">
+                        {j.lines.map((l, idx) => (
+                          <div key={idx} className="flex items-center justify-between pt-1 first:pt-0 text-navy-700">
+                            <span className="font-medium">
+                              {l.name} {l.tier ? `(${l.tier})` : ""} {l.qty > 1 ? `× ${l.qty}` : ""}
+                            </span>
+                            <div className="flex items-center gap-3 text-right">
+                              <span className="text-navy-500">Customer: {gbp(l.lineRevenue)}</span>
+                              <span className="font-semibold text-amber-700">Engineer Pay: {gbp(l.linePay)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="divide-y divide-navy-100 text-xs">
                     <Row label="Customer paid for this job" value={gbp(j.revenue)} />
                     <Row label={`Engineer fee (${j.payType === "per_job" ? `${j.cut}% of the job` : j.payType === "weekly" ? "weekly retainer" : "their fixed rate"})`} value={gbp(j.labour)} />
