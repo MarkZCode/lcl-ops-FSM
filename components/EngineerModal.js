@@ -29,6 +29,7 @@ const empty = {
   // { [serviceCode]: { [tierLabel]: number } } for tiered services — see
   // rateForLine() in lib/finance.js, the single place this shape is read.
   serviceRates: {},
+  inspectionRates: {},
   bankName: "",
   bankAccountName: "",
   bankSortCode: "",
@@ -77,6 +78,7 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
             gasBaseRate: seed.gasBaseRate != null ? seed.gasBaseRate : DEFAULT_GAS_BASE_RATE,
             gasExtraRate: seed.gasExtraRate != null ? seed.gasExtraRate : DEFAULT_GAS_EXTRA_RATE,
             serviceRates: seed.serviceRates || {},
+            inspectionRates: seed.inspectionRates || {},
             bankName: seed.bankName || "",
             bankAccountName: seed.bankAccountName || "",
             bankSortCode: seed.bankSortCode || "",
@@ -108,6 +110,18 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
       return { ...f, serviceRates: { ...f.serviceRates, [code]: { ...tierMap, [tierLabel]: value } } };
     });
 
+  // Inspection-only rates mirror the full-rate setters above, into their own
+  // table. Kept separate rather than folded into serviceRates so an engineer
+  // with no inspection rate set is distinguishable from one set to £0.
+  const setFlatInspRate = (code, value) =>
+    setForm((f) => ({ ...f, inspectionRates: { ...f.inspectionRates, [code]: value } }));
+  const setTierInspRate = (code, tierLabel, value) =>
+    setForm((f) => {
+      const existing = f.inspectionRates?.[code];
+      const tierMap = existing && typeof existing === "object" ? existing : {};
+      return { ...f, inspectionRates: { ...f.inspectionRates, [code]: { ...tierMap, [tierLabel]: value } } };
+    });
+
   const canSave = form.name.trim().length > 0;
 
   const handleSave = () => {
@@ -115,18 +129,23 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
     // Strip blank-string rate entries down to clean numbers (or drop them
     // entirely) so rateForLine()'s fallback-to-default logic works — an
     // empty string would otherwise be treated as "0" instead of "not set".
-    const cleanedRates = {};
-    for (const [code, entry] of Object.entries(form.serviceRates || {})) {
-      if (entry && typeof entry === "object") {
-        const tiers = {};
-        for (const [label, v] of Object.entries(entry)) {
-          if (v !== "" && v != null && !Number.isNaN(Number(v))) tiers[label] = Number(v);
+    const cleanRateTable = (table) => {
+      const out = {};
+      for (const [code, entry] of Object.entries(table || {})) {
+        if (entry && typeof entry === "object") {
+          const tiers = {};
+          for (const [label, v] of Object.entries(entry)) {
+            if (v !== "" && v != null && !Number.isNaN(Number(v))) tiers[label] = Number(v);
+          }
+          if (Object.keys(tiers).length) out[code] = tiers;
+        } else if (entry !== "" && entry != null && !Number.isNaN(Number(entry))) {
+          out[code] = Number(entry);
         }
-        if (Object.keys(tiers).length) cleanedRates[code] = tiers;
-      } else if (entry !== "" && entry != null && !Number.isNaN(Number(entry))) {
-        cleanedRates[code] = Number(entry);
       }
-    }
+      return out;
+    };
+    const cleanedRates = cleanRateTable(form.serviceRates);
+    const cleanedInspRates = cleanRateTable(form.inspectionRates);
     const payload = {
       ...form,
       name: form.name.trim(),
@@ -137,6 +156,7 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
       gasBaseRate: form.gasBaseRate === "" ? DEFAULT_GAS_BASE_RATE : Number(form.gasBaseRate),
       gasExtraRate: form.gasExtraRate === "" ? DEFAULT_GAS_EXTRA_RATE : Number(form.gasExtraRate),
       serviceRates: cleanedRates,
+      inspectionRates: cleanedInspRates,
     };
     if (isEdit) updateEngineer(engineer.id, payload);
     else addEngineer(payload);
@@ -398,6 +418,40 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
                         <p className="mt-1 text-[10px] text-navy-400">
                           A job whose size doesn&apos;t match one of the boxes above uses &quot;Any other size&quot; if set, otherwise falls back to the £{DEFAULT_SERVICE_RATES[code] || 40} house default — not what you entered here.
                         </p>
+                        {/* Inspection-only rates. Separate table, so "no rate
+                            set" stays distinguishable from "set to £0" — an
+                            unset inspection rate falls back to the FULL rate
+                            rather than paying nothing. */}
+                        <div className="mt-2 rounded-md bg-navy-50 p-2 dark:bg-white/[0.04]">
+                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-navy-500">
+                            Inspection only — no certificate issued
+                          </p>
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {svc.tiers.map((t) => (
+                              <div key={t.label}>
+                                <label className="label text-[10px]">{t.label}</label>
+                                <input
+                                  type="number" step="0.01" min="0" className="input h-8 text-sm"
+                                  value={form.inspectionRates?.[code]?.[t.label] ?? ""}
+                                  placeholder="—"
+                                  onChange={(e) => setTierInspRate(code, t.label, e.target.value)}
+                                />
+                              </div>
+                            ))}
+                            <div>
+                              <label className="label text-[10px]">Any other size (£)</label>
+                              <input
+                                type="number" step="0.01" min="0" className="input h-8 text-sm"
+                                value={form.inspectionRates?.[code]?.flat ?? ""}
+                                placeholder="—"
+                                onChange={(e) => setTierInspRate(code, "flat", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <p className="mt-1 text-[10px] text-navy-400">
+                            Left blank, this engineer is paid the full rate above even on an inspection-only visit.
+                          </p>
+                        </div>
                       </div>
                     );
                   }
@@ -405,13 +459,27 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
                   // Flat service — no size tiers (e.g. PAT, BOILER, EMLIGHT, FSC).
                   return (
                     <div key={code}>
-                      <label className="label text-[10px]">{svc.name} (£)</label>
-                      <input
-                        type="number" step="0.01" min="0" className="input h-8 text-sm max-w-[10rem]"
-                        value={form.serviceRates?.[code] ?? ""}
-                        placeholder={String(DEFAULT_SERVICE_RATES[code] || 40)}
-                        onChange={(e) => setFlatRate(code, e.target.value)}
-                      />
+                      <p className="mb-1.5 text-xs font-semibold text-navy-700">{svc.name}</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label text-[10px]">Full job (£)</label>
+                          <input
+                            type="number" step="0.01" min="0" className="input h-8 text-sm"
+                            value={form.serviceRates?.[code] ?? ""}
+                            placeholder={String(DEFAULT_SERVICE_RATES[code] || 40)}
+                            onChange={(e) => setFlatRate(code, e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="label text-[10px]">Inspection only (£)</label>
+                          <input
+                            type="number" step="0.01" min="0" className="input h-8 text-sm"
+                            value={form.inspectionRates?.[code] ?? ""}
+                            placeholder="—"
+                            onChange={(e) => setFlatInspRate(code, e.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
                   );
                 })

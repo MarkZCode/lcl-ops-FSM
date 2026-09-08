@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { LuSplit, LuTrash2, LuPlus } from "react-icons/lu";
 import { useStore } from "@/lib/store";
-import { gbp, lineTotal } from "@/lib/format";
+import { gbp, lineTotal, isAddonCode } from "@/lib/format";
+import { certificationRateForLine } from "@/lib/finance";
 import { TIME_PARTS, WINDOW_PRESETS } from "@/lib/constants";
 import { certLabel } from "@/lib/jobCard";
 import { toast } from "@/lib/toast";
@@ -320,6 +321,81 @@ export default function VisitsPanel({ job }) {
                     <option key={o.key} value={o.key}>{o.label}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Inspection-only + who certifies.
+                  Some engineers attend and inspect but don't issue the
+                  certificate — somebody else signs it off, and gets paid for
+                  it. Marking the visit inspection-only pays the attending
+                  engineer their inspection rate (Engineers -> rates) instead
+                  of the full rate, and naming a certifier adds a payable line
+                  for them in Engineer pay, with their own balance and payment
+                  records like any other engineer. */}
+              <div className="mt-2 rounded-lg border border-navy-100 bg-navy-50/60 p-2.5 dark:bg-white/[0.03]">
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-navy-700">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded border-navy-300 text-brand-500"
+                    checked={v.scope === "inspection"}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      patchVisit(v.id, {
+                        scope: on ? "inspection" : "full",
+                        ...(on ? {} : { certifierId: "", certifierFee: "" }),
+                      });
+                    }}
+                  />
+                  Inspection only — certificate issued by someone else
+                </label>
+                {v.scope === "inspection" && (
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className="label text-[10px]">Certificate issued by</label>
+                      <select
+                        className="input h-8 text-sm"
+                        value={v.certifierId || ""}
+                        onChange={(e) => {
+                          const certifierId = e.target.value;
+                          // Seed the fee from that engineer's own full rate
+                          // less their inspection rate — what the certificate
+                          // alone is worth to them. Editable, because this is
+                          // often a one-off arrangement.
+                          const cert = engineers.find((en) => en.id === certifierId);
+                          const lines = visitLines(job, v).filter((l) => !isAddonCode(l.code));
+                          let seeded = "";
+                          if (cert && lines.length) {
+                            const total = lines.reduce(
+                              (sum, l) => sum + (certificationRateForLine(l, cert) ?? 0),
+                              0
+                            );
+                            if (total > 0) seeded = String(Math.round(total * 100) / 100);
+                          }
+                          patchVisit(v.id, {
+                            certifierId,
+                            ...(v.certifierFee ? {} : { certifierFee: seeded }),
+                          });
+                        }}
+                      >
+                        <option value="">Nobody yet</option>
+                        {engineers.map((en) => (
+                          <option key={en.id} value={en.id}>{en.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label text-[10px]">Pay them (£)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="input h-8 text-sm"
+                        value={v.certifierFee ?? ""}
+                        placeholder="0.00"
+                        onChange={(e) => patchVisit(v.id, { certifierFee: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
