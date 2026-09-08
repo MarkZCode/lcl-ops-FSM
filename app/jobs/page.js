@@ -8,7 +8,7 @@ import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { JOB_STATUSES } from "@/lib/constants";
 import { gbp, fmtDateTime, jobTags } from "@/lib/format";
-import { jobEngineerIds } from "@/lib/visits";
+import { jobEngineerIds, hasUpcomingScheduledVisit } from "@/lib/visits";
 import PageHeader from "@/components/PageHeader";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange } from "@/lib/usePeriodRange";
@@ -105,10 +105,27 @@ export default function JobsPage() {
   );
 
 
+  // Helper: test if a job matches the active status filter pill.
+  // For 'scheduled' tab: matches if main status is scheduled OR if the job has a genuine active upcoming scheduled visit!
+  const jobMatchesStatus = (job, targetStatus) => {
+    if (targetStatus === "all") return true;
+    if (targetStatus === "scheduled") {
+      if (job.status === "cancelled") return false;
+      if (job.status === "scheduled") return true;
+      return hasUpcomingScheduledVisit(job);
+    }
+    if (targetStatus === "in_progress") {
+      if (job.status === "cancelled") return false;
+      if (job.status === "in_progress") return true;
+      return Array.isArray(job.visits) && job.visits.some((v) => v.status === "in_progress");
+    }
+    return job.status === targetStatus;
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return inPeriod.filter((j) => {
-      if (statusFilter !== "all" && j.status !== statusFilter) return false;
+      if (!jobMatchesStatus(j, statusFilter)) return false;
       if (!q) return true;
       const client = clients.find((c) => c.id === j.clientId);
       const hay = [
@@ -129,7 +146,7 @@ export default function JobsPage() {
   const counts = useMemo(() => {
     const c = { all: inPeriod.length };
     JOB_STATUSES.forEach((s) => {
-      c[s.key] = inPeriod.filter((j) => j.status === s.key).length;
+      c[s.key] = inPeriod.filter((j) => jobMatchesStatus(j, s.key)).length;
     });
     return c;
   }, [inPeriod]);

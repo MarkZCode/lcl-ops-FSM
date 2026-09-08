@@ -526,6 +526,16 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
     }
 
     if (isEdit) {
+      if (Array.isArray(job.visits) && job.visits.length > 0) {
+        const validLineIds = new Set(lineItems.map((l) => l.id));
+        const cleanedVisits = job.visits
+          .map((v) => ({
+            ...v,
+            lineIds: (v.lineIds || []).filter((id) => validLineIds.has(id)),
+          }))
+          .filter((v) => (v.lineIds && v.lineIds.length > 0) || v.scheduledAt || v.engineerId);
+        payload.visits = cleanedVisits.length > 0 ? cleanedVisits : null;
+      }
       updateJob(job.id, payload);
       if (needsCancelReason) {
         logActivity(job.id, {

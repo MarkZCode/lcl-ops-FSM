@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FiMapPin, FiUser, FiClock, FiClipboard } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { fmtDateTime, gbp, jobTags } from "@/lib/format";
-import { jobEngineerIds } from "@/lib/visits";
+import { jobEngineerIds, getUpcomingScheduledVisit } from "@/lib/visits";
 import StatusBadge from "./StatusBadge";
 
 // Left-border accent colour per job status
@@ -26,13 +26,12 @@ export default function JobCard({ job, onJobCard }) {
   const accent = STATUS_ACCENT[job.status] || "border-l-navy-200";
   const tags = jobTags(job);
 
+  const upcomingVisit = getUpcomingScheduledVisit(job);
+  const displayDate = upcomingVisit?.scheduledAt || job.scheduledAt;
+
   return (
     <Link
       href={`/jobs/${job.id}`}
-      // min-w-0: as a grid/flex item the card would otherwise size to its own
-      // content and burst out of its track — measured at 377px inside a 335px
-      // column, which is what clipped the status badge and price off the right
-      // edge of every job card on a phone.
       className={`card block min-w-0 border-l-4 p-4 transition hover:shadow-md hover:-translate-y-px ${accent}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -40,7 +39,7 @@ export default function JobCard({ job, onJobCard }) {
           <p className="text-xs font-bold uppercase tracking-wider text-navy-400">{job.id}</p>
           <p className="mt-0.5 truncate text-sm font-bold text-navy-900">{client?.name || "Unknown client"}</p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 justify-end">
           {onJobCard && (
             <button
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onJobCard(job); }}
@@ -52,6 +51,11 @@ export default function JobCard({ job, onJobCard }) {
             </button>
           )}
           <StatusBadge status={job.status} size="sm" />
+          {upcomingVisit && ["paid", "invoiced", "completed"].includes(job.status) && (
+            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
+              Visit Scheduled
+            </span>
+          )}
         </div>
       </div>
 
@@ -74,7 +78,14 @@ export default function JobCard({ job, onJobCard }) {
         )}
         <p className="flex items-center gap-2">
           <FiClock className="shrink-0 text-navy-400" />
-          {fmtDateTime(job.scheduledAt)}
+          <span>
+            {fmtDateTime(displayDate)}
+            {upcomingVisit && (
+              <span className="ml-1.5 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                (Upcoming Visit)
+              </span>
+            )}
+          </span>
         </p>
         <p className="flex items-start gap-2">
           <FiUser className="mt-0.5 shrink-0 text-navy-400" />

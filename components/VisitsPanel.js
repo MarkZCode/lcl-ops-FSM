@@ -187,7 +187,8 @@ export default function VisitsPanel({ job }) {
           fakes the outstanding visit as complete, offer the honest move:
           bill what was actually carried out, and push the rest onto its own
           job so it stays in the pipeline to be rescheduled. */}
-      {partial && (
+      {/* For jobs that are ALREADY invoiced/paid, keep all visits on 1 single job card */}
+      {partial && !["invoiced", "paid"].includes(job.status) && (
         <div className="border-b border-navy-100 bg-amber-50 px-4 py-3 dark:bg-amber-500/10">
           <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
             {partial.doneCount} of {partial.total} visits done — {partial.outstandingLabel} still outstanding
@@ -209,6 +210,14 @@ export default function VisitsPanel({ job }) {
           >
             <LuSplit className="h-3.5 w-3.5" /> Invoice completed work, reschedule the rest
           </button>
+        </div>
+      )}
+
+      {split && ["invoiced", "paid"].includes(job.status) && (
+        <div className="border-b border-navy-100 bg-emerald-50 px-4 py-2.5 dark:bg-emerald-500/10">
+          <p className="text-xs font-medium text-emerald-900 dark:text-emerald-200">
+            ✓ Single Billed Package — All {visits.length} visits stay on this job card ({job.id}) under one main invoice/payment.
+          </p>
         </div>
       )}
 

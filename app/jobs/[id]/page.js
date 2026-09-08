@@ -32,7 +32,7 @@ import { gbp, fmtDate, getJobLines, lineTotal, lineGross, jobDiscount, jobPayabl
 import { jobFinancialsSplit } from "@/lib/finance";
 import { dateLine, certLabel, acceptanceProgress } from "@/lib/jobCard";
 import { computeCertExpiry } from "@/lib/renewals";
-import { isSplit } from "@/lib/visits";
+import { isSplit, getVisits, visitLines } from "@/lib/visits";
 import { supabase } from "@/lib/supabase";
 import StatusBadge from "@/components/StatusBadge";
 import JobModal from "@/components/JobModal";
@@ -49,12 +49,13 @@ import Modal from "@/components/Modal";
 import AutoEmailConfirm from "@/components/AutoEmailConfirm";
 import VisitsPanel from "@/components/VisitsPanel";
 import CancelJobModal from "@/components/CancelJobModal";
+import RescheduleModal from "@/components/RescheduleModal";
 import { toast } from "@/lib/toast";
 
 export default function JobDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { jobs, clients, updateJob, removeJob, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
+  const { jobs, clients, updateJob, removeJob, mergeBackToParentJob, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
     useStore();
   const { can, user } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
@@ -69,6 +70,8 @@ export default function JobDetailPage() {
   const [shareCopied, setShareCopied] = useState(false);
   const [autoEmailPending, setAutoEmailPending] = useState(null); // { subject, sendFn }
   const [moreOpen, setMoreOpen] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [emailTemplateOverride, setEmailTemplateOverride] = useState(null);
 
   // On mount, pull the freshest version of this job from Supabase so activity
   // written by the webhook (while the app was closed/idle) is visible immediately.
@@ -443,9 +446,60 @@ export default function JobDetailPage() {
             )}
           </section>
 
-          {/* Visits — full width in the main column. This was in the narrow
-              right rail, where four dropdowns and a row of service chips had
-              nowhere to go; scheduling is primary work, not a sidebar widget. */}
+          {/* Split Job Parent/Child Banners */}
+          {(job.relatedJobId || job.parentJobId) && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50/90 p-4 text-blue-900 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm">
+                    {job.prepaidOnParent || job.billingStatus === "prepaid_on_parent" ? "Prepaid Child Job" : "Linked Child Job"}
+                  </span>
+                  <span className="pill pill-blue text-[11px] font-semibold">
+                    Parent: #{job.relatedJobId || job.parentJobId}
+                  </span>
+                </div>
+                <p className="text-xs text-blue-700">
+                  {job.prepaidOnParent || job.billingStatus === "prepaid_on_parent"
+                    ? `This job was split off from parent job #${job.relatedJobId || job.parentJobId} and is already prepaid on the main invoice.`
+                    : `This job is linked to parent job #${job.relatedJobId || job.parentJobId}.`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href={`/jobs/${job.relatedJobId || job.parentJobId}`} className="btn-outline text-xs bg-white text-blue-700 border-blue-300 hover:bg-blue-100">
+                  View Parent Job #{job.relatedJobId || job.parentJobId}
+                </Link>
+                <button
+                  type="button"
+                  className="btn-primary text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => {
+                    const parent = mergeBackToParentJob(job.id);
+                    if (parent) router.push(`/jobs/${parent.id}`);
+                  }}
+                >
+                  🔗 Merge back to Parent Job
+                </button>
+              </div>
+            </div>
+          )}
+
+          {job.splitOffJobId && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-4 text-amber-900 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm">Incomplete service split off</span>
+                  <span className="pill pill-amber text-[11px] font-semibold">Child Job: #{job.splitOffJobId}</span>
+                </div>
+                <p className="text-xs text-amber-700">
+                  Unfinished work from this job was split off to child job #{job.splitOffJobId}.
+                </p>
+              </div>
+              <Link href={`/jobs/${job.splitOffJobId}`} className="btn-outline text-xs bg-white text-amber-800 border-amber-300 hover:bg-amber-100">
+                View Child Job #{job.splitOffJobId} →
+              </Link>
+            </div>
+          )}
+
+          {/* Visits — full width in the main column. */}
           <VisitsPanel job={job} />
 
           {/* Services */}
@@ -853,10 +907,24 @@ export default function JobDetailPage() {
               Appointment
             </h2>
             <div className="space-y-3 text-sm">
-              <p className="flex items-center gap-2 text-navy-700">
-                <FiClock className="text-navy-400" />
-                {job.scheduledAt ? dateLine(job) : "Not scheduled"}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="flex items-center gap-2 text-navy-700">
+                  <FiClock className="text-navy-400" />
+                  {job.scheduledAt ? dateLine(job) : "Not scheduled"}
+                </p>
+                {/* Moving an appointment used to mean Edit → Scheduling, which
+                    overwrites the date silently — nothing recorded that the job
+                    had moved, or why. Its own action, with the reason logged. */}
+                {!["completed", "invoiced", "paid", "cancelled"].includes(job.status) && (
+                  <button
+                    onClick={() => setRescheduleOpen(true)}
+                    className="shrink-0 rounded-lg border border-navy-200 px-2 py-1 text-[11px] font-semibold text-navy-600 transition hover:border-brand-300 hover:text-brand-600"
+                    title="Move this job to another date and record why"
+                  >
+                    Reschedule
+                  </button>
+                )}
+              </div>
               {(() => {
                 // Acceptance is per engineer now, so the badge has to say how
                 // many are in — "Engineer confirmed" on a three-engineer job
@@ -876,35 +944,53 @@ export default function JobDetailPage() {
               })()}
               <div>
                 <label className="label">Assigned engineer</label>
-                <select
-                  className="input"
-                  value={job.engineerId}
-                  onChange={(e) => {
-                    const nextEngineerId = e.target.value;
-                    const oldEngineerId = job.engineerId;
-                    // Lines with no explicit engineer of their own "follow" the
-                    // job's primary engineer, so they should move with it. Only
-                    // a line deliberately locked to a DIFFERENT engineer (a real
-                    // split job) stays put — otherwise the Services list kept
-                    // showing the old engineer's name as a stale chip after
-                    // reassigning here.
-                    const lineItems = Array.isArray(job.lineItems)
-                      ? job.lineItems.map((l) =>
-                          l.engineerId === oldEngineerId
-                            ? { ...l, engineerId: nextEngineerId }
-                            : l
-                        )
-                      : job.lineItems;
-                    updateJob(job.id, { engineerId: nextEngineerId, lineItems });
-                  }}
-                >
-                  {engineerOptions.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                      {e.trade ? ` · ${e.trade}` : ""}
-                    </option>
-                  ))}
-                </select>
+                {isSplit(job) ? (
+                  <div className="space-y-2 rounded-lg bg-navy-50 p-3 text-xs text-navy-700">
+                    <p className="font-semibold text-navy-800">Assigned per visit ({getVisits(job).length} visits):</p>
+                    {getVisits(job).map((v, idx) => {
+                      const eng = engineers.find((e) => e.id === v.engineerId);
+                      const lines = visitLines(job, v);
+                      const lineNames = lines.map((l) => certLabel(l.code) || l.name).join(", ");
+                      return (
+                        <div key={v.id} className="flex items-center justify-between border-b border-navy-100/60 pb-1.5 last:border-0 last:pb-0">
+                          <span className="truncate pr-2">
+                            Visit {idx + 1}{lineNames ? ` (${lineNames})` : ""}:
+                          </span>
+                          <span className="shrink-0 font-semibold text-navy-900">
+                            {eng ? eng.name : "Unassigned"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    <p className="pt-1 text-[11px] text-navy-400">
+                      Manage engineer assignments per visit in the Visits panel.
+                    </p>
+                  </div>
+                ) : (
+                  <select
+                    className="input"
+                    value={job.engineerId}
+                    onChange={(e) => {
+                      const nextEngineerId = e.target.value;
+                      const oldEngineerId = job.engineerId;
+                      const lineItems = Array.isArray(job.lineItems)
+                        ? job.lineItems.map((l) =>
+                            l.engineerId === oldEngineerId
+                              ? { ...l, engineerId: nextEngineerId }
+                              : l
+                          )
+                        : job.lineItems;
+                      updateJob(job.id, { engineerId: nextEngineerId, lineItems });
+                    }}
+                  >
+                    {engineerOptions.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name}
+                        {e.trade ? ` · ${e.trade}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               {job.certExpiry && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -990,11 +1076,11 @@ export default function JobDetailPage() {
       />
       <SendEmailModal
         open={emailOpen}
-        onClose={() => setEmailOpen(false)}
+        onClose={() => { setEmailOpen(false); setEmailTemplateOverride(null); }}
         job={job}
         client={client}
         property={property}
-        defaultTemplate={defaultEmailTemplate}
+        defaultTemplate={emailTemplateOverride || defaultEmailTemplate}
       />
       <JobCardModal
         open={jobCardOpen}
@@ -1003,6 +1089,47 @@ export default function JobDetailPage() {
         client={client}
         property={property}
       />
+      <RescheduleModal
+        open={rescheduleOpen}
+        onClose={() => setRescheduleOpen(false)}
+        job={job}
+        onConfirm={({ scheduledAt, windowPart, windowFrom, windowTo, reason, note, notify }) => {
+          const wasAt = job.scheduledAt;
+          const patch = { scheduledAt, windowPart, windowFrom, windowTo };
+          // A job that had slipped back to quote/cancelled is booked again by
+          // rescheduling it — otherwise it moves date but stays off the board.
+          if (["quote", "cancelled"].includes(job.status)) patch.status = "scheduled";
+          // Every visit on a split job moves with the job. Rescheduling the
+          // parent and leaving the visits on the old date would put the job in
+          // two places at once on the dispatch board.
+          if (isSplit(job)) {
+            patch.visits = job.visits.map((v) =>
+              v.status === "completed" || v.status === "cancelled"
+                ? v
+                : { ...v, scheduledAt, windowPart, windowFrom, windowTo }
+            );
+          }
+          updateJob(job.id, patch);
+          logActivity(job.id, {
+            type: "status",
+            title: `Rescheduled — ${reason}`,
+            detail: `${wasAt ? fmtDate(wasAt) : "unscheduled"} → ${fmtDate(scheduledAt)}${note ? ` · ${note}` : ""}`,
+            by: user?.name || user?.username || "",
+          });
+          setRescheduleOpen(false);
+          toast.success("Job rescheduled");
+          // The auto-notify machinery lives inside changeStatus and is tied to
+          // a status TRANSITION — a reschedule isn't one (the job was already
+          // scheduled and still is). Rather than duplicate that send logic,
+          // open the normal email composer on the booking template so the new
+          // date goes out with a chance to read it first.
+          if (notify && client?.email) {
+            setEmailTemplateOverride("booking");
+            setEmailOpen(true);
+          }
+        }}
+      />
+
       <InvoiceModal
         open={invoiceOpen}
         onClose={() => setInvoiceOpen(false)}

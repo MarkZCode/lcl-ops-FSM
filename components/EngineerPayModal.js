@@ -484,98 +484,158 @@ export default function EngineerPayModal({
               and one transfer costs one fee however many jobs it covers.
             </p>
 
-            {/* Breakdown of the clicked job — what the work was, how the fee
-                was derived, and both ways to pay it. */}
+            {/* Breakdown of clicked or selected jobs — what the work was, how the fee
+                was derived, and both ways to pay / undo payment. */}
             {(() => {
-              const j = jd.find((x) => x.jobId === focusedJobId);
-              if (!j) return null;
-              const picked = selectedJobIds.has(j.jobId);
+              // Show selected jobs if any are ticked, else show focused job
+              const targetJobs = selectedJobIds.size > 0
+                ? jd.filter((x) => selectedJobIds.has(x.jobId))
+                : focusedJobId
+                ? jd.filter((x) => x.jobId === focusedJobId)
+                : [];
+
+              if (targetJobs.length === 0) return null;
+
+              const isMulti = targetJobs.length > 1;
               const Row = ({ label, value, tone = "" }) => (
                 <div className="flex items-center justify-between py-1">
                   <span className="text-navy-500">{label}</span>
                   <span className={`tnum font-semibold ${tone || "text-navy-900"}`}>{value}</span>
                 </div>
               );
-              return (
-                <div className="mt-3 rounded-xl border border-brand-200 bg-white p-4">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <Link href={`/jobs/${j.jobId}`} className="text-sm font-bold text-brand-700 hover:underline">
-                        {j.jobId}
-                      </Link>
-                      <p className="text-[11px] text-navy-500">
-                        {j.date ? fmtDate(j.date) : "No date"} · {j.description || "—"}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setFocusedJobId(null)}
-                      className="text-[11px] font-semibold text-navy-500 hover:text-navy-900"
-                    >
-                      Close
-                    </button>
-                  </div>
 
-                  {Array.isArray(j.lines) && j.lines.length > 0 && (
-                    <div className="my-2.5 rounded-lg border border-navy-100 bg-navy-50/70 p-2.5 text-xs">
-                      <p className="mb-1.5 font-semibold text-navy-800">Services in this job:</p>
-                      <div className="space-y-1 divide-y divide-navy-100/50">
-                        {j.lines.map((l, idx) => (
-                          <div key={idx} className="flex items-center justify-between pt-1 first:pt-0 text-navy-700">
-                            <span className="font-medium">
-                              {l.name} {l.tier ? `(${l.tier})` : ""} {l.qty > 1 ? `× ${l.qty}` : ""}
-                            </span>
-                            <div className="flex items-center gap-3 text-right">
-                              <span className="text-navy-500">Customer: {gbp(l.lineRevenue)}</span>
-                              <span className="font-semibold text-amber-700">Engineer Pay: {gbp(l.linePay)}</span>
+              return (
+                <div className="mt-3 space-y-3">
+                  {isMulti && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50/50 p-3 text-xs font-semibold text-brand-900">
+                      <span>
+                        Showing breakdown for {targetJobs.length} selected jobs · Combined Payable: {gbp(targetJobs.reduce((s, j) => s + (Number(j.owed) || 0), 0))}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedJobIds(new Set())}
+                        className="text-[11px] font-bold text-brand-700 hover:underline"
+                      >
+                        Clear selection
+                      </button>
+                    </div>
+                  )}
+
+                  {targetJobs.map((j) => {
+                    const picked = selectedJobIds.has(j.jobId);
+                    const paymentForJob = periodPayments.find((p) => (p.jobIds || []).includes(j.jobId))
+                      || (row.payments || []).find((p) => (p.jobIds || []).includes(j.jobId));
+
+                    return (
+                      <div key={j.jobId} className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <Link href={`/jobs/${j.jobId}`} className="text-sm font-bold text-brand-700 hover:underline" onClick={onClose}>
+                              {j.jobId}
+                            </Link>
+                            <p className="text-[11px] text-navy-500">
+                              {j.date ? fmtDate(j.date) : "No date"} · {j.description || "—"}
+                            </p>
+                          </div>
+                          {!isMulti && (
+                            <button
+                              type="button"
+                              onClick={() => setFocusedJobId(null)}
+                              className="text-[11px] font-semibold text-navy-500 hover:text-navy-900"
+                            >
+                              Close
+                            </button>
+                          )}
+                        </div>
+
+                        {Array.isArray(j.lines) && j.lines.length > 0 && (
+                          <div className="my-2.5 rounded-lg border border-navy-100 bg-navy-50/70 p-2.5 text-xs">
+                            <p className="mb-1.5 font-semibold text-navy-800">Services in this job:</p>
+                            <div className="space-y-1 divide-y divide-navy-100/50">
+                              {j.lines.map((l, idx) => (
+                                <div key={idx} className="flex items-center justify-between pt-1 first:pt-0 text-navy-700">
+                                  <span className="font-medium">
+                                    {l.name} {l.tier ? `(${l.tier})` : ""} {l.qty > 1 ? `× ${l.qty}` : ""}
+                                  </span>
+                                  <div className="flex items-center gap-3 text-right">
+                                    <span className="text-navy-500">Customer: {gbp(l.lineRevenue)}</span>
+                                    <span className="font-semibold text-amber-700">Engineer Pay: {gbp(l.linePay)}</span>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        ))}
+                        )}
+
+                        <div className="divide-y divide-navy-100 text-xs">
+                          <Row label="Customer paid for this job" value={gbp(j.revenue)} />
+                          <Row
+                            label={`Engineer fee (${
+                              j.overridden
+                                ? "manual override"
+                                : j.payType === "fixed_service" || j.payType === "fixed_gas"
+                                ? "fixed rate setting"
+                                : j.payType === "per_job"
+                                ? `${j.cut}% cut`
+                                : j.payType === "weekly"
+                                ? "weekly retainer"
+                                : "engineer rate"
+                            })`}
+                            value={gbp(j.labour)}
+                          />
+                          {j.vat > 0 && <Row label="VAT on their fee (20%)" value={gbp(j.vat)} />}
+                          {j.parkingReimbursed > 0 && <Row label="Parking reimbursed (receipt submitted)" value={gbp(j.parkingReimbursed)} />}
+                          {j.parking?.charged > 0 && !j.parkingReimbursed && (
+                            <Row label="Parking charged to customer (no receipt)" value={gbp(j.parking.charged)} tone="text-navy-400" />
+                          )}
+                          <Row label="Engineer receives" value={gbp(j.owed)} tone="text-brand-700" />
+                          <Row label={`Send alone (incl. ${gbp(DEFAULT_TRANSFER_FEE)} bank fee)`} value={gbp(grossUpTransfer(j.owed).send)} />
+                        </div>
+
+                        {j.overridden && (
+                          <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800">
+                            Manual amount — set on the job, not calculated from their rate.
+                          </p>
+                        )}
+
+                        {j.settled ? (
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-emerald-50 p-2.5">
+                            <span className="text-[11px] font-semibold text-emerald-700">
+                              Already settled — {paymentForJob ? `recorded payment on ${fmtDate(paymentForJob.paidAt)}` : "covered by payment"}
+                            </span>
+                            {paymentForJob && onRemovePayment && (
+                              <button
+                                type="button"
+                                onClick={() => onRemovePayment(paymentForJob.id)}
+                                className="btn-outline border-rose-200 bg-white text-rose-600 hover:bg-rose-50 py-1 text-xs"
+                                title="Undo this recorded payment and restore job to unpaid"
+                              >
+                                <FiRotateCcw className="mr-1 inline h-3.5 w-3.5" /> Undo payment
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => payOneJob(j)}
+                              disabled={busy}
+                              className="btn-primary py-1.5 text-xs"
+                            >
+                              Pay this job only · send {gbp(grossUpTransfer(j.owed).send)}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setAmount(""); toggleJob(j.jobId); }}
+                              className="btn-outline py-1.5 text-xs"
+                            >
+                              {picked ? "Remove from combined payment" : "Add to combined payment"}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-
-                  <div className="divide-y divide-navy-100 text-xs">
-                    <Row label="Customer paid for this job" value={gbp(j.revenue)} />
-                    <Row label={`Engineer fee (${j.payType === "per_job" ? `${j.cut}% of the job` : j.payType === "weekly" ? "weekly retainer" : "their fixed rate"})`} value={gbp(j.labour)} />
-                    {j.vat > 0 && <Row label="VAT on their fee (20%)" value={gbp(j.vat)} />}
-                    {j.parkingReimbursed > 0 && <Row label="Parking reimbursed (receipt submitted)" value={gbp(j.parkingReimbursed)} />}
-                    {j.parking?.charged > 0 && !j.parkingReimbursed && (
-                      <Row label="Parking charged to customer (no receipt)" value={gbp(j.parking.charged)} tone="text-navy-400" />
-                    )}
-                    <Row label="Engineer receives" value={gbp(j.owed)} tone="text-brand-700" />
-                    <Row label={`Send alone (incl. ${gbp(DEFAULT_TRANSFER_FEE)} bank fee)`} value={gbp(grossUpTransfer(j.owed).send)} />
-                  </div>
-
-                  {j.overridden && (
-                    <p className="mt-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-semibold text-amber-800">
-                      Manual amount — set on the job, not calculated from their rate.
-                    </p>
-                  )}
-
-                  {j.settled ? (
-                    <p className="mt-3 rounded-lg bg-emerald-50 px-2.5 py-2 text-[11px] font-semibold text-emerald-700">
-                      Already settled — a recorded payment covers this job.
-                    </p>
-                  ) : (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => payOneJob(j)}
-                        disabled={busy}
-                        className="btn-primary py-1.5 text-xs"
-                      >
-                        Pay this job only · send {gbp(grossUpTransfer(j.owed).send)}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setAmount(""); toggleJob(j.jobId); }}
-                        className="btn-outline py-1.5 text-xs"
-                      >
-                        {picked ? "Remove from combined payment" : "Add to combined payment"}
-                      </button>
-                    </div>
-                  )}
+                    );
+                  })}
                 </div>
               );
             })()}

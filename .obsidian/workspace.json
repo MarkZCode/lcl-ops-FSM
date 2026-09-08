@@ -13,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "node_modules/pino/README.md",
+                "file": "node_modules/micromatch/README.md",
                 "mode": "source",
                 "source": false
               },
@@ -181,5 +181,7 @@
     }
   },
   "active": "6454429f456440f7",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "node_modules/pino/README.md"
+  ]
 }
