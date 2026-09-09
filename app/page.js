@@ -11,6 +11,7 @@ import {
   FiBarChart2, FiPieChart, FiUsers,
 } from "react-icons/fi";
 import { useStore } from "@/lib/store";
+import { supabase } from "@/lib/supabase";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { gbp, fmtDate, serviceShort } from "@/lib/format";
 import { getRenewals } from "@/lib/renewals";
@@ -55,28 +56,38 @@ const STATUS_PILL = {
 };
 
 export default function Dashboard() {
-  const { jobs: allJobs, clients, hydrated, prospectsReady, engineers, prospects, requestBigTables, expenses, engineerPayments } = useStore();
-  // The renewals KPI counts prospects, so the dashboard needs that table — but
-  // it never touches leads, which is 25MB it shouldn't be paying for.
+  const { jobs: allJobs, clients, hydrated, engineers, expenses, engineerPayments } = useStore();
+
+  // The ONLY thing this page wanted the prospects table for was one number:
+  // how many renewals fall due in the next 14 days. Getting it in the browser
+  // meant downloading ~14.5k rows / ~12MB over ~15 paginated requests every
+  // time the dashboard opened — on a phone, over mobile data, to render a
+  // single integer. That was the single largest cost in the app.
   //
-  // DEFERRED until the browser is idle. This is the landing page, and the
-  // prospects table is ~14.5k rows / ~13MB over ~15 paginated requests. Firing
-  // it synchronously on mount meant every single app open spent its first
-  // seconds downloading and parsing that, on the main thread, while the user
-  // was already trying to tap something — which is most of the "app feels
-  // drastically slow" and "I have to tap two or three times" behaviour on a
-  // phone. Every other figure on this page comes from jobs/clients, which are
-  // already loaded, so the whole dashboard is fully usable before this lands;
-  // only the renewals count fills in a beat later.
+  // /api/stats/renewals computes it next to the database and returns ~30
+  // bytes. The dashboard no longer pulls the big table at all.
+  const [renewalStats, setRenewalStats] = useState(null);
   useEffect(() => {
-    const kick = () => requestBigTables("prospects");
-    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(kick, { timeout: 3000 });
-      return () => window.cancelIdleCallback?.(id);
-    }
-    const t = setTimeout(kick, 1200);
-    return () => clearTimeout(t);
-  }, [requestBigTables]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: session } = await supabase.auth.getSession();
+        const token = session?.session?.access_token;
+        if (!token) return;
+        const res = await fetch("/api/stats/renewals", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        if (!cancelled) setRenewalStats(json);
+      } catch {
+        // A missing renewals count is a blank KPI, never a broken dashboard.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const prospectsReady = renewalStats != null;
   const { user, can } = useAuth();
   const router = useRouter();
 
@@ -141,15 +152,8 @@ export default function Dashboard() {
 
     const renewals = getRenewals(jobs, 60).length;
 
-    // Prospects due ≤14d
-    const urgentProspects = prospects.filter((p) => {
-      if (!p.certRenewalDate && !p.jobDate) return false;
-      const base = p.certRenewalDate || p.jobDate;
-      const due = new Date(base);
-      due.setFullYear(due.getFullYear() + 1);
-      const d = Math.ceil((due - now) / 86400000);
-      return d >= 0 && d <= 14;
-    }).length;
+    // Computed server-side — see the /api/stats/renewals fetch above.
+    const urgentProspects = renewalStats?.urgent ?? 0;
 
     const pipeline = Object.fromEntries(
       PIPELINE.map((s) => {
@@ -187,7 +191,7 @@ export default function Dashboard() {
       : "Paid revenue minus costs";
 
     return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: monthRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, profitNote, companyExpenses, engineerCost };
-  }, [jobs, prospects, engineers, engineerPayments, expenses]);
+  }, [jobs, engineers, engineerPayments, expenses, renewalStats]);
 
   // How the business is running, not just what it billed — measured over the
   // last 90 days so the rates have enough jobs behind them to mean anything.
