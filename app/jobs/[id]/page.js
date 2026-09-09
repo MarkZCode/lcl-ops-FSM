@@ -48,6 +48,7 @@ import JobOutcome from "@/components/JobOutcome";
 import Modal from "@/components/Modal";
 import AutoEmailConfirm from "@/components/AutoEmailConfirm";
 import VisitsPanel from "@/components/VisitsPanel";
+import CertificationPanel from "@/components/CertificationPanel";
 import CancelJobModal from "@/components/CancelJobModal";
 import RescheduleModal from "@/components/RescheduleModal";
 import { toast } from "@/lib/toast";
@@ -501,6 +502,7 @@ export default function JobDetailPage() {
 
           {/* Visits — full width in the main column. */}
           <VisitsPanel job={job} />
+          <CertificationPanel job={job} />
 
           {/* Services */}
           <section className="card p-5">

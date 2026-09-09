@@ -870,7 +870,21 @@ function ReportsInner() {
                         </td>
                         <td className="tnum px-3 py-2.5 text-right text-navy-700">{r.jobs}</td>
                         <td className="tnum px-3 py-2.5 text-right text-navy-700">{gbp(r.revenue)}</td>
-                        <td className="tnum px-3 py-2.5 text-right text-navy-700">{gbp(r.labour)} <span className="text-[11px] text-navy-400">({r.payLabel})</span></td>
+                        <td className="tnum px-3 py-2.5 text-right text-navy-700">
+                          {gbp(r.labour)} <span className="text-[11px] text-navy-400">({r.payLabel})</span>
+                          {/* Say WHY a figure is below the full rate, rather
+                              than leaving a lower number looking like an error. */}
+                          {r.inspectionJobs > 0 && (
+                            <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                              {r.inspectionJobs} inspection only
+                            </span>
+                          )}
+                          {r.certificateJobs > 0 && (
+                            <span className="ml-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800 dark:bg-blue-500/15 dark:text-blue-300">
+                              {r.certificateJobs} certificate only
+                            </span>
+                          )}
+                        </td>
                         <td className="tnum px-3 py-2.5 text-right text-navy-500">{r.vat > 0 ? gbp(r.vat) : "—"}</td>
                         <td className="tnum px-3 py-2.5 text-right text-navy-500">{r.parkingReimbursed > 0 ? gbp(r.parkingReimbursed) : "—"}</td>
                         <td className="tnum px-3 py-2.5 text-right text-emerald-700">{r.paid > 0 ? gbp(r.paid) : "—"}</td>
