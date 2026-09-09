@@ -37,8 +37,6 @@ export default function EngineersPage() {
 function EngineersInner() {
   const ask = useConfirm();
   const { engineers, removeEngineer, jobs, coldLeads, recruits, addEngineer, updateColdLead, requestBigTables } = useStore();
-  // The applicants list is built from recruit-segment leads.
-  useEffect(() => { requestBigTables("leads"); }, [requestBigTables]);
   const [addOpen, setAddOpen] = useState(false);
   const [editEng, setEditEng] = useState(null);
   const [tab, setTab] = useState("roster"); // 'roster' | 'sourcing' | 'payments'
@@ -51,6 +49,16 @@ function EngineersInner() {
     if (["roster", "sourcing", "payments"].includes(t)) setTab(t);
   }, [engParams]);
   const [prefillFromLead, setPrefillFromLead] = useState(null);
+
+  // The cold-leads table (~42k rows / ~25MB over ~25 paginated requests) is
+  // ONLY needed to build the applicants list on the Sourcing tab. Requesting it
+  // on mount meant simply opening Engineers — which lands on Roster — spent
+  // its first seconds downloading and parsing 25MB the visible tab never
+  // touches. Now it's fetched the moment Sourcing is actually opened, so the
+  // roster and payments tabs cost nothing.
+  useEffect(() => {
+    if (tab === "sourcing") requestBigTables("leads");
+  }, [tab, requestBigTables]);
 
   // Engineer recruitment applicants = recruit cold leads past the 'new' stage,
   // excluding do-not-contact. Sorted most-recently-contacted first.

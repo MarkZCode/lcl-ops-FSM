@@ -9,6 +9,7 @@ import LoginScreen from "./LoginScreen";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
+import VersionWatcher from "./VersionWatcher";
 import Toaster from "./Toaster";
 import SyncErrorBanner from "./SyncErrorBanner";
 import ErrorBoundary from "./ErrorBoundary";
@@ -128,6 +129,7 @@ export default function AuthGate({ children }) {
           </div>
         </div>
         <BottomNav />
+        <VersionWatcher />
         {/* WelcomeToast disabled for now — was popping up notifications on
             every app open. <WelcomeToast /> */}
         <Toaster />
