@@ -824,7 +824,18 @@ function ReportsInner() {
                 <span className="text-navy-500">Balance <strong className="text-rose-600">{gbp(pay.totalBalance)}</strong></span>
               </div>
             </div>
-            {pay.rows.every((r) => r.jobs === 0) ? (
+            {engineers.length === 0 ? (
+              /* [].every(...) is vacuously TRUE — with no engineers loaded at
+                 all, pay.rows is empty and the check below couldn't tell that
+                 apart from "loaded fine, genuinely no jobs this period". That
+                 silently showed the same "no completed jobs" message for a
+                 real loading/fetch problem as for an ordinary quiet month,
+                 with nothing pointing at the actual cause. */
+              <div className="p-5 text-sm text-navy-400">
+                <p>Engineers haven&apos;t loaded yet — this isn&apos;t a real empty period.</p>
+                <p className="mt-1 text-xs">If this doesn&apos;t resolve itself in a few seconds, reload the page.</p>
+              </div>
+            ) : pay.rows.every((r) => r.jobs === 0) ? (
               <div className="p-5 text-sm text-navy-400">
                 <p>No completed jobs for any engineer in {range.label}.</p>
                 {latestActivityRef && range.label !== latestActivityLabel && (
