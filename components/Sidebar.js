@@ -17,7 +17,13 @@ import { visibleNavLinks, visibleUtilityLinks } from "@/lib/nav";
 import { useHideOnScroll } from "@/lib/useHideOnScroll";
 import { motion } from "framer-motion";
 
-function NavLinks({ pathname, onNavigate, can, role, expanded = true, includeUtility = false }) {
+// `dark` = always-dark surface (the mobile drawer), independent of the site
+// theme. Without it this followed the same theme-remapped navy-500/900 text
+// classes the desktop rail correctly uses — right there (a light, theme-aware
+// surface) but on the drawer's permanently-dark background in LIGHT theme
+// mode, navy-500 resolves to a dark grey that's barely visible on black.
+// Confirmed directly: "the text is barely readable" on the drawer.
+function NavLinks({ pathname, onNavigate, can, role, expanded = true, includeUtility = false, dark = false }) {
   const items = [...visibleNavLinks(can, role), ...(includeUtility ? visibleUtilityLinks(can, role) : [])];
   const layoutIdPrefix = includeUtility ? "mobile" : "desktop";
   
@@ -38,7 +44,11 @@ function NavLinks({ pathname, onNavigate, can, role, expanded = true, includeUti
             title={link.label}
             data-active={active ? "true" : "false"}
             className={`nav-item relative z-10 ${expanded ? "" : "justify-center !px-0"} ${
-              active ? "text-navy-900" : "text-navy-500 hover:text-navy-900"
+              active
+                ? "text-navy-900"
+                : dark
+                  ? "text-slate-300 hover:text-white"
+                  : "text-navy-500 hover:text-navy-900"
             }`}
           >
             {/* Active state is a quiet raised surface, not a saturated brand
@@ -62,7 +72,13 @@ function NavLinks({ pathname, onNavigate, can, role, expanded = true, includeUti
   );
 }
 
-function UserFooter({ user, onLogout, expanded = true, withControls = false }) {
+// `dark` forces light text/icon colours regardless of theme — for the
+// mobile drawer, which is a permanently dark surface. Without it this
+// followed the theme-remapped navy-900/navy-500 tokens, which resolve to
+// near-black in light mode: correct on the theme-aware desktop rail, but on
+// the drawer's always-dark background it put near-black text on black —
+// exactly the "can't even see the name and email" symptom.
+function UserFooter({ user, onLogout, expanded = true, withControls = false, dark = false }) {
   const displayName = user?.username || user?.name || "?";
   const initials = displayName
     .split(" ")
@@ -75,7 +91,7 @@ function UserFooter({ user, onLogout, expanded = true, withControls = false }) {
       {/* Theme + notifications sit here rather than crowding the brand row. */}
       {withControls && (
         <div className={`mb-2 flex items-center ${expanded ? "gap-1 px-1" : "flex-col gap-1"}`}>
-          <ThemeToggle className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-navy-500 hover:text-navy-900" />
+          <ThemeToggle className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${dark ? "text-slate-300 hover:text-white" : "text-navy-500 hover:text-navy-900"}`} />
           <NotificationBell />
         </div>
       )}
@@ -105,12 +121,12 @@ function UserFooter({ user, onLogout, expanded = true, withControls = false }) {
         {expanded ? (
           <>
             <Link href="/settings?section=profile" className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-navy-900">{user?.username || user?.name}</p>
-              <p className="text-[11px] capitalize text-navy-500">{user?.role}</p>
+              <p className={`truncate text-sm font-semibold ${dark ? "text-white" : "text-navy-900"}`}>{user?.username || user?.name}</p>
+              <p className={`text-[11px] capitalize ${dark ? "text-slate-400" : "text-navy-500"}`}>{user?.role}</p>
             </Link>
             <button
               onClick={onLogout}
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-navy-500 hover:text-navy-900"
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${dark ? "text-slate-300 hover:text-white" : "text-navy-500 hover:text-navy-900"}`}
               aria-label="Sign out"
               title="Sign out"
             >
@@ -323,16 +339,19 @@ export default function Sidebar() {
                 {/* Wordmark only — the icon mark is gone from the chrome. */}
                 <p className="min-w-0 truncate text-[15px] font-semibold tracking-tight text-white">LCL Ops</p>
               </span>
+              {/* text-navy-200 remaps to --text-secondary, which is dark in
+                  light theme mode -- invisible against this permanently-dark
+                  drawer header. Fixed light colour instead. */}
               <button
                 onClick={() => setOpen(false)}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-navy-200 hover:bg-white/10"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
                 aria-label="Close menu"
               >
                 <FiX />
               </button>
             </div>
-            <NavLinks pathname={pathname} can={can} role={user?.role} onNavigate={() => setOpen(false)} includeUtility />
-            <UserFooter user={user} onLogout={logout} withControls />
+            <NavLinks pathname={pathname} can={can} role={user?.role} onNavigate={() => setOpen(false)} includeUtility dark />
+            <UserFooter user={user} onLogout={logout} withControls dark />
           </div>
           </div>
       </div>
