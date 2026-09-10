@@ -418,6 +418,36 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
                         <p className="mt-1 text-[10px] text-navy-400">
                           A job whose size doesn&apos;t match one of the boxes above uses &quot;Any other size&quot; if set, otherwise falls back to the £{DEFAULT_SERVICE_RATES[code] || 40} house default — not what you entered here.
                         </p>
+                        {/* EICR-only: some engineers are paid a different
+                            amount per exact bedroom count within the
+                            "1–3 Bedrooms" quoting tier (the customer is
+                            always quoted the one tier price regardless —
+                            this only changes what THIS engineer is paid).
+                            Office picks the exact bedroom count on the job's
+                            line item; see lib/finance.js's rateForLine. */}
+                        {code === "EICR" && (
+                          <div className="mt-2 rounded-md bg-navy-50 p-2 dark:bg-white/[0.04]">
+                            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-navy-500">
+                              Exact bedroom count within &quot;1–3 Bedrooms&quot; (optional)
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {["1 Bedroom", "2 Bedrooms", "3 Bedrooms"].map((label) => (
+                                <div key={label}>
+                                  <label className="label text-[10px]">{label}</label>
+                                  <input
+                                    type="number" step="0.01" min="0" className="input h-8 text-sm"
+                                    value={form.serviceRates?.[code]?.[label] ?? ""}
+                                    placeholder="—"
+                                    onChange={(e) => setTierRate(code, label, e.target.value)}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                            <p className="mt-1 text-[10px] text-navy-400">
+                              Only used when the office marks a job&apos;s exact bedroom count when booking this engineer for EICR. Left blank, jobs pay the &quot;1–3 Bedrooms&quot; rate above regardless of the actual bedroom count.
+                            </p>
+                          </div>
+                        )}
                         {/* Inspection-only rates. Separate table, so "no rate
                             set" stays distinguishable from "set to £0" — an
                             unset inspection rate falls back to the FULL rate

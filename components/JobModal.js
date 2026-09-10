@@ -469,6 +469,9 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
         : {}),
       ...(l.engineerId ? { engineerId: l.engineerId } : {}),
       ...(l.tier ? { tier: l.tier } : {}),
+      // Exact bedroom count within the "1–3 Bedrooms" quoting tier — pay-only,
+      // never shown to the client. See lib/finance.js's rateForLine.
+      ...(l.bedroomCount ? { bedroomCount: Number(l.bedroomCount) } : {}),
       ...(l.waived ? { waived: true } : {}),
       ...(Number(l.discount) > 0 ? { discount: Number(l.discount) } : {}),
     }));
@@ -894,6 +897,27 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                           <p className="mt-1 text-[10.5px] leading-snug text-navy-500">{sel.hint}</p>
                         ) : null;
                       })()}
+                      {/* "1–3 Bedrooms" is one customer-facing price band, but
+                          some engineers (e.g. Prime Electric) are paid a
+                          different amount per exact bedroom count within it.
+                          This never changes what the client is quoted — it
+                          only feeds the engineer-pay lookup in lib/finance.js,
+                          and only matters at all for an engineer who actually
+                          has bedroom-specific rates configured; everyone else
+                          keeps using the tier price exactly as before. */}
+                      {l.code === "EICR" && (l.tier || tiers?.[0]?.label) === "1–3 Bedrooms" && (
+                        <select
+                          className="input mt-1 h-7 w-full py-0 text-xs"
+                          value={l.bedroomCount || ""}
+                          onChange={(e) => updateLine(l.id, { bedroomCount: e.target.value ? Number(e.target.value) : undefined })}
+                          title="Exact bedroom count — affects engineer pay only, not the customer price"
+                        >
+                          <option value="">Exact bedrooms for pay (optional)…</option>
+                          <option value="1">1 Bedroom</option>
+                          <option value="2">2 Bedrooms</option>
+                          <option value="3">3 Bedrooms</option>
+                        </select>
+                      )}
                     </div>
 
                     {/* qty stepper + price — row on sm+, stacked on narrow screens */}
