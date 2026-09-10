@@ -54,8 +54,8 @@ export default function VisitsPanel({ job }) {
   // Nothing to split — don't clutter a one-service job with this.
   if (!split && realLines.length < 2) return null;
 
-  const save = (nextVisits) => {
-    const patched = { ...job, visits: nextVisits };
+  const save = (nextVisits, extraPatch = {}) => {
+    const patched = { ...job, visits: nextVisits, ...extraPatch };
     // Job status follows its visits, but never walks a billing status back.
     // The job's own date/engineer follow them too, so every other view of
     // this job (list, funnel, calendar, dispatch) agrees with this panel.
@@ -63,6 +63,7 @@ export default function VisitsPanel({ job }) {
       visits: nextVisits,
       status: deriveJobStatus(patched),
       ...syncJobFromVisits(job, nextVisits),
+      ...extraPatch,
     });
   };
 
@@ -71,15 +72,43 @@ export default function VisitsPanel({ job }) {
   // before. Only nudges it between pending <-> scheduled; a visit already
   // in_progress/completed/cancelled is a real workflow state and is never
   // silently overwritten just because its engineer or date field changed.
-  const patchVisit = (id, patch) =>
-    save(visits.map((v) => {
+  // Reassigning a visit's engineer used to have NO effect on who actually got
+  // paid: lineEngineerId() (lib/visits.js) checks the LINE's own engineerId
+  // FIRST, the visit second — so a line that had ever carried its own
+  // engineerId (set before the job was split, or from an earlier assignment)
+  // kept overriding every later visit reassignment silently. The Visits panel
+  // itself showed the new engineer (it reads visit.engineerId directly), but
+  // the job's Services list, the engineer-pay statement, and who actually got
+  // paid all kept reading the STALE line-level override — a real
+  // misattribution, not just a display mismatch. Confirmed on JOB-4322: the
+  // visit said Aaron, completed; the GAS line item itself still said Kernel
+  // Harvey from an earlier assignment, so Kernel Harvey — not Aaron — was the
+  // one who'd actually get paid for it.
+  //
+  // Reassigning a visit's engineer now also clears any per-line override on
+  // the lines that visit covers, so the visit becomes the single source of
+  // truth for "who is doing this" the moment a job is split, exactly as the
+  // module's own header comment says it should be.
+  const patchVisit = (id, patch) => {
+    const target = visits.find((v) => v.id === id);
+    const nextVisits = visits.map((v) => {
       if (v.id !== id) return v;
       const next = { ...v, ...patch };
       if (patch.status === undefined && ["pending", "scheduled"].includes(v.status)) {
         next.status = isVisitBooked(next) ? "scheduled" : "pending";
       }
       return next;
-    }));
+    });
+    let extraPatch = {};
+    if (patch.engineerId !== undefined && target) {
+      const covered = new Set(target.lineIds || []);
+      const nextLines = (job.lineItems || []).map((l) =>
+        covered.has(l.id) ? { ...l, engineerId: undefined } : l
+      );
+      extraPatch = { lineItems: nextLines };
+    }
+    save(nextVisits, extraPatch);
+  };
 
   // Picking Morning/Afternoon fills the arrival window the same way job
   // creation does — same presets, same behaviour — and the times stay
