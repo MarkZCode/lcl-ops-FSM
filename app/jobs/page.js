@@ -8,7 +8,7 @@ import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { JOB_STATUSES } from "@/lib/constants";
 import { gbp, fmtDateTime, jobTags } from "@/lib/format";
-import { jobEngineerIds, hasUpcomingScheduledVisit } from "@/lib/visits";
+import { jobEngineerIds } from "@/lib/visits";
 import PageHeader from "@/components/PageHeader";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange } from "@/lib/usePeriodRange";
@@ -106,21 +106,21 @@ export default function JobsPage() {
 
 
   // Helper: test if a job matches the active status filter pill.
-  // For 'scheduled' tab: matches if main status is scheduled OR if the job has a genuine active upcoming scheduled visit!
-  const jobMatchesStatus = (job, targetStatus) => {
-    if (targetStatus === "all") return true;
-    if (targetStatus === "scheduled") {
-      if (job.status === "cancelled") return false;
-      if (job.status === "scheduled") return true;
-      return hasUpcomingScheduledVisit(job);
-    }
-    if (targetStatus === "in_progress") {
-      if (job.status === "cancelled") return false;
-      if (job.status === "in_progress") return true;
-      return Array.isArray(job.visits) && job.visits.some((v) => v.status === "in_progress");
-    }
-    return job.status === targetStatus;
-  };
+  //
+  // This used to have special cases for "scheduled" and "in_progress": a job
+  // counted as Scheduled if EITHER its own status was "scheduled" OR it merely
+  // had some visit with a booked date, even while the job's own status was
+  // still "Quote" (not every visit staffed yet — see deriveJobStatus in
+  // lib/visits.js). That put the same job in TWO tabs at once, with a "Quote"
+  // badge on the card while it also sat in the Scheduled list and count —
+  // reported directly: "why is Nirav Hathi in Quote AND Scheduled, I thought
+  // the job was scheduled." A job's status is deliberately the ONE honest
+  // answer to "what state is this job in" everywhere else in the app now
+  // (the whole reason deriveJobStatus exists); the filter tabs have to agree
+  // with the badge on the card, not run a second, looser definition that
+  // disagrees with it.
+  const jobMatchesStatus = (job, targetStatus) =>
+    targetStatus === "all" || job.status === targetStatus;
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
