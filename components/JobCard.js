@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { FiMapPin, FiUser, FiClock, FiClipboard } from "react-icons/fi";
+import { FiMapPin, FiUser, FiClock, FiClipboard, FiFileText } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { fmtDateTime, gbp, jobTags } from "@/lib/format";
 import { jobEngineerIds, getUpcomingScheduledVisit } from "@/lib/visits";
@@ -19,7 +20,9 @@ const STATUS_ACCENT = {
 };
 
 export default function JobCard({ job, onJobCard }) {
-  const { clientById, engineerById } = useStore();
+  const { clientById, engineerById, updateJob } = useStore();
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState("");
   const client = clientById(job.clientId);
   const property = client?.properties.find((p) => p.id === job.propertyId);
   const engineers = jobEngineerIds(job).map(engineerById);
@@ -28,6 +31,29 @@ export default function JobCard({ job, onJobCard }) {
 
   const upcomingVisit = getUpcomingScheduledVisit(job);
   const displayDate = upcomingVisit?.scheduledAt || job.scheduledAt;
+
+  // Same job.notes field the job detail page already reads/writes (see
+  // JobModal.js's notes textarea) — this is just a second, faster place to
+  // edit it, not a separate note store. Draft state only exists while
+  // actively editing, so there's nothing to keep in sync the rest of the time.
+  const startEditingNote = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setNoteDraft(job.notes || "");
+    setEditingNote(true);
+  };
+  const saveNote = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const trimmed = noteDraft.trim();
+    if (trimmed !== (job.notes || "")) updateJob(job.id, { notes: trimmed });
+    setEditingNote(false);
+  };
+  const cancelEditingNote = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingNote(false);
+  };
 
   return (
     <Link
@@ -104,6 +130,55 @@ export default function JobCard({ job, onJobCard }) {
       <div className="mt-3 flex items-center justify-between border-t border-navy-100 pt-3">
         <span className="text-xs text-navy-400">{tags.length} service{tags.length !== 1 ? "s" : ""}</span>
         <span className="text-base font-black text-navy-900">{gbp(job.price)}</span>
+      </div>
+
+      {/* Note — reads/writes job.notes directly, so it's the exact same note
+          the job detail page shows, editable here without opening the job. */}
+      <div className="mt-2 border-t border-navy-100 pt-2 dark:border-white/10">
+        {editingNote ? (
+          <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="space-y-1.5">
+            <textarea
+              autoFocus
+              rows={2}
+              className="input w-full resize-none text-xs"
+              value={noteDraft}
+              placeholder="Add a note for this quote…"
+              onChange={(e) => setNoteDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") cancelEditingNote(e);
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveNote(e);
+              }}
+            />
+            <div className="flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={cancelEditingNote}
+                className="rounded-md px-2 py-1 text-[11px] font-medium text-navy-400 hover:text-navy-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveNote}
+                className="rounded-md bg-brand-500 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-brand-600"
+              >
+                Save note
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={startEditingNote}
+            title={job.notes || "Click to add a note"}
+            className="flex w-full items-start gap-1.5 rounded-md px-1 py-1 text-left hover:bg-navy-50 dark:hover:bg-white/5"
+          >
+            <FiFileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy-400" />
+            <span className={`min-w-0 flex-1 truncate text-xs ${job.notes ? "text-navy-600 dark:text-slate-300" : "italic text-navy-400"}`}>
+              {job.notes || "No note added — click to add"}
+            </span>
+          </button>
+        )}
       </div>
     </Link>
   );
