@@ -16,10 +16,6 @@ import { sendEmailRaw } from "@/lib/emailSend";
 import { site } from "@/lib/site";
 import { serviceName, isAddonCode } from "@/lib/format";
 
-function ukDateStr(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(now);
-}
-
 export async function GET(request) {
   const auth = request.headers.get("authorization") || "";
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -28,7 +24,6 @@ export async function GET(request) {
   if (!supabaseAdmin) return NextResponse.json({ skipped: true, reason: "Supabase not configured" });
 
   const now = new Date();
-  const todayKey = ukDateStr(now);
 
   const [{ data: jobRows }, { data: clientRows }] = await Promise.all([
     supabaseAdmin.from("jobs").select("id,data"),
@@ -40,8 +35,19 @@ export async function GET(request) {
   for (const row of jobRows || []) {
     const j = row.data;
     if (!j || j.status !== "scheduled" || !j.scheduledAt) continue;
-    const jobDateKey = ukDateStr(new Date(j.scheduledAt));
-    if (jobDateKey > todayKey) continue; // future job — leave it alone
+    // Was date-only: any job scheduled for TODAY flipped to in_progress the
+    // instant this ran at 5am, regardless of whether the appointment was at
+    // 8am or 5pm. A 5pm job read "in progress" twelve hours before the
+    // engineer had even left for it. Reported directly: a 1pm job still
+    // correctly read "Scheduled" mid-morning, which surfaced that the
+    // reverse case (an early job) had been firing far too soon.
+    //
+    // /api/cron/auto-start-jobs now owns the actual moment-of-start flip,
+    // running through the day. This morning pass keeps its original job —
+    // catching anything whose appointment time has ALREADY passed by 5am
+    // (an early job, or one from a missed run) — so it only ever needs a
+    // real time comparison, not a same-day one.
+    if (new Date(j.scheduledAt).getTime() > now.getTime()) continue;
     const client = clientsById.get(j.clientId);
     const property = client?.properties?.find((p) => p.id === j.propertyId);
     started.push({
