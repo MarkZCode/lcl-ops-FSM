@@ -5,6 +5,7 @@ import { FiCalendar } from "react-icons/fi";
 import Modal from "./Modal";
 import { TIME_PARTS, WINDOW_PRESETS } from "@/lib/constants";
 import { fmtDateTime } from "@/lib/format";
+import { ukDateTimeToUtcIso } from "@/lib/ukTime";
 
 // Move a booked job to a new date/time, with the reason recorded.
 //
@@ -60,7 +61,7 @@ export default function RescheduleModal({ open, onClose, job, onConfirm }) {
 
   const submit = () => {
     if (!date) return;
-    const scheduledAt = new Date(`${date}T${from || "09:00"}`).toISOString();
+    const scheduledAt = ukDateTimeToUtcIso(date, from || "09:00");
     onConfirm({
       scheduledAt,
       windowPart: part,

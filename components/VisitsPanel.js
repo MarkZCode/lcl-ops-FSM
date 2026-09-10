@@ -7,6 +7,7 @@ import { gbp, lineTotal, isAddonCode } from "@/lib/format";
 import { certificationRateForLine } from "@/lib/finance";
 import { TIME_PARTS, WINDOW_PRESETS } from "@/lib/constants";
 import { certLabel } from "@/lib/jobCard";
+import { ukDateTimeToUtcIso } from "@/lib/ukTime";
 import { toast } from "@/lib/toast";
 import {
   getVisits, isSplit, visitLines, unassignedLines, schedulableLines,
@@ -123,7 +124,7 @@ export default function VisitsPanel({ job }) {
       patch.windowTo = preset.to;
       if (v.scheduledAt) {
         const day = new Date(v.scheduledAt).toISOString().slice(0, 10);
-        patch.scheduledAt = new Date(`${day}T${preset.from}`).toISOString();
+        patch.scheduledAt = ukDateTimeToUtcIso(day, preset.from);
       }
     }
     patchVisit(v.id, patch);
@@ -325,7 +326,7 @@ export default function VisitsPanel({ job }) {
                   onChange={(e) =>
                     patchVisit(v.id, {
                       scheduledAt: e.target.value
-                        ? new Date(`${e.target.value}T${v.windowFrom || "09:00"}`).toISOString()
+                        ? ukDateTimeToUtcIso(e.target.value, v.windowFrom || "09:00")
                         : null,
                     })
                   }
@@ -443,7 +444,14 @@ export default function VisitsPanel({ job }) {
                   type="time"
                   className="input h-9 text-sm"
                   value={v.windowFrom || ""}
-                  onChange={(e) => patchVisit(v.id, { windowFrom: e.target.value })}
+                  onChange={(e) => {
+                    const patch = { windowFrom: e.target.value };
+                    if (v.scheduledAt && e.target.value) {
+                      const day = new Date(v.scheduledAt).toISOString().slice(0, 10);
+                      patch.scheduledAt = ukDateTimeToUtcIso(day, e.target.value);
+                    }
+                    patchVisit(v.id, patch);
+                  }}
                   title="Arrival window from"
                 />
                 <input

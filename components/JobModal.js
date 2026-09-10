@@ -18,6 +18,7 @@ import {
 } from "@/lib/constants";
 import { gbp, lineTotal, linesTotal, getJobLines, lineGross } from "@/lib/format";
 import { detectConflicts } from "@/lib/dispatch";
+import { ukDateTimeToUtcIso } from "@/lib/ukTime";
 
 function toLocal(iso) {
   if (!iso) return null;
@@ -129,7 +130,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
     const draft = {
       id: draftId,
       engineerId: form.engineerId,
-      scheduledAt: new Date(`${form.scheduledDate}T${form.windowFrom || "09:00"}`).toISOString(),
+      scheduledAt: ukDateTimeToUtcIso(form.scheduledDate, form.windowFrom || "09:00"),
       windowFrom: form.windowFrom,
       windowTo: form.windowTo,
     };
@@ -490,7 +491,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
       engineerId: form.engineerId,
       // Keep scheduledAt (date + window start) so dispatch/calendar still work.
       scheduledAt: form.scheduledDate
-        ? new Date(`${form.scheduledDate}T${form.windowFrom || "09:00"}`).toISOString()
+        ? ukDateTimeToUtcIso(form.scheduledDate, form.windowFrom || "09:00")
         : null,
       windowFrom: form.windowFrom,
       windowTo: form.windowTo,
