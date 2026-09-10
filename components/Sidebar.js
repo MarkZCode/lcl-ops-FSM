@@ -14,7 +14,7 @@ import { useAuth } from "@/lib/auth";
 import NotificationBell from "./NotificationBell";
 import ThemeToggle from "./ThemeToggle";
 import { visibleNavLinks, visibleUtilityLinks } from "@/lib/nav";
-import { useHideOnScroll } from "@/lib/useHideOnScroll";
+import { useHideWhileScrolling } from "@/lib/useHideOnScroll";
 import { motion } from "framer-motion";
 
 // `dark` = always-dark surface (the mobile drawer), independent of the site
@@ -154,8 +154,10 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false); // pinned-collapsed (auto-hide)
   const [hover, setHover] = useState(false);
   const { user, can, logout } = useAuth();
-  // Premium hide-on-scroll-down / reveal-on-scroll-up for the mobile top bar.
-  const barHidden = useHideOnScroll({ resetKey: pathname });
+  // Hides while actively scrolling (either direction, including momentum),
+  // reveals a moment after it settles -- the content should feel full-screen
+  // while moving, with the chrome back before the next tap ever lands.
+  const barHidden = useHideWhileScrolling({ resetKey: pathname });
   // The bar is `fixed` (not `sticky` — unreliable inside nested flex/overflow
   // containers) so it always pins to the viewport. A measured spacer of the
   // same height reserves its space in the normal document flow, keeping page
@@ -241,12 +243,22 @@ export default function Sidebar() {
         style={{ height: barHeight ? `${barHeight}px` : "calc(60px + env(safe-area-inset-top))" }}
         aria-hidden="true"
       />
+      {/* Translucent + blurred rather than a flat opaque bar with a hard
+          border, so content sliding underneath it reads as one continuous
+          surface instead of a separate box sitting on top -- reported as
+          "it looks separated" when the old solid bg-white bar was visible.
+          bg-white was also never theme-aware (a bright white bar in dark
+          mode); the CSS variable fixes both at once. */}
       <div
         ref={barRef}
-        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between border-b border-navy-100 bg-white px-4 py-3 transition-transform duration-300 ease-out will-change-transform lg:hidden ${
+        className={`fixed inset-x-0 top-0 z-30 flex items-center justify-between px-4 py-3 backdrop-blur-md transition-transform duration-300 ease-out will-change-transform lg:hidden ${
           barHidden ? "-translate-y-full" : "translate-y-0"
         }`}
-        style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))" }}
+        style={{
+          paddingTop: "calc(0.75rem + env(safe-area-inset-top))",
+          backgroundColor: "color-mix(in srgb, var(--surface-card) 85%, transparent)",
+          borderBottom: "1px solid color-mix(in srgb, var(--hairline) 60%, transparent)",
+        }}
       >
         <Link href="/" className="text-[15px] font-semibold tracking-tight text-navy-900">
           LCL Ops

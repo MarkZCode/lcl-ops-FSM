@@ -5,23 +5,32 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { visibleNavLinks, visibleUtilityLinks, PRIMARY_HREFS } from "@/lib/nav";
+import { useHideWhileScrolling } from "@/lib/useHideOnScroll";
 
 // App-style bottom tab bar for mobile. Black surface matching the dark
 // sidebar so both navs read as one chrome system. Every tab is a real
 // destination — the full menu lives behind the top-bar hamburger.
 //
-// The bar used to hide on scroll-down (sliding away with the top bar so the
-// two read as one chrome system). That looked tidy but broke the thing a tab
-// bar exists for: after ANY downward scroll the bar was translated off-screen,
-// so the next tap on a tab either hit nothing at all or was spent revealing
-// the bar rather than navigating — the reported "I have to tap Jobs/Dashboard/
-// Reports two or three times". No mainstream app hides its tab bar for this
-// exact reason; it is the one piece of chrome that must always be hittable.
-// It now only hides for the slide-out drawer, which genuinely would overlap it.
+// The bar used to hide on scroll-DOWN and only reveal on an explicit
+// scroll-UP — which broke the thing a tab bar exists for: after any downward
+// scroll it stayed off-screen until you deliberately scrolled back up, so the
+// next tap on a tab either hit nothing or was spent revealing the bar rather
+// than navigating (reported: "have to tap Jobs/Dashboard/Reports two or three
+// times"). It was removed entirely for that reason.
+//
+// This is a DIFFERENT, safer pattern: hide only WHILE scrolling is actually
+// happening (either direction), reveal a fixed short moment after it stops —
+// see useHideWhileScrolling. A real tap only ever happens after scrolling has
+// settled, so the bar is reliably back on screen before that tap lands; it
+// never depends on which direction you happened to scroll last. This is what
+// makes content feel full-screen while moving without repeating the earlier
+// tap-reliability bug. Still always visible for the slide-out drawer case
+// (translate-y-full there is a real overlap, not a scroll gesture).
 export default function BottomNav() {
   const pathname = usePathname();
   const { can, user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const scrollHidden = useHideWhileScrolling({ resetKey: pathname });
 
   // Hide while the slide-out drawer is open so the two don't visually overlap.
   useEffect(() => {
@@ -40,14 +49,23 @@ export default function BottomNav() {
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-30 border-t border-navy-200 dark:border-white/[0.08] bg-[var(--surface-card)] transition-transform duration-300 ease-out will-change-transform lg:hidden ${
-        drawerOpen ? "translate-y-full" : "translate-y-0"
+      className={`fixed inset-x-0 bottom-0 z-30 backdrop-blur-md transition-transform duration-300 ease-out will-change-transform lg:hidden ${
+        drawerOpen || scrollHidden ? "translate-y-full" : "translate-y-0"
       }`}
-      // Only HALF the safe-area inset. The full inset pushed the tabs a long
-      // way up from the bottom edge, leaving the dead band the app appeared
-      // not to fill; half still clears the iOS home indicator / Android
-      // gesture bar while letting the tabs sit down where they belong.
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) / 2)" }}
+      style={{
+        // Only HALF the safe-area inset. The full inset pushed the tabs a
+        // long way up from the bottom edge, leaving the dead band the app
+        // appeared not to fill; half still clears the iOS home indicator /
+        // Android gesture bar while letting the tabs sit down where they
+        // belong.
+        paddingBottom: "calc(env(safe-area-inset-bottom) / 2)",
+        // Translucent + blurred rather than an opaque bar with a hard border,
+        // so content scrolling underneath reads as one continuous surface
+        // instead of a separate box sitting on top of it — reported as "it
+        // looks separated".
+        backgroundColor: "color-mix(in srgb, var(--surface-card) 85%, transparent)",
+        borderTop: "1px solid color-mix(in srgb, var(--hairline) 60%, transparent)",
+      }}
     >
       <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))` }}>
         {primary.map((link) => {
