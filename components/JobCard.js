@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FiMapPin, FiUser, FiClock, FiClipboard, FiFileText } from "react-icons/fi";
+import { FiMapPin, FiUser, FiClock, FiClipboard } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { fmtDateTime, gbp, jobTags } from "@/lib/format";
 import { jobEngineerIds, getUpcomingScheduledVisit } from "@/lib/visits";
@@ -173,7 +173,7 @@ export default function JobCard({ job, onJobCard }) {
             title={job.notes || "Click to add a note"}
             className="flex w-full items-start gap-1.5 rounded-md px-1 py-1 text-left hover:bg-navy-50 dark:hover:bg-white/5"
           >
-            <FiFileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-navy-400" />
+            <span className="mt-0.5 shrink-0 text-[10px] font-bold uppercase tracking-wide text-navy-400">Note:</span>
             <span className={`min-w-0 flex-1 truncate text-xs ${job.notes ? "text-navy-600 dark:text-slate-300" : "italic text-navy-400"}`}>
               {job.notes || "No note added — click to add"}
             </span>
