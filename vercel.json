@@ -18,7 +18,7 @@
     },
     {
       "path": "/api/cron/auto-start-jobs",
-      "schedule": "0 6-19 * * *"
+      "schedule": "0 12 * * *"
     },
     {
       "path": "/api/cron/engineer-job-reminders",
