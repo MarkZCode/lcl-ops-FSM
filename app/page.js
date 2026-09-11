@@ -15,7 +15,9 @@ import { supabase } from "@/lib/supabase";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { gbp, fmtDate, serviceShort } from "@/lib/format";
 import { getRenewals } from "@/lib/renewals";
-import { getPeriodRange, jobInRange, computeOperatingKpis, expensesForRange, computeEngineerPay, computeStats } from "@/lib/stats";
+import { getPeriodRange, jobInRange, jobDate, computeOperatingKpis, expensesForRange, computeEngineerPay, computeStats } from "@/lib/stats";
+import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
+import PeriodControls from "@/components/PeriodControls";
 import { isToday, parseISO } from "date-fns";
 import DailyActivityPanel from "@/components/DailyActivityPanel";
 import NeedsDecisionPanel from "@/components/NeedsDecisionPanel";
@@ -104,6 +106,11 @@ export default function Dashboard() {
   );
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Same shared period state Reports uses — same storage key, same hook —
+  // so picking a period on either page is instantly reflected on the other.
+  // See lib/usePeriodRange.js's REPORTS_STORAGE_KEY comment.
+  const ctl = usePeriodRange(REPORTS_STORAGE_KEY, { defaultPeriod: "month" });
+
   const tour = useSectionTour("dashboard", [
     { selector: null, position: "center", label: "Welcome", title: "Your field-service hub 👋", body: "A quick guide to the key parts of the app." },
     { selector: ".kpi-strip", label: "KPIs", title: "Pipeline at a glance", body: "Live counts and revenue across every stage of your job pipeline." },
@@ -129,14 +136,16 @@ export default function Dashboard() {
 
     const paidJobs = jobs.filter((j) => j.status === "paid");
 
-    // ── This month, defined EXACTLY as Reports defines it ──────────────────
-    // A job counts toward a month by its scheduled date (falling back to when
-    // it was raised), and counts as revenue once it is completed/invoiced/paid.
+    // ── Selected period, defined EXACTLY as Reports defines it, from the
+    // SAME shared state Reports uses (ctl, from usePeriodRange) — not a
+    // second "this month" calculation kept in sync by hand. A job counts
+    // toward the period by its scheduled date (falling back to when it was
+    // raised), and counts as revenue once it is completed/invoiced/paid.
     // The old "Collected in <Month>" card used paidAt instead, so it answered
     // a different question from every other revenue figure in the app and
     // read £135 on a month the reports called £664.96.
-    const monthRange = getPeriodRange("month", now);
-    const monthJobs = jobs.filter((j) => jobInRange(j, monthRange));
+    const selectedRange = ctl.range;
+    const monthJobs = jobs.filter((j) => jobInRange(j, selectedRange));
     const monthDone = monthJobs.filter((j) => ["completed", "invoiced", "paid"].includes(j.status));
     const monthRevenue = monthDone.reduce((s, j) => s + (j.price || 0), 0);
 
@@ -163,9 +172,9 @@ export default function Dashboard() {
     );
     const pipelineMax = Math.max(1, ...PIPELINE.map((s) => pipeline[s.key]?.count || 0));
 
-    const periodStats = computeStats(jobs, monthRange, engineers, engineerPayments);
-    const expBreakdown = expensesForRange(expenses, monthRange);
-    const pay = computeEngineerPay(jobs, monthRange, engineers, engineerPayments);
+    const periodStats = computeStats(jobs, selectedRange, engineers, engineerPayments);
+    const expBreakdown = expensesForRange(expenses, selectedRange);
+    const pay = computeEngineerPay(jobs, selectedRange, engineers, engineerPayments);
     // Bank transfer fees are now logged as a real, dated expense the moment
     // a payment is recorded (see addEngineerPayment in lib/store.js), so
     // expBreakdown.total already includes them via the normal date filter —
@@ -190,8 +199,48 @@ export default function Dashboard() {
       ? `Realized paid profit (${gbp(periodStats.collected)} collected)`
       : "Paid revenue minus costs";
 
-    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: monthRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, profitNote, companyExpenses, engineerCost };
-  }, [jobs, engineers, engineerPayments, expenses, renewalStats]);
+    // ── Company Account — cumulative profit since day one, current month
+    // included, never reset by a month rolling over ──────────────────────
+    // This is deliberately NOT "sum up each month's Profit figure
+    // separately" — that would double-apply the paidRatio estimate (see
+    // `realizedProfit` above: it's collected revenue minus an ESTIMATED
+    // share of engineer cost, not a real per-job settlement date) once per
+    // month and compound its drift. Instead this runs the exact same
+    // formula, the exact same functions, over ONE range spanning from the
+    // earliest record in the business to the end of the current month —
+    // so every job and expense is counted exactly once, by construction,
+    // and "this month" is simply the tail end of that one range rather than
+    // a separate figure added on top.
+    //
+    // The range must be the REAL elapsed window, not a generic "all time"
+    // span — expensesForRange() multiplies a recurring expense by the
+    // number of calendar months the range covers, so a 100-year placeholder
+    // range would inflate every subscription cost roughly 1200x.
+    //
+    // Deliberately anchored to the ACTUAL current calendar month (today),
+    // never to `selectedRange`/`ctl` above — Company Account must not move
+    // when someone changes what period Reports/Dashboard is looking at.
+    const todayMonthRange = getPeriodRange("month", now);
+    const jobDates = jobs.map(jobDate).filter(Boolean);
+    const expenseDates = (expenses || [])
+      .map((e) => { try { return e.date ? parseISO(e.date) : null; } catch { return null; } })
+      .filter((d) => d && !Number.isNaN(d.getTime()));
+    const allDates = [...jobDates, ...expenseDates];
+    const companyStart = allDates.length
+      ? new Date(Math.min(...allDates.map((d) => d.getTime())))
+      : todayMonthRange.start;
+    const companyRange = { start: companyStart, end: todayMonthRange.end };
+
+    const companyStats = computeStats(jobs, companyRange, engineers, engineerPayments);
+    const companyExpTotal = expensesForRange(expenses, companyRange).total;
+    const companyPay = computeEngineerPay(jobs, companyRange, engineers, engineerPayments);
+    const companyPaidRatio = companyStats.revenue > 0 ? (companyStats.collected / companyStats.revenue) : 1;
+    const companyAccount = Math.round(
+      ((companyStats.collected ?? 0) - companyPay.totalAccrued * companyPaidRatio - companyExpTotal) * 100
+    ) / 100;
+
+    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: selectedRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, profitNote, companyExpenses, engineerCost, companyAccount };
+  }, [jobs, engineers, engineerPayments, expenses, renewalStats, ctl.range]);
 
   // How the business is running, not just what it billed — measured over the
   // last 90 days so the rates have enough jobs behind them to mean anything.
@@ -256,6 +305,10 @@ export default function Dashboard() {
 
       <div className="page space-y-6">
 
+        {/* Same period control Reports uses, same shared state — changing it
+            here changes what Reports shows too, and vice versa. */}
+        {hydrated && <PeriodControls ctl={ctl} />}
+
         {/* ── HEADLINE KPIs — icon square, figure, change pill ── */}
         {!hydrated ? (
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -275,7 +328,7 @@ export default function Dashboard() {
             <div className="lg:hidden">
               <div className="space-y-4">
                 <Link href="/reports" className="m-hero block">
-                  <p className="m-hero-label">Revenue this month</p>
+                  <p className="m-hero-label">Revenue</p>
                   <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.monthRevenue)}</p>
                   <div className="m-hero-foot">
                     {stats.monthDoneCount > 0 && (
@@ -294,7 +347,7 @@ export default function Dashboard() {
                   <p className="m-hero-label">Profit</p>
                   <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.profit)}</p>
                   <div className="m-hero-foot">
-                    <span>Revenue minus this month&rsquo;s own costs</span>
+                    <span>Revenue minus {stats.monthLabel}&rsquo;s own costs</span>
                   </div>
                 </Link>
 
@@ -312,6 +365,8 @@ export default function Dashboard() {
 
               <p className="m-group-title mt-8">Money</p>
               <div className="m-group">
+                <MRow icon={FiCreditCard} label="Company Account" sub="Cumulative profit since day one"
+                  value={gbp(stats.companyAccount)} alert={stats.companyAccount < 0} href="/reports" />
                 <MRow icon={FiAlertCircle} label="Outstanding Invoices"
                   sub={stats.overdueCount ? `${stats.overdueCount} overdue — chase these` : "Nothing overdue"}
                   value={gbp(stats.outstanding)} alert={stats.overdueCount > 0} href="/reports" />
@@ -340,7 +395,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <Kpi
                   icon={FiCheckCircle}
-                  label="Revenue this month"
+                  label="Revenue"
                   value={gbp(stats.monthRevenue)}
                   note={stats.monthLabel}
                   link="/reports"
@@ -353,6 +408,14 @@ export default function Dashboard() {
                   note={stats.profitNote}
                   link="/reports"
                   className="lg:col-span-2"
+                />
+                <Kpi
+                  icon={FiCreditCard}
+                  label="Company Account"
+                  value={gbp(stats.companyAccount)}
+                  valueClassName={stats.companyAccount < 0 ? "text-rose-500" : ""}
+                  note="Cumulative profit since day one"
+                  link="/reports"
                 />
                 <Kpi
                   icon={FiAlertCircle}
@@ -370,7 +433,7 @@ export default function Dashboard() {
                   label="Company Expenses"
                   value={gbp(stats.companyExpenses)}
                   valueClassName="text-rose-500"
-                  note="Month to date"
+                  note={stats.monthLabel}
                   link="/reports"
                 />
                 <Kpi
@@ -378,7 +441,7 @@ export default function Dashboard() {
                   label="Engineer Cost"
                   value={gbp(stats.engineerCost)}
                   valueClassName="text-rose-500"
-                  note="Cost of jobs done this month"
+                  note={`Cost of jobs done · ${stats.monthLabel}`}
                   link="/reports"
                 />
                 <Kpi
@@ -390,9 +453,9 @@ export default function Dashboard() {
                 />
                 <Kpi
                   icon={FiTarget}
-                  label="Jobs done this month"
+                  label="Jobs done"
                   value={stats.monthDoneCount}
-                  note={`Avg ${gbp(stats.avgValue)} per job`}
+                  note={`${stats.monthLabel} · avg ${gbp(stats.avgValue)} per job`}
                   link="/jobs"
                 />
               </div>

@@ -23,11 +23,12 @@ import StatCard from "@/components/StatCard";
 import BarChart from "@/components/BarChart";
 import RequirePermission from "@/components/RequirePermission";
 import PeriodControls from "@/components/PeriodControls";
-import { usePeriodRange } from "@/lib/usePeriodRange";
+import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
 
 // Remembers the last period/range you picked so leaving Reports and coming
-// back (or refreshing) doesn't silently reset it to "this month".
-const VIEW_STORAGE_KEY = "lcl-reports-view";
+// back (or refreshing) doesn't silently reset it to "this month". Same key
+// the Dashboard reads/writes — see REPORTS_STORAGE_KEY's own comment.
+const VIEW_STORAGE_KEY = REPORTS_STORAGE_KEY;
 function loadSavedView() {
   if (typeof window === "undefined") return null;
   try { return JSON.parse(localStorage.getItem(VIEW_STORAGE_KEY) || "null"); } catch { return null; }
