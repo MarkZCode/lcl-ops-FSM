@@ -5,8 +5,9 @@ import Link from "next/link";
 import { FiCheckCircle, FiUploadCloud, FiTrash2, FiExternalLink, FiImage, FiFileText, FiEdit2, FiRotateCcw } from "react-icons/fi";
 import Modal from "./Modal";
 import { useStore } from "@/lib/store";
-import { gbp, fmtDate } from "@/lib/format";
-import { grossUpTransfer } from "@/lib/finance";
+import { gbp, fmtDate, getJobLines, isAddonCode } from "@/lib/format";
+import { grossUpTransfer, certificationRateForLine, inspectionRateForLine, rateForLine } from "@/lib/finance";
+import { certificationForEngineer, certificationPatch } from "@/lib/visits";
 import { DEFAULT_TRANSFER_FEE } from "@/lib/constants";
 import { uploadFile, removeFile, fileSrc } from "@/lib/uploads";
 // generateEngineerStatement is lazy-imported in downloadStatement — it pulls
@@ -21,7 +22,7 @@ export default function EngineerPayModal({
   onPay,
   onRemovePayment,
 }) {
-  const { updateJob } = useStore();
+  const { updateJob, jobs, engineers } = useStore();
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [proof, setProof] = useState(null);
@@ -548,6 +549,21 @@ export default function EngineerPayModal({
                           )}
                         </div>
 
+                        {/* Who inspected vs who certified — decided HERE, at
+                            the moment you're working out what to pay someone,
+                            which is when the question actually comes up. The
+                            job's own Certification panel sets the same fields
+                            through the same helper; this is a second door into
+                            one arrangement, not a second arrangement. */}
+                        {!j.certificateOnly && (
+                          <CertificationControl
+                            job={jobs.find((x) => x.id === j.jobId)}
+                            engineer={engineer}
+                            engineers={engineers}
+                            updateJob={updateJob}
+                          />
+                        )}
+
                         {Array.isArray(j.lines) && j.lines.length > 0 && (
                           <div className="my-2.5 rounded-lg border border-navy-100 bg-navy-50/70 p-2.5 text-xs">
                             <p className="mb-1.5 font-semibold text-navy-800">Services in this job:</p>
@@ -825,5 +841,146 @@ export default function EngineerPayModal({
         )}
       </div>
     </Modal>
+  );
+}
+
+// ── Inspection vs certificate, inside the pay run ────────────────────────
+//
+// "Pay him for the inspection only — someone else did the certificate" is a
+// decision made while looking at what you owe someone, not while editing the
+// job days earlier. So it lives here as well as on the job.
+//
+// Ticking it does three things at once, which is the whole point: this
+// engineer drops to their inspection rate, the person who issued the
+// certificate is asked for by name, and that person picks up their own
+// payable row against THIS job — same statement, same payment records,
+// same settle-by-job mechanics as attended work. Nothing is detached from
+// the job; certifierLegs() in lib/visits.js reads it straight back off the
+// job when the pay run is recomputed.
+function CertificationControl({ job, engineer, engineers, updateJob }) {
+  if (!job || !engineer) return null;
+
+  const current = certificationForEngineer(job, engineer.id);
+  const lines = getJobLines(job).filter((l) => !isAddonCode(l.code));
+  const certifier = engineers.find((e) => e.id === current.certifierId) || null;
+
+  // What the toggle costs, both ways, shown before it's flipped rather than
+  // discovered on a statement afterwards.
+  const fullPay = lines.reduce(
+    (s, l) => s + rateForLine(l, engineer.serviceRates, engineer.gasBaseRate, engineer.gasExtraRate),
+    0
+  );
+  const inspPay = lines.reduce((s, l) => {
+    const r = inspectionRateForLine(l, engineer.inspectionRates);
+    return s + (r != null ? r : rateForLine(l, engineer.serviceRates, engineer.gasBaseRate, engineer.gasExtraRate));
+  }, 0);
+  const missingInspectionRate =
+    current.inspectionOnly &&
+    lines.some((l) => inspectionRateForLine(l, engineer.inspectionRates) == null);
+
+  // Seed the certifier's fee from THEIR configured certificate rate (full
+  // rate minus their inspection rate), so the two halves of a split job add
+  // up to what one person doing all of it would have cost. Always editable.
+  const seedFee = (certId) => {
+    const cert = engineers.find((e) => e.id === certId);
+    if (!cert || !lines.length) return "";
+    const total = lines.reduce((s, l) => s + (certificationRateForLine(l, cert) ?? 0), 0);
+    return total > 0 ? String(Math.round(total * 100) / 100) : "";
+  };
+
+  const patch = (changes) =>
+    updateJob(job.id, certificationPatch(job, engineer.id, { ...current, ...changes }));
+
+  return (
+    <div className="my-2.5 rounded-lg border border-navy-100 bg-navy-50/70 p-2.5 text-xs dark:border-white/10 dark:bg-white/[0.04]">
+      <label className="flex cursor-pointer items-start gap-2">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-3.5 w-3.5 rounded border-navy-300 text-brand-500"
+          checked={current.inspectionOnly}
+          onChange={(e) => patch({ inspectionOnly: e.target.checked })}
+        />
+        <span>
+          <span className="font-semibold text-navy-800">
+            Pay {engineer.name} for the inspection only
+          </span>
+          <span className="block text-[11px] text-navy-500">
+            Someone else issued the certificate and gets paid for it separately.
+          </span>
+        </span>
+      </label>
+
+      {!current.inspectionOnly ? (
+        <p className="mt-2 text-[11px] text-navy-500">
+          Whole job — inspection and certificate{fullPay > 0 ? `, ${gbp(fullPay)}` : ""}.
+        </p>
+      ) : (
+        <div className="mt-2.5 space-y-2.5">
+          <p className="text-[11px] text-navy-600">
+            {engineer.name}: <strong className="text-navy-900">{gbp(inspPay)}</strong> for the
+            inspection
+            {fullPay > 0 && inspPay !== fullPay && (
+              <span className="text-navy-400"> (whole job would be {gbp(fullPay)})</span>
+            )}
+          </p>
+
+          {missingInspectionRate && (
+            <p className="rounded bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800 dark:bg-amber-500/10">
+              No inspection-only rate set for {engineer.name} on this service, so they&apos;re
+              still on the full rate. Set one in Engineers → edit → rates.
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div>
+              <label className="label text-[10px]">Certificate issued by</label>
+              <select
+                className="input h-8 text-xs"
+                value={current.certifierId}
+                onChange={(e) => {
+                  const certifierId = e.target.value;
+                  patch({
+                    certifierId,
+                    ...(current.certifierFee ? {} : { certifierFee: seedFee(certifierId) }),
+                  });
+                }}
+              >
+                <option value="">Nobody yet</option>
+                {engineers
+                  .filter((e) => e.id !== engineer.id)
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="label text-[10px]">Pay them (£) — total for this job</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="input h-8 text-xs"
+                placeholder="0.00"
+                value={current.certifierFee ?? ""}
+                onChange={(e) => patch({ certifierFee: e.target.value })}
+              />
+            </div>
+          </div>
+
+          {certifier && Number(current.certifierFee) > 0 ? (
+            <p className="text-[11px] text-navy-500">
+              {certifier.name} is owed{" "}
+              <strong className="text-navy-900">{gbp(Number(current.certifierFee))}</strong> for
+              this certificate. It appears on their own Engineer pay statement against {job.id}.
+            </p>
+          ) : (
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">
+              Nobody recorded as issuing the certificate yet — until one is set, nothing is
+              owed for it.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

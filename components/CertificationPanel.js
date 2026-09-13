@@ -3,7 +3,7 @@
 import { useStore } from "@/lib/store";
 import { gbp, getJobLines, isAddonCode } from "@/lib/format";
 import { certificationRateForLine, inspectionRateForLine, rateForLine } from "@/lib/finance";
-import { isSplit } from "@/lib/visits";
+import { isSplit, certificationForEngineer, certificationPatch } from "@/lib/visits";
 
 // Who inspected, and who signed the certificate.
 //
@@ -23,8 +23,13 @@ export default function CertificationPanel({ job }) {
   if (!job || isSplit(job)) return null;
 
   const attending = engineerById(job.engineerId);
-  const inspectionOnly = job.scope === "inspection";
-  const certifier = job.certifierId ? engineerById(job.certifierId) : null;
+  // Read and write through the same helper the Engineer pay run uses, so the
+  // arrangement can be set from either screen and means exactly one thing.
+  const current = certificationForEngineer(job, job.engineerId);
+  const inspectionOnly = current.inspectionOnly;
+  const certifier = current.certifierId ? engineerById(current.certifierId) : null;
+  const setCertification = (changes) =>
+    updateJob(job.id, certificationPatch(job, job.engineerId, { ...current, ...changes }));
   const lines = getJobLines(job).filter((l) => !isAddonCode(l.code));
 
   // What this job pays the attending engineer under each arrangement, so the
@@ -62,13 +67,7 @@ export default function CertificationPanel({ job }) {
           type="checkbox"
           className="mt-0.5 h-4 w-4 rounded border-navy-300 text-brand-500"
           checked={inspectionOnly}
-          onChange={(e) => {
-            const on = e.target.checked;
-            updateJob(job.id, {
-              scope: on ? "inspection" : "full",
-              ...(on ? {} : { certifierId: "", certifierFee: "" }),
-            });
-          }}
+          onChange={(e) => setCertification({ inspectionOnly: e.target.checked })}
         />
         <span>
           Inspection only — certificate issued by someone else
@@ -109,12 +108,12 @@ export default function CertificationPanel({ job }) {
               <label className="label">Certificate issued by</label>
               <select
                 className="input"
-                value={job.certifierId || ""}
+                value={current.certifierId}
                 onChange={(e) => {
                   const certifierId = e.target.value;
-                  updateJob(job.id, {
+                  setCertification({
                     certifierId,
-                    ...(job.certifierFee ? {} : { certifierFee: seedFee(certifierId) }),
+                    ...(current.certifierFee ? {} : { certifierFee: seedFee(certifierId) }),
                   });
                 }}
               >
@@ -132,16 +131,16 @@ export default function CertificationPanel({ job }) {
                 min="0"
                 className="input"
                 placeholder="0.00"
-                value={job.certifierFee ?? ""}
-                onChange={(e) => updateJob(job.id, { certifierFee: e.target.value })}
+                value={current.certifierFee ?? ""}
+                onChange={(e) => setCertification({ certifierFee: e.target.value })}
               />
             </div>
           </div>
 
-          {certifier && Number(job.certifierFee) > 0 && (
+          {certifier && Number(current.certifierFee) > 0 && (
             <p className="text-[11px] text-navy-500">
               {certifier.name} is owed{" "}
-              <strong className="text-navy-900">{gbp(Number(job.certifierFee))}</strong> for
+              <strong className="text-navy-900">{gbp(Number(current.certifierFee))}</strong> for
               this certificate. It shows on their Engineer pay statement against{" "}
               {job.id} and settles through the same payment records as attended work.
             </p>

@@ -4,10 +4,14 @@
 
 /* ================================================================
    LCL CONSOLE — surface tokens
-   One flat, quiet, near-monochrome system. Depth comes from
-   hairline borders and surface steps, never from shadows or
-   gradients. Every primitive below reads from these variables, so
-   retuning the whole app is a change in exactly one place.
+   A quiet, near-monochrome palette rendered in CLAY: surfaces are
+   soft moulded objects with depth, not flat rectangles. Depth comes
+   from the --clay* shadow tokens below plus hairlines and surface
+   steps — never from gradients or colour.
+   (This system was previously deliberately flat, "nothing floats".
+   Superseded: the owner asked for a claymorphic look.)
+   Every primitive below reads from these variables, so retuning the
+   whole app is a change in exactly one place.
    ================================================================ */
 :root {
   --font-inter: "Inter", system-ui, sans-serif;
@@ -36,8 +40,50 @@
      and these two tokens drive everything: cards, panels, modals, inputs,
      buttons, and every .rounded-xl/.rounded-2xl via the normalisation below.
      Softened to sit closer to the rounded, calmer reference dashboards. */
-  --radius-card: 24px;
-  --radius-ctl:  16px;
+  --radius-card: 28px;
+  --radius-ctl:  18px;
+
+  /* ── Clay ──────────────────────────────────────────────────────────
+     Claymorphism: surfaces read as soft, moulded objects rather than
+     flat rectangles. Each shadow is the same four-part recipe —
+
+       1. a wide, very soft drop shadow (the object sits ABOVE the page)
+       2. a tighter contact shadow (grounds it so it doesn't just float)
+       3. an inset light along the top edge (the lit face of the clay)
+       4. an inset dark along the bottom edge (the rolled-under edge)
+
+     3 and 4 are what separate clay from a plain drop shadow — they give
+     the surface thickness. Kept deliberately restrained: this app is
+     dense with tables and list rows, and a full-strength clay shadow on
+     every one of them turns into visual mud.
+
+     One token per role so the whole look is retuned from here, not by
+     hunting box-shadows through 1,100 lines. */
+  --clay:
+    0 18px 30px -18px rgba(13, 28, 51, 0.22),
+    0 5px 10px -6px  rgba(13, 28, 51, 0.10),
+    inset 0 2px 4px -2px rgba(255, 255, 255, 0.90),
+    inset 0 -4px 8px -5px rgba(13, 28, 51, 0.10);
+  --clay-lift:
+    0 26px 40px -20px rgba(13, 28, 51, 0.26),
+    0 8px 14px -8px   rgba(13, 28, 51, 0.12),
+    inset 0 2px 4px -2px rgba(255, 255, 255, 0.90),
+    inset 0 -4px 8px -5px rgba(13, 28, 51, 0.10);
+  /* Buttons are smaller, so the same shadow scaled down — plus a real
+     pressed state, because a clay button that doesn't squash when you
+     push it is the thing that makes the style look fake. */
+  --clay-btn:
+    0 7px 14px -7px rgba(13, 28, 51, 0.30),
+    0 2px 4px -2px  rgba(13, 28, 51, 0.16),
+    inset 0 2px 3px -2px rgba(255, 255, 255, 0.45),
+    inset 0 -3px 5px -3px rgba(13, 28, 51, 0.22);
+  --clay-btn-pressed:
+    inset 0 3px 7px -2px rgba(13, 28, 51, 0.30),
+    inset 0 -1px 2px -1px rgba(255, 255, 255, 0.30);
+  /* Inputs are the inverse: pressed INTO the clay, not sitting on it. */
+  --clay-inset:
+    inset 0 2px 5px -2px rgba(13, 28, 51, 0.15),
+    inset 0 -1px 1px 0   rgba(255, 255, 255, 0.70);
 }
 
 .dark {
@@ -63,6 +109,32 @@
   --accent-text: #4ea95c;
   --pos:         #4ade80;
   --neg:         #fb7185;
+
+  /* Clay in the dark. The drop shadows go deeper (a soft grey shadow is
+     invisible on near-black), and the top-edge highlight drops to a few
+     percent white — at light-mode strength it reads as a hard chrome rim
+     rather than a lit clay edge. */
+  --clay:
+    0 18px 30px -18px rgba(0, 0, 0, 0.85),
+    0 5px 10px -6px  rgba(0, 0, 0, 0.60),
+    inset 0 1px 1px 0   rgba(255, 255, 255, 0.06),
+    inset 0 -4px 8px -5px rgba(0, 0, 0, 0.55);
+  --clay-lift:
+    0 26px 40px -20px rgba(0, 0, 0, 0.95),
+    0 8px 14px -8px   rgba(0, 0, 0, 0.65),
+    inset 0 1px 1px 0   rgba(255, 255, 255, 0.09),
+    inset 0 -4px 8px -5px rgba(0, 0, 0, 0.55);
+  --clay-btn:
+    0 7px 14px -7px rgba(0, 0, 0, 0.75),
+    0 2px 4px -2px  rgba(0, 0, 0, 0.55),
+    inset 0 1px 1px 0   rgba(255, 255, 255, 0.14),
+    inset 0 -3px 5px -3px rgba(0, 0, 0, 0.45);
+  --clay-btn-pressed:
+    inset 0 3px 7px -2px rgba(0, 0, 0, 0.65),
+    inset 0 -1px 2px -1px rgba(255, 255, 255, 0.07);
+  --clay-inset:
+    inset 0 2px 5px -2px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 1px 0   rgba(255, 255, 255, 0.05);
 }
 
 html,
@@ -158,12 +230,14 @@ h1, h2, h3, h4 {
     line-height: 1.25rem;
     color: var(--text-primary);
     outline: none;
+    /* Pressed INTO the surface — the counterpart to the raised card. */
+    box-shadow: var(--clay-inset);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .input::placeholder { color: var(--text-muted); }
   .input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(63, 163, 77, 0.13);
+    box-shadow: var(--clay-inset), 0 0 0 3px rgba(63, 163, 77, 0.13);
   }
   .input:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -178,13 +252,27 @@ h1, h2, h3, h4 {
     text-transform: none;
   }
 
-  /* ── Buttons — flat fills, hairline outlines, no gradients ───── */
+  /* ── Buttons — clay: raised, and they squash when pressed ────── */
   .btn {
     /* ring-brand-500/40 (opacity-modified) is set as plain CSS below, not
        via @apply — see the ::selection comment above for why. */
-    @apply inline-flex items-center justify-center gap-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-55;
+    @apply inline-flex items-center justify-center gap-2 text-sm font-medium focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-55;
     border-radius: var(--radius-ctl);
     padding: 0.5rem 0.875rem;
+    transition: background-color 0.15s ease, box-shadow 0.13s ease, transform 0.13s ease, border-color 0.15s ease, opacity 0.15s ease;
+  }
+  /* Filled buttons get the full clay treatment; the press moves them down
+     1px AND swaps the raised shadow for an inset one, so the button
+     genuinely dents instead of just changing colour. */
+  .btn-primary, .btn-navy, .btn-danger {
+    box-shadow: var(--clay-btn);
+  }
+  .btn-primary:active, .btn-navy:active, .btn-danger:active {
+    box-shadow: var(--clay-btn-pressed);
+    transform: translateY(1px);
+  }
+  .btn-primary:disabled, .btn-navy:disabled, .btn-danger:disabled {
+    box-shadow: none;
   }
   .btn:focus-visible {
     --tw-ring-color: rgba(63, 163, 77, 0.4); /* brand-500 @ 40% */
@@ -203,15 +291,22 @@ h1, h2, h3, h4 {
   }
   .btn-navy:hover { opacity: 0.88; }
 
+  /* Outline/ghost stay quieter — a secondary action shouldn't compete
+     with the primary one for depth. They lift only on hover. */
   .btn-outline {
     @apply btn;
     border: 1px solid var(--hairline);
-    background-color: transparent;
+    background-color: var(--surface-card);
     color: var(--text-primary);
   }
   .btn-outline:hover {
     border-color: var(--hairline-strong);
     background-color: var(--surface-raised);
+    box-shadow: var(--clay-btn);
+  }
+  .btn-outline:active {
+    box-shadow: var(--clay-btn-pressed);
+    transform: translateY(1px);
   }
   .btn-secondary { @apply btn-outline; }
 
@@ -224,6 +319,7 @@ h1, h2, h3, h4 {
     background-color: var(--surface-raised);
     color: var(--text-primary);
   }
+  .btn-ghost:active { transform: translateY(1px); }
 
   .btn-danger {
     @apply btn text-white;
@@ -232,19 +328,25 @@ h1, h2, h3, h4 {
   .btn-danger:hover { background-color: #be123c; }
 
   /* ── Surfaces ─────────────────────────────────────────────────
-     Hairline + surface step. No shadow, no hover lift — the whole
-     point of this system is that nothing floats. */
+     Clay: the card is a soft moulded object sitting above the page.
+     The hairline stays, but at this shadow strength it's doing edge
+     definition (mostly for dark mode, where the shadow alone can't
+     separate a #141415 card from a #0a0a0a page) rather than being the
+     only thing that says "this is a surface". */
   .card {
     background-color: var(--surface-card);
     border: 1px solid var(--hairline);
     border-radius: var(--radius-card);
+    box-shadow: var(--clay);
   }
   .card-hover {
-    @apply card transition-colors duration-150;
+    @apply card;
+    transition: box-shadow 0.18s ease, transform 0.18s ease, background-color 0.15s ease;
   }
   .card-hover:hover {
-    border-color: var(--hairline-strong);
     background-color: var(--surface-raised);
+    box-shadow: var(--clay-lift);
+    transform: translateY(-2px);
   }
   .elev { box-shadow: none; }
 
@@ -383,19 +485,22 @@ h1, h2, h3, h4 {
     border: 1px solid var(--hairline);
     border-radius: var(--radius-card);
     padding: 1.375rem 1.375rem 1.5rem;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
+    box-shadow: var(--clay);
+    transition: box-shadow 0.18s ease, transform 0.18s ease, background-color 0.15s ease;
     min-width: 0;
   }
   a.kpi:hover, button.kpi:hover {
-    border-color: var(--hairline-strong);
     background-color: var(--surface-raised);
+    box-shadow: var(--clay-lift);
+    transform: translateY(-2px);
   }
   .kpi-icon {
     display: inline-grid;
     place-items: center;
     height: 2.5rem;
     width: 2.5rem;
-    border-radius: 12px;
+    border-radius: 14px;
+    box-shadow: var(--clay-inset);
     background-color: var(--surface-raised);
     border: 1px solid var(--hairline);
     /* Near-full strength, like the reference — a dim icon in a dim square

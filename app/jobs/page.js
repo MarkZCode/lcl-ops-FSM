@@ -124,21 +124,27 @@ export default function JobsPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return inPeriod.filter((j) => {
-      if (!jobMatchesStatus(j, statusFilter)) return false;
-      if (!q) return true;
-      const client = clients.find((c) => c.id === j.clientId);
-      const hay = [
-        j.id,
-        client?.name,
-        client?.company,
-        ...(j.services || []),
-        j.notes,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
+    return inPeriod
+      .filter((j) => {
+        if (!jobMatchesStatus(j, statusFilter)) return false;
+        if (!q) return true;
+        const client = clients.find((c) => c.id === j.clientId);
+        const hay = [
+          j.id,
+          client?.name,
+          client?.company,
+          ...(j.services || []),
+          j.notes,
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      // Newest job first. Without this the list came back in whatever order
+      // the store happened to hold (in practice job-id order, which is a
+      // random 4-digit suffix), so a job raised today could land anywhere in
+      // the list — you had to hunt for the one you just created.
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   }, [inPeriod, clients, query, statusFilter]);
 
   // Counts follow the period as well — a "Paid 9" pill that ignored the
