@@ -335,7 +335,6 @@ function GmailPushSection() {
 function SettingsInner() {
   const ask = useConfirm();
   const {
-    resetDemo,
     clients,
     jobs,
     catalog,
@@ -347,7 +346,6 @@ function SettingsInner() {
     engineers,
     removeEngineer,
   } = useStore();
-  const [confirmReset, setConfirmReset] = useState(false);
 
   // `?section=profile` (from the sidebar avatar) scrolls straight to Users &
   // access. Waits a frame so the section exists before we try to reach it.
@@ -696,23 +694,24 @@ function SettingsInner() {
             <h2 className="mb-3 section-label text-sm">
               Data
             </h2>
-            <div className="card flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="card flex flex-col gap-3 p-5">
               <div>
                 <p className="flex items-center gap-2 text-sm font-semibold text-navy-900">
                   <FiCheckCircle className="text-brand-500" />
-                  {clients.length} clients · {jobs.length} jobs saved in this browser
+                  {clients.length} clients · {jobs.length} jobs
                 </p>
+                {/* This card used to say records were "saved in this browser"
+                    and offer a "Reset demo data" button. Both were leftovers
+                    from the prototype and both were untrue/unsafe now: the
+                    records live in Supabase and sync across every device, and
+                    the reset button DELETED every client and job on the server
+                    before replacing them with invented demo records. */}
                 <p className="mt-1 text-xs text-navy-500">
-                  Prototype data is stored locally on this device. Resetting restores
-                  the original demo data.
+                  Stored in your Supabase workspace and synced across every device
+                  you sign in on. This device keeps an offline copy so the app still
+                  opens without a connection.
                 </p>
               </div>
-              <button
-                className="btn-outline shrink-0"
-                onClick={() => setConfirmReset(true)}
-              >
-                <FiRefreshCw /> Reset demo data
-              </button>
             </div>
 
             {/* Nuclear option — for when a device is stuck showing ghost data.
@@ -829,32 +828,6 @@ function SettingsInner() {
         </p>
       </Modal>
 
-      <Modal
-        open={confirmReset}
-        onClose={() => setConfirmReset(false)}
-        title="Reset demo data?"
-        footer={
-          <>
-            <button className="btn-outline" onClick={() => setConfirmReset(false)}>
-              Cancel
-            </button>
-            <button
-              className="btn-navy"
-              onClick={() => {
-                resetDemo();
-                setConfirmReset(false);
-              }}
-            >
-              Reset to demo data
-            </button>
-          </>
-        }
-      >
-        <p className="text-sm text-navy-600">
-          This replaces all current clients and jobs with the original demo set. Any
-          changes you&apos;ve made will be lost.
-        </p>
-      </Modal>
     </>
   );
 }
