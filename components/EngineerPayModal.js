@@ -43,6 +43,20 @@ export default function EngineerPayModal({
   // intentions and the row click used to do only the second, so there was no
   // way to see what a figure was actually made of before paying it.
   const [focusedJobId, setFocusedJobId] = useState(null);
+  // Write a manual amount against THIS engineer on that job, never job-wide.
+  // A job-level figure was applied to everyone working the job, so setting
+  // one person's fee silently pinned their colleague's to the same number
+  // (see payOverrideFor in lib/finance.js). Any legacy job-level value is
+  // cleared as it's replaced, so the two can't disagree afterwards.
+  const setPayOverride = (jobId, value) => {
+    const job = jobs.find((x) => x.id === jobId);
+    const existing = (job && job.engineerPayOverrides) || {};
+    const next = { ...existing };
+    if (value === null || value === "") delete next[engineer.id];
+    else next[engineer.id] = Number(value);
+    updateJob(jobId, { engineerPayOverrides: next, engineerPayOverride: null });
+  };
+
   const toggleJob = (jobId) =>
     setSelectedJobIds((prev) => {
       const next = new Set(prev);
@@ -353,7 +367,7 @@ export default function EngineerPayModal({
                               onChange={(e) => setOverrideDraft(e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") {
-                                  updateJob(j.jobId, { engineerPayOverride: overrideDraft === "" ? null : Number(overrideDraft) });
+                                  setPayOverride(j.jobId, overrideDraft === "" ? null : Number(overrideDraft));
                                   setEditingJobId(null);
                                 }
                                 if (e.key === "Escape") setEditingJobId(null);
@@ -364,7 +378,7 @@ export default function EngineerPayModal({
                               className="rounded px-1.5 py-1 text-brand-600 hover:bg-brand-50"
                               title="Save"
                               onClick={() => {
-                                updateJob(j.jobId, { engineerPayOverride: overrideDraft === "" ? null : Number(overrideDraft) });
+                                setPayOverride(j.jobId, overrideDraft === "" ? null : Number(overrideDraft));
                                 setEditingJobId(null);
                               }}
                             >
@@ -390,7 +404,7 @@ export default function EngineerPayModal({
                                 type="button"
                                 className="rounded p-1 text-navy-300 hover:bg-navy-100 hover:text-navy-600"
                                 title="Clear manual amount — use the normal formula again"
-                                onClick={() => updateJob(j.jobId, { engineerPayOverride: null })}
+                                onClick={() => setPayOverride(j.jobId, null)}
                               >
                                 <FiRotateCcw className="h-3 w-3" />
                               </button>
