@@ -32,7 +32,12 @@ export default function RescheduleModal({ open, onClose, job, onConfirm }) {
   const [to, setTo] = useState("");
   const [reason, setReason] = useState(REASONS[0]);
   const [note, setNote] = useState("");
-  const [notify, setNotify] = useState(true);
+  // Emailing the client is OFF by default and has to be turned on
+  // deliberately. Rescheduling is often an internal correction — fixing a
+  // wrong date, shuffling an unconfirmed slot — and a checkbox that arrives
+  // pre-ticked sends the client a confirmation for every one of those before
+  // anyone notices it was on.
+  const [notify, setNotify] = useState(false);
 
   // Seed from the job's CURRENT slot each time it opens, so the common case
   // (same window, different day) is one field away.
@@ -45,7 +50,7 @@ export default function RescheduleModal({ open, onClose, job, onConfirm }) {
     setTo(job.windowTo || "");
     setReason(REASONS[0]);
     setNote("");
-    setNotify(true);
+    setNotify(false);
   }, [open, job]);
 
   if (!job) return null;
@@ -146,9 +151,14 @@ export default function RescheduleModal({ open, onClose, job, onConfirm }) {
           />
           <span>
             Email the client the new appointment
-            <span className="block text-[11px] text-navy-400">
-              Uses your Booking confirmation template. Nothing is sent if the client has no email on file.
-            </span>
+            {/* Only shown once it's actually switched on — while it's off,
+                naming the template describes something that isn't going to
+                happen. */}
+            {notify && (
+              <span className="block text-[11px] text-navy-400">
+                Uses your Booking confirmation template. Nothing is sent if the client has no email on file.
+              </span>
+            )}
           </span>
         </label>
       </div>
