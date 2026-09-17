@@ -822,7 +822,7 @@ function ReportsInner() {
               <div className="flex flex-wrap gap-3 text-sm">
                 <span className="text-navy-500">Owed <strong className="text-amber-700">{gbp(pay.totalOwed)}</strong></span>
                 <span className="text-navy-500">Paid <strong className="text-emerald-700">{gbp(pay.totalPaid)}</strong></span>
-                <span className="text-navy-500">Balance <strong className="text-rose-600">{gbp(pay.totalBalance)}</strong></span>
+                <span className="text-navy-500">Due <strong className="text-rose-600">{gbp(pay.totalBalance)}</strong></span>
               </div>
             </div>
             {engineers.length === 0 ? (
@@ -857,7 +857,7 @@ function ReportsInner() {
                       <th className="px-3 py-2.5 text-right font-semibold">VAT</th>
                       <th className="px-3 py-2.5 text-right font-semibold">Parking</th>
                       <th className="px-3 py-2.5 text-right font-semibold">Paid</th>
-                      <th className="px-5 py-2.5 text-right font-semibold">Balance</th>
+                      <th className="px-5 py-2.5 text-right font-semibold">Due</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-navy-100">
@@ -908,7 +908,13 @@ function ReportsInner() {
                     <tr>
                       <td className="px-5 py-2.5 text-sm font-bold text-navy-700" colSpan={2}>Totals</td>
                       <td className="tnum px-3 py-2.5 text-right text-sm font-bold text-navy-900">{gbp(stats.revenue)}</td>
-                      <td colSpan={3} />
+                      {/* Labour, VAT and parking were left blank here, so the
+                          only totalled money columns were revenue and what had
+                          already been paid — you could not read the period's
+                          total labour cost off the bottom of its own table. */}
+                      <td className="tnum px-3 py-2.5 text-right text-sm font-bold text-navy-900">{gbp(pay.totalLabour)}</td>
+                      <td className="tnum px-3 py-2.5 text-right text-sm font-bold text-navy-700">{pay.totalVat > 0 ? gbp(pay.totalVat) : "—"}</td>
+                      <td className="tnum px-3 py-2.5 text-right text-sm font-bold text-navy-700">{pay.totalParking > 0 ? gbp(pay.totalParking) : "—"}</td>
                       <td className="tnum px-3 py-2.5 text-right text-sm font-bold text-emerald-700">{gbp(pay.totalPaid)}</td>
                       <td className="tnum px-5 py-2.5 text-right text-sm font-black text-amber-700">{gbp(pay.totalBalance)}</td>
                     </tr>

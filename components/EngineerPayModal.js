@@ -276,7 +276,7 @@ export default function EngineerPayModal({
               </p>
             </div>
             <div className="metric-cell">
-              <p className="metric-label">Balance</p>
+              <p className="metric-label">Due</p>
               <div className="metric-figure">
                 <span className={`metric-value ${row.balance > 0 ? "delta-down" : ""}`}>{gbp(row.balance)}</span>
               </div>
@@ -581,6 +581,16 @@ export default function EngineerPayModal({
                         {Array.isArray(j.lines) && j.lines.length > 0 && (
                           <div className="my-2.5 rounded-lg border border-navy-100 bg-navy-50/70 p-2.5 text-xs">
                             <p className="mb-1.5 font-semibold text-navy-800">Services in this job:</p>
+                            {/* With a manual amount set, these are the rates
+                                the job WOULD have paid. Saying so stops the
+                                two figures reading as a contradiction — the
+                                services no longer have to add up to the fee
+                                below, because the override replaced it. */}
+                            {j.overridden && (
+                              <p className="mb-1.5 text-[11px] text-navy-500">
+                                Normal rates for reference — a manual amount of {gbp(j.labour)} is set for this job and replaces them.
+                              </p>
+                            )}
                             <div className="space-y-1 divide-y divide-navy-100/50">
                               {j.lines.map((l, idx) => (
                                 <div key={idx} className="flex items-center justify-between pt-1 first:pt-0 text-navy-700">
@@ -589,7 +599,9 @@ export default function EngineerPayModal({
                                   </span>
                                   <div className="flex items-center gap-3 text-right">
                                     <span className="text-navy-500">Customer: {gbp(l.lineRevenue)}</span>
-                                    <span className="font-semibold text-amber-700">Engineer Pay: {gbp(l.linePay)}</span>
+                                    <span className={j.overridden ? "text-navy-400 line-through" : "font-semibold text-amber-700"}>
+                                      Engineer Pay: {gbp(l.linePay)}
+                                    </span>
                                   </div>
                                 </div>
                               ))}
