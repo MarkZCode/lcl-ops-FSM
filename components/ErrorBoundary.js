@@ -1,37 +1,13 @@
 "use client";
 
 import { Component } from "react";
+import {
+  MAX_CHUNK_RELOADS, MIN_RELOAD_GAP_MS,
+  getChunkReloadState, setChunkReloadState, clearChunkReloadState,
+  isChunkLoadError, nukeCacheAndReload,
+} from "@/lib/chunkRecovery";
 
 const MAX_AUTO_RETRIES = 2;
-// How many auto-reloads we allow before giving up and showing the error screen.
-const MAX_CHUNK_RELOADS = 2;
-// Minimum gap (ms) between auto-reloads — prevents back-to-back thrashing.
-const MIN_RELOAD_GAP_MS = 15_000;
-
-function getChunkReloadState() {
-  try {
-    const raw = localStorage.getItem("lcl-chunk-reloads");
-    return raw ? JSON.parse(raw) : { count: 0, lastAt: 0 };
-  } catch { return { count: 0, lastAt: 0 }; }
-}
-function setChunkReloadState(state) {
-  try { localStorage.setItem("lcl-chunk-reloads", JSON.stringify(state)); } catch {}
-}
-function clearChunkReloadState() {
-  try { localStorage.removeItem("lcl-chunk-reloads"); } catch {}
-}
-
-async function nukeCacheAndReload() {
-  try {
-    const regs = await navigator.serviceWorker?.getRegistrations?.() ?? [];
-    await Promise.all(regs.map((r) => r.unregister()));
-    const keys = await caches?.keys?.() ?? [];
-    await Promise.all(keys.map((k) => caches.delete(k)));
-  } catch {}
-  clearChunkReloadState();
-  window.location.reload();
-}
-
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -51,9 +27,7 @@ export default class ErrorBoundary extends Component {
     // MAX_CHUNK_RELOADS auto-reloads (tracked in localStorage so the guard
     // survives tab close/reopen). If we've already hit the limit, stop
     // reloading and show a "Clear cache" button instead.
-    const msg = String(error?.message || error?.name || "");
-    const isChunkError = /loading chunk|chunkloaderror|failed to fetch dynamically imported module|importing a module script failed/i.test(msg);
-    if (isChunkError) {
+    if (isChunkLoadError(error)) {
       const state = getChunkReloadState();
       const now = Date.now();
       const tooSoon = (now - state.lastAt) < MIN_RELOAD_GAP_MS;
