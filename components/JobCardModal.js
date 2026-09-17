@@ -18,6 +18,7 @@ import { useStore } from "@/lib/store";
 import { getJobLines, isAddonCode } from "@/lib/format";
 import {
   jobCardText,
+  lineSizeLabel,
   dateLine,
   certLabel,
   accessPhone,
@@ -358,7 +359,8 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
                 {shownLines
                   .map((l) => {
                     const base = l.code === "CUSTOM" ? l.name : certLabel(l.code);
-                    return l.tier ? `${base} (${l.tier})` : base;
+                    const size = lineSizeLabel(l);
+                    return size ? `${base} (${size})` : base;
                   })
                   .join(", ") || "—"}
               </p>
