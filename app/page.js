@@ -120,15 +120,24 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const now = new Date();
 
-    const active = jobs.filter((j) => ["quote", "scheduled", "in_progress"].includes(j.status)).length;
-    const today  = jobs.filter((j) => j.scheduledAt && isToday(parseISO(j.scheduledAt))).length;
-    const quotes = jobs.filter((j) => j.status === "quote").length;
+    // These follow the period selector like every other figure on the page.
+    // They used to count EVERY job ever, whatever month was on screen — so
+    // looking at June still showed today's unpaid invoices, and the card
+    // contradicted the month printed directly above it.
+    //
+    // `today` is deliberately NOT scoped: "Today's schedule" means today,
+    // not the selected month, and renewals are forward-looking by nature.
+    const periodJobs = jobs.filter((j) => jobInRange(j, ctl.range));
 
-    const outstanding = jobs
+    const active = periodJobs.filter((j) => ["quote", "scheduled", "in_progress"].includes(j.status)).length;
+    const today  = jobs.filter((j) => j.scheduledAt && isToday(parseISO(j.scheduledAt))).length;
+    const quotes = periodJobs.filter((j) => j.status === "quote").length;
+
+    const outstanding = periodJobs
       .filter((j) => j.status === "invoiced")
       .reduce((s, j) => s + (j.price || 0), 0);
 
-    const overdueCount = jobs.filter((j) => {
+    const overdueCount = periodJobs.filter((j) => {
       if (j.status !== "invoiced") return false;
       const sent = j.invoicedAt || j.createdAt;
       return !sent || Date.now() - new Date(sent).getTime() > 30 * 86400000;
@@ -155,7 +164,7 @@ export default function Dashboard() {
       : 0;
 
     // Total value sitting in the live pipeline (quote → invoiced)
-    const pipelineValue = jobs
+    const pipelineValue = periodJobs
       .filter((j) => ["quote", "scheduled", "in_progress", "invoiced"].includes(j.status))
       .reduce((s, j) => s + (j.price || 0), 0);
 
@@ -238,7 +247,10 @@ export default function Dashboard() {
     // Deliberately anchored to the ACTUAL current calendar month (today),
     // never to `selectedRange`/`ctl` above — Company Account must not move
     // when someone changes what period Reports/Dashboard is looking at.
-    const todayMonthRange = getPeriodRange("month", now);
+    // Runs from the first record up to the END OF THE SELECTED PERIOD, so
+    // the cumulative total grows as you page forward through the months and
+    // shrinks as you page back — August shows June+July+August, not the
+    // whole history regardless of what's on screen.
     const jobDates = jobs.map(jobDate).filter(Boolean);
     const expenseDates = (expenses || [])
       .map((e) => { try { return e.date ? parseISO(e.date) : null; } catch { return null; } })
@@ -246,8 +258,8 @@ export default function Dashboard() {
     const allDates = [...jobDates, ...expenseDates];
     const companyStart = allDates.length
       ? new Date(Math.min(...allDates.map((d) => d.getTime())))
-      : todayMonthRange.start;
-    const companyRange = { start: companyStart, end: todayMonthRange.end };
+      : selectedRange.start;
+    const companyRange = { start: companyStart, end: selectedRange.end };
 
     const companyStats = computeStats(jobs, companyRange, engineers, engineerPayments);
     const companyExpTotal = expensesForRange(expenses, companyRange).total;
