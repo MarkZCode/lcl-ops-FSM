@@ -192,12 +192,30 @@ export default function Dashboard() {
     // — same one `periodStats.netProfit` below uses — so this is just wiring
     // the Dashboard to the figure that was already correct elsewhere.
     const engineerCost = pay.totalAccrued;
-    const paidRatio = monthRevenue > 0 ? (periodStats.collected / monthRevenue) : 1;
-    const realizedProfit = (periodStats.collected ?? 0) - (engineerCost * paidRatio) - companyExpenses;
-    const profit = Math.round(realizedProfit * 100) / 100;
-    const profitNote = monthRevenue > periodStats.collected && periodStats.collected > 0
-      ? `Realized paid profit (${gbp(periodStats.collected)} collected)`
-      : "Paid revenue minus costs";
+    const engineerPaid = pay.totalPaid;
+    const engineerOutstanding = pay.totalBalance;
+
+    // ── The money model, stated once ─────────────────────────────────────
+    //   Revenue     = cash actually COLLECTED. An invoice nobody has paid
+    //                 yet is not revenue — it's a promise. The unpaid
+    //                 amount is surfaced on the card so it isn't simply
+    //                 invisible, but it is deliberately NOT added in.
+    //   Net Profit  = Revenue − engineer cost.        (what the work earns)
+    //   True Profit = Net Profit − company expenses.  (the bottom line)
+    //
+    // This replaces a single "Profit" figure that multiplied engineer cost
+    // by a collected/invoiced ratio — an estimate that was neither the
+    // accrual nor the cash number, and reconciled to nothing.
+    const revenueCollected = periodStats.collected ?? 0;
+    const unpaidInvoiced = Math.max(0, (periodStats.revenue ?? 0) - revenueCollected);
+    const netProfit = Math.round((revenueCollected - engineerCost) * 100) / 100;
+    const trueProfit = Math.round((netProfit - companyExpenses) * 100) / 100;
+    const revenueNote = unpaidInvoiced > 0
+      ? `${gbp(unpaidInvoiced)} invoiced but unpaid — not counted`
+      : selectedRange.label;
+    const engineerCostNote = engineerOutstanding > 0
+      ? `Paid ${gbp(engineerPaid)} · Outstanding ${gbp(engineerOutstanding)}`
+      : `All ${gbp(engineerPaid)} paid`;
 
     // ── Company Account — cumulative profit since day one, current month
     // included, never reset by a month rolling over ──────────────────────
@@ -234,12 +252,14 @@ export default function Dashboard() {
     const companyStats = computeStats(jobs, companyRange, engineers, engineerPayments);
     const companyExpTotal = expensesForRange(expenses, companyRange).total;
     const companyPay = computeEngineerPay(jobs, companyRange, engineers, engineerPayments);
-    const companyPaidRatio = companyStats.revenue > 0 ? (companyStats.collected / companyStats.revenue) : 1;
+    // Same formula as True Profit above, over the whole history — so the
+    // cumulative figure is genuinely the sum of the months, not a second
+    // definition that happens to sit next to them.
     const companyAccount = Math.round(
-      ((companyStats.collected ?? 0) - companyPay.totalAccrued * companyPaidRatio - companyExpTotal) * 100
+      ((companyStats.collected ?? 0) - companyPay.totalAccrued - companyExpTotal) * 100
     ) / 100;
 
-    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: selectedRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, profit, profitNote, companyExpenses, engineerCost, companyAccount };
+    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: selectedRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, netProfit, trueProfit, revenueCollected, unpaidInvoiced, revenueNote, engineerCostNote, engineerPaid, engineerOutstanding, companyExpenses, engineerCost, companyAccount };
   }, [jobs, engineers, engineerPayments, expenses, renewalStats, ctl.range]);
 
   // How the business is running, not just what it billed — measured over the
@@ -329,7 +349,7 @@ export default function Dashboard() {
               <div className="space-y-4">
                 <Link href="/reports" className="m-hero block">
                   <p className="m-hero-label">Revenue</p>
-                  <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.monthRevenue)}</p>
+                  <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.revenueCollected)}</p>
                   <div className="m-hero-foot">
                     {stats.monthDoneCount > 0 && (
                       <span className="m-hero-chip">
@@ -344,11 +364,15 @@ export default function Dashboard() {
                 </Link>
 
                 <Link href="/reports" className="m-hero block">
-                  <p className="m-hero-label">Profit</p>
-                  <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.profit)}</p>
-                  <div className="m-hero-foot">
-                    <span>Revenue minus {stats.monthLabel}&rsquo;s own costs</span>
-                  </div>
+                  <p className="m-hero-label">Net Profit</p>
+                  <p className={`m-hero-value ${stats.netProfit < 0 ? "!text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"}`}>{gbp(stats.netProfit)}</p>
+                  <div className="m-hero-foot"><span>Revenue minus engineer cost</span></div>
+                </Link>
+
+                <Link href="/reports" className="m-hero block">
+                  <p className="m-hero-label">True Profit</p>
+                  <p className={`m-hero-value ${stats.trueProfit < 0 ? "!text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"}`}>{gbp(stats.trueProfit)}</p>
+                  <div className="m-hero-foot"><span>After engineer cost and expenses</span></div>
                 </Link>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -396,16 +420,16 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiCheckCircle}
                   label="Revenue"
-                  value={gbp(stats.monthRevenue)}
-                  note={stats.monthLabel}
+                  value={gbp(stats.revenueCollected)}
+                  note={stats.revenueNote}
                   link="/reports"
                 />
                 <Kpi
                   icon={FiPieChart}
-                  label="Profit"
-                  value={gbp(stats.profit)}
-                  valueClassName="bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent !text-4xl"
-                  note={stats.profitNote}
+                  label="Net Profit"
+                  value={gbp(stats.netProfit)}
+                  valueClassName={`${stats.netProfit < 0 ? "text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"} !text-4xl`}
+                  note="Revenue minus engineer cost"
                   link="/reports"
                   className="lg:col-span-2"
                 />
@@ -441,8 +465,18 @@ export default function Dashboard() {
                   label="Engineer Cost"
                   value={gbp(stats.engineerCost)}
                   valueClassName="text-rose-500"
-                  note={`Cost of jobs done · ${stats.monthLabel}`}
+                  note={stats.engineerCostNote}
                   link="/reports"
+                />
+                {/* The bottom line, after BOTH cost cards above it. */}
+                <Kpi
+                  icon={FiTrendingUp}
+                  label="True Profit"
+                  value={gbp(stats.trueProfit)}
+                  valueClassName={`${stats.trueProfit < 0 ? "text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"} !text-4xl`}
+                  note="After engineer cost and expenses"
+                  link="/reports"
+                  className="lg:col-span-2"
                 />
                 <Kpi
                   icon={FiLayers}
