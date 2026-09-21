@@ -905,7 +905,10 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                           and only matters at all for an engineer who actually
                           has bedroom-specific rates configured; everyone else
                           keeps using the tier price exactly as before. */}
-                      {l.code === "EICR" && (l.tier || tiers?.[0]?.label) === "1–3 Bedrooms" && (
+                      {/* Any service priced with a "1–3 Bedrooms" band, not
+                          just EICR — EPC and Fire Risk Assessment use the
+                          same band and had no way to record the real size. */}
+                      {(l.tier || tiers?.[0]?.label) === "1–3 Bedrooms" && (
                         <select
                           className="input mt-1 h-7 w-full py-0 text-xs"
                           value={l.bedroomCount || ""}
