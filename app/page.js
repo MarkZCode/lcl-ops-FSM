@@ -217,9 +217,9 @@ export default function Dashboard() {
     // accrual nor the cash number, and reconciled to nothing.
     const revenueCollected = periodStats.collected ?? 0;
     const unpaidInvoiced = Math.max(0, (periodStats.revenue ?? 0) - revenueCollected);
-    // Struck against the cost of the COLLECTED work only — an unpaid invoice
-    // is held out of both sides. See totalAccruedCollected in lib/stats.js.
-    const netProfit = Math.round((revenueCollected - pay.totalAccruedCollected) * 100) / 100;
+    // Full engineer cost. The engineer is paid whether or not the client
+    // clears the invoice, so the company bears that cost either way.
+    const netProfit = Math.round((revenueCollected - engineerCost) * 100) / 100;
     const trueProfit = Math.round((netProfit - companyExpenses) * 100) / 100;
     const revenueNote = unpaidInvoiced > 0
       ? `${gbp(unpaidInvoiced)} invoiced but unpaid — not counted`

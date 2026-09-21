@@ -162,7 +162,11 @@ function SummaryInner() {
     const engineerPaid = pay.totalPaid;
     const engineerDue = pay.totalBalance;
     const companyExpenses = exp.total;
-    const netProfit = Math.round((collected - engineerCostCollected) * 100) / 100;
+    // Full engineer cost, always. The engineer gets paid whether or not the
+    // client clears the invoice, so the company genuinely bears that cost —
+    // holding it back until payment would flatter the month it happened in
+    // and then punish whichever month the invoice finally lands in.
+    const netProfit = Math.round((collected - engineerCost) * 100) / 100;
     const trueProfit = Math.round((netProfit - companyExpenses) * 100) / 100;
 
     // Status spread + cancellation reasons
@@ -314,10 +318,9 @@ function SummaryInner() {
       L.push(["Revenue (all work done)", d.revenueAll.toFixed(2), "Completed, invoiced and paid — includes unpaid invoices"]);
       L.push(["  of which collected", d.collected.toFixed(2), "Money actually received"]);
       L.push(["  of which still unpaid", d.unpaidInvoiced.toFixed(2), "Invoiced, not yet paid"]);
-      L.push(["Engineer cost on collected work", (-d.engineerCostCollected).toFixed(2), "Cost of the jobs the customer has paid"]);
-      L.push(["Net profit", d.netProfit.toFixed(2), "Collected minus the cost of that collected work"]);
-      L.push(["  (held back) engineer cost on unpaid invoices", (-d.engineerCostUnpaid).toFixed(2), "Excluded until those invoices are paid"]);
-      L.push(["  (memo) total engineer cost, all work", (-d.engineerCost).toFixed(2), "Including work on unpaid invoices"]);
+      L.push(["Engineer cost", (-d.engineerCost).toFixed(2), "All work done — paid regardless of whether the client cleared their invoice"]);
+      L.push(["Net profit", d.netProfit.toFixed(2), "Collected minus engineer cost"]);
+      L.push(["  (memo) of which on unpaid invoices", (-d.engineerCostUnpaid).toFixed(2), "Cost borne on work the client hasn't paid for"]);
       L.push(["Company expenses", (-d.companyExpenses).toFixed(2), ""]);
       L.push(["True profit", d.trueProfit.toFixed(2), "Net profit minus company expenses"]);
       L.push(["True margin (%)", d.margin.toFixed(1), "True profit as a share of collected"]);
@@ -469,17 +472,17 @@ function SummaryInner() {
                 ["Revenue (all work done)", money(d.revenueAll), "Completed, invoiced and paid — includes unpaid invoices"],
                 ["Collected", money(d.collected), "Money actually received in this period"],
                 ["Still unpaid", money(d.unpaidInvoiced), "Invoiced but not yet paid"],
-                ["− Engineer cost on collected work", money(d.engineerCostCollected), "Cost of the jobs the customer has paid"],
-                ["= Net profit", money(d.netProfit), "Collected minus the cost of that collected work"],
+                ["− Engineer cost", money(d.engineerCost), "All work done this period — paid to engineers regardless of whether the client has cleared their invoice"],
+                ["= Net profit", money(d.netProfit), "Collected minus engineer cost"],
                 ["− Company expenses", money(d.companyExpenses), "Overheads, fees and running costs"],
               ]}
               total={["= TRUE PROFIT", money(d.trueProfit), `${d.margin}% of collected`]}
             />
             {d.engineerCostUnpaid > 0 && (
               <p className="border-t border-navy-100 px-5 py-2.5 text-[11px] text-navy-500 dark:border-white/10">
-                Held back: {money(d.unpaidInvoiced)} of invoiced revenue and the {money(d.engineerCostUnpaid)} of
-                engineer cost that goes with it are both excluded until those invoices are paid. Total engineer
-                cost for all work done this period was {money(d.engineerCost)}.
+                Note: {money(d.engineerCostUnpaid)} of that engineer cost is for work on
+                {" "}{money(d.unpaidInvoiced)} of invoices the client hasn&apos;t cleared yet. The cost is still
+                deducted in full — the engineer was paid either way.
               </p>
             )}
           </div>
