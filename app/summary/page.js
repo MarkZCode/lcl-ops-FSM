@@ -261,6 +261,40 @@ function SummaryInner() {
       cancelled: jobRows.filter((j) => j.group === "cancelled"),
     };
 
+    // ── Work by service, from REVENUE JOBS ONLY ─────────────────────
+    //
+    // stats.byService counts every job in the period whatever its status,
+    // so quotes and cancelled work were being reported as revenue: August
+    // showed "Parking Charge £845.04 — 147%" against a month that actually
+    // earned £574.97, and the rows summed to £4,486.76. A share of revenue
+    // cannot exceed 100%. Built here from completed/invoiced/paid jobs
+    // only, so the column sums to revenue and the shares sum to 100%.
+    //
+    // A job's value is split evenly across its services, and its engineer
+    // cost is split the same way, so margin per service is comparable.
+    const svcAgg = {};
+    revJobs.forEach((j) => {
+      const svcs = j.services || [];
+      if (!svcs.length) return;
+      const priceShare = (Number(j.price) || 0) / svcs.length;
+      const costShare = (costByJob[j.id] || 0) / svcs.length;
+      svcs.forEach((code) => {
+        if (!svcAgg[code]) svcAgg[code] = { code, count: 0, revenue: 0, cost: 0 };
+        svcAgg[code].count += 1;
+        svcAgg[code].revenue += priceShare;
+        svcAgg[code].cost += costShare;
+      });
+    });
+    const serviceRows = Object.values(svcAgg)
+      .map((r) => ({ ...r, name: certLabel(r.code) || r.code, margin: r.revenue - r.cost }))
+      .sort((a, b) => b.revenue - a.revenue);
+    const serviceJobCount = revJobs.length;
+
+    // ── Margins ─────────────────────────────────────────────────────
+    const engineerSharePct = pct(engineerCost, collected);      // paid out to engineers
+    const grossMarginPct = pct(collected - engineerCost, collected); // kept after engineers
+    const trueMarginPct = pct(trueProfit, collected);            // kept after everything
+
     // ── Every expense line in the period, not just the category totals ──
     //
     // A recurring expense is charged once per CALENDAR MONTH the range
@@ -285,7 +319,8 @@ function SummaryInner() {
     return {
       stats, pay, periodJobs, pipeline,
       lineValue, addonValue, discountValue, recResidual,
-      parking, congestion, jobRows, jobGroups, expItems, expItemsTotal, expMonths, revJobs,
+      parking, congestion, jobRows, jobGroups, serviceRows, serviceJobCount,
+      engineerSharePct, grossMarginPct, trueMarginPct, expItems, expItemsTotal, expMonths, revJobs,
       revenueAll, collected, unpaidInvoiced,
       engineerCost, engineerCostCollected, engineerCostUnpaid, engineerPaid, engineerDue, companyExpenses,
       netProfit, trueProfit,
@@ -374,9 +409,22 @@ function SummaryInner() {
       L.push(["Close rate (%)", d.pipeline.closeRate]);
       blank();
 
-      head("Work by service");
-      L.push(["Service", "Jobs", "Revenue", "Share of revenue (%)"]);
-      d.stats.byService.forEach((s) => L.push([s.name, s.count, s.revenue.toFixed(2), pct(s.revenue, d.revenueAll).toFixed(1)]));
+      head("Work by service (revenue jobs only)");
+      L.push(["Service", "Times done", "Revenue", "Engineer cost", "Margin", "Margin (%)", "Share of revenue (%)"]);
+      d.serviceRows.forEach((s) => L.push([
+        s.name, s.count, s.revenue.toFixed(2), s.cost.toFixed(2), s.margin.toFixed(2),
+        s.revenue > 0 ? pct(s.margin, s.revenue).toFixed(1) : "", pct(s.revenue, d.revenueAll).toFixed(1),
+      ]));
+      L.push(["TOTAL", d.serviceRows.reduce((a, x) => a + x.count, 0), d.revenueAll.toFixed(2),
+        d.serviceRows.reduce((a, x) => a + x.cost, 0).toFixed(2),
+        d.serviceRows.reduce((a, x) => a + x.margin, 0).toFixed(2), "", "100.0"]);
+      blank();
+
+      head("Margins");
+      L.push(["Measure", "Value (%)", "Basis"]);
+      L.push(["Paid to engineers", d.engineerSharePct.toFixed(1), "Engineer cost as a share of collected"]);
+      L.push(["Margin after engineers", d.grossMarginPct.toFixed(1), "What's kept before company expenses"]);
+      L.push(["True margin", d.trueMarginPct.toFixed(1), "What's kept after everything"]);
       blank();
 
       head("Company expenses by category");
@@ -446,7 +494,7 @@ function SummaryInner() {
 
         {/* ── 1. The bottom line ── */}
         <Section title="Profit & loss" subtitle="Revenue in, costs out, what's left">
-          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-4 lg:grid-cols-7 dark:divide-white/10">
+          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-4 lg:grid-cols-8 dark:divide-white/10">
             <Figure label="Revenue" value={money(d.revenueAll)} note="All work done" />
             <Figure label="Collected" value={money(d.collected)} note="Money received" />
             <Figure label="Unpaid" value={money(d.unpaidInvoiced)} note="Invoiced, not paid" tone={d.unpaidInvoiced > 0 ? "text-amber-600" : ""} />
@@ -454,8 +502,14 @@ function SummaryInner() {
             <Figure
               label="Net profit"
               value={money(d.netProfit)}
-              note="Collected − engineer cost"
+              note={`${d.grossMarginPct}% of collected`}
               tone={d.netProfit < 0 ? "text-rose-500" : "text-emerald-600"}
+            />
+            <Figure
+              label="Margin after engineers"
+              value={`${d.grossMarginPct}%`}
+              note={`${d.engineerSharePct}% goes to engineers`}
+              tone={d.grossMarginPct < 0 ? "text-rose-500" : "text-emerald-600"}
             />
             <Figure label="Expenses" value={money(d.companyExpenses)} tone="text-rose-500" />
             <Figure
@@ -561,12 +615,36 @@ function SummaryInner() {
         </Section>
 
         {/* ── 5. Services ── */}
-        <Section title="Work by service" subtitle="Which certificates brought the money in">
+        <Section
+          title="Work by service"
+          subtitle={`Revenue jobs only — ${d.serviceJobCount} job${d.serviceJobCount === 1 ? "" : "s"}, split across the services on each`}
+        >
           <Sheet
-            columns={[{ label: "Service" }, { label: "Jobs", align: "right" }, { label: "Revenue", align: "right" }, { label: "Share", align: "right" }]}
-            rows={d.stats.byService.map((s) => [s.name, s.count, money(s.revenue), `${pct(s.revenue, d.revenueAll)}%`])}
-            total={["TOTAL", d.stats.byService.reduce((s, x) => s + x.count, 0), money(d.revenueAll), "100%"]}
+            columns={[
+              { label: "Service" }, { label: "Times done", align: "right" },
+              { label: "Revenue", align: "right" }, { label: "Engineer cost", align: "right" },
+              { label: "Margin", align: "right" }, { label: "Margin %", align: "right" },
+              { label: "Share of revenue", align: "right" },
+            ]}
+            rows={d.serviceRows.map((s) => [
+              s.name, s.count, money(s.revenue), money(s.cost), money(s.margin),
+              s.revenue > 0 ? `${pct(s.margin, s.revenue)}%` : "—",
+              `${pct(s.revenue, d.revenueAll)}%`,
+            ])}
+            total={[
+              "TOTAL", d.serviceRows.reduce((a, x) => a + x.count, 0),
+              money(d.revenueAll),
+              money(d.serviceRows.reduce((a, x) => a + x.cost, 0)),
+              money(d.serviceRows.reduce((a, x) => a + x.margin, 0)),
+              d.revenueAll > 0 ? `${pct(d.serviceRows.reduce((a, x) => a + x.margin, 0), d.revenueAll)}%` : "—",
+              "100%",
+            ]}
           />
+          <p className="border-t border-navy-100 px-5 py-2.5 text-[11px] text-navy-500 dark:border-white/10">
+            &ldquo;Times done&rdquo; counts a service once per job, so a job covering three services appears in
+            three rows — that is why it exceeds the job count. Revenue and cost are split evenly across the
+            services on each job, so the column still totals {money(d.revenueAll)} exactly.
+          </p>
         </Section>
 
         {/* ── 6. Expenses ── */}
