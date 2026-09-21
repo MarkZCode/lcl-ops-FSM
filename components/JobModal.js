@@ -1368,10 +1368,10 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
           </div>
           <div className="min-w-0">
             <label className="label">Expected duration</label>
-            {/* The registry DurationPicker, rebuilt as a plain fill-in box
-                (see components/DurationPicker.js for why the animated
-                original could not be a form control). */}
             <DurationPicker
+              className="mt-1"
+              maxHours={12}
+              maxMinutes={59}
               value={{
                 hours: Math.floor((Number(form.durationMinutes) || 0) / 60),
                 minutes: (Number(form.durationMinutes) || 0) % 60,
