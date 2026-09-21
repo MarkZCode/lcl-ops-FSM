@@ -19,6 +19,7 @@ import {
 import { gbp, lineTotal, linesTotal, getJobLines, lineGross } from "@/lib/format";
 import { detectConflicts } from "@/lib/dispatch";
 import { ukDateTimeToUtcIso } from "@/lib/ukTime";
+import DurationPicker from "@/components/DurationPicker";
 
 function toLocal(iso) {
   if (!iso) return null;
@@ -44,6 +45,10 @@ const emptyForm = {
   scheduledDate: "", // arrival date (no time)
   discount: "",       // £ off the whole job
   discountReason: "", // WHY — one of DISCOUNT_PRESETS, so it can be counted
+  // How long the visit is expected to take, in minutes. Distinct from the
+  // arrival WINDOW (windowFrom/windowTo), which is the span the client is
+  // told to be in — a 3-hour window can hold a 45-minute job.
+  durationMinutes: 0,
   windowFrom: "", // arrival window start (HH:mm)
   windowTo: "", // arrival window end (HH:mm)
   windowPart: "", // Morning / Afternoon / Evening
@@ -131,6 +136,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
       id: draftId,
       engineerId: form.engineerId,
       scheduledAt: ukDateTimeToUtcIso(form.scheduledDate, form.windowFrom || "09:00"),
+      durationMinutes: Number(form.durationMinutes) || 0,
       windowFrom: form.windowFrom,
       windowTo: form.windowTo,
     };
@@ -174,6 +180,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
         scheduledDate: toDateInput(job.scheduledAt),
         discount: job.discount != null && job.discount !== "" ? String(job.discount) : "",
         discountReason: job.discountReason || "",
+        durationMinutes: Number(job.durationMinutes) || 0,
         windowFrom: job.windowFrom || toTimeInput(job.scheduledAt),
         windowTo: job.windowTo || "",
         windowPart: job.windowPart || "",
@@ -1304,8 +1311,8 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
           </p>
         </div>
 
-        {/* Arrival date + window */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* Arrival date + window + expected duration */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="label">Arrival date</label>
             <input
@@ -1358,6 +1365,31 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                 }
               />
             </div>
+          </div>
+          <div className="min-w-0">
+            <label className="label">Expected duration</label>
+            {/* Sized and coloured off the app's own tokens — 42px segments
+                to match .input, --radius-ctl corners, --surface-raised
+                fill. justify-start so it lines up with the fields beside
+                it rather than centring in its column. */}
+            <DurationPicker
+              className="!justify-start"
+              value={{
+                hours: Math.floor((Number(form.durationMinutes) || 0) / 60),
+                minutes: (Number(form.durationMinutes) || 0) % 60,
+              }}
+              onChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  durationMinutes: (Number(v.hours) || 0) * 60 + (Number(v.minutes) || 0),
+                }))
+              }
+              maxHours={12}
+              maxMinutes={59}
+            />
+            <p className="mt-1 text-[11px] text-navy-400">
+              How long the visit takes — separate from the arrival window above.
+            </p>
           </div>
         </div>
 
