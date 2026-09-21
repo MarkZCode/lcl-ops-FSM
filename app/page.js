@@ -332,6 +332,10 @@ export default function Dashboard() {
           <button className="btn-primary shrink-0" onClick={() => setModalOpen(true)}>
             <FiPlus /> <span className="hidden sm:inline">New job</span><span className="sm:hidden">New</span>
           </button>
+          {/* The whole period laid out end to end — see app/summary. */}
+          <Link href="/summary" className="btn-outline shrink-0" title="Full breakdown of this period — finances, engineer pay, funnel, expenses">
+            <FiPieChart /> <span className="hidden sm:inline">Summary</span>
+          </Link>
         </div>
       </div>
 
