@@ -30,6 +30,7 @@ import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
 import PeriodControls from "@/components/PeriodControls";
 import PageHeader from "@/components/PageHeader";
 import RequirePermission from "@/components/RequirePermission";
+import { MoneyCounter } from "@/components/AnimatedCounter";
 
 const pct = (part, whole) => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : 0);
 const money = (n) => gbp(Math.round((Number(n) || 0) * 100) / 100);
@@ -495,13 +496,13 @@ function SummaryInner() {
         {/* ── 1. The bottom line ── */}
         <Section title="Profit & loss" subtitle="Revenue in, costs out, what's left">
           <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-4 lg:grid-cols-8 dark:divide-white/10">
-            <Figure label="Revenue" value={money(d.revenueAll)} note="All work done" />
-            <Figure label="Collected" value={money(d.collected)} note="Money received" />
-            <Figure label="Unpaid" value={money(d.unpaidInvoiced)} note="Invoiced, not paid" tone={d.unpaidInvoiced > 0 ? "text-amber-600" : ""} />
-            <Figure label="Engineer cost" value={money(d.engineerCost)} note={`${d.engineerShare}% of collected`} tone="text-rose-500" />
+            <Figure label="Revenue" value={<MoneyCounter value={d.revenueAll} />} note="All work done" />
+            <Figure label="Collected" value={<MoneyCounter value={d.collected} />} note="Money received" />
+            <Figure label="Unpaid" value={<MoneyCounter value={d.unpaidInvoiced} />} note="Invoiced, not paid" tone={d.unpaidInvoiced > 0 ? "text-amber-600" : ""} />
+            <Figure label="Engineer cost" value={<MoneyCounter value={d.engineerCost} />} note={`${d.engineerShare}% of collected`} tone="text-rose-500" />
             <Figure
               label="Net profit"
-              value={money(d.netProfit)}
+              value={<MoneyCounter value={d.netProfit} />}
               note={`${d.grossMarginPct}% of collected`}
               tone={d.netProfit < 0 ? "text-rose-500" : "text-emerald-600"}
             />
@@ -511,10 +512,10 @@ function SummaryInner() {
               note={`${d.engineerSharePct}% goes to engineers`}
               tone={d.grossMarginPct < 0 ? "text-rose-500" : "text-emerald-600"}
             />
-            <Figure label="Expenses" value={money(d.companyExpenses)} tone="text-rose-500" />
+            <Figure label="Expenses" value={<MoneyCounter value={d.companyExpenses} />} tone="text-rose-500" />
             <Figure
               label="True profit"
-              value={money(d.trueProfit)}
+              value={<MoneyCounter value={d.trueProfit} />}
               note={`${d.margin}% margin`}
               tone={d.trueProfit < 0 ? "text-rose-500" : "text-emerald-600"}
             />
@@ -675,12 +676,12 @@ function SummaryInner() {
         {/* ── Parking & congestion ── */}
         <Section title="Parking & congestion" subtitle="Charged to the client, reimbursed to the engineer, and what's left">
           <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-3 lg:grid-cols-6 dark:divide-white/10">
-            <Figure label="Parking charged" value={money(d.parking.collected)} note="On client invoices" />
-            <Figure label="Parking reimbursed" value={money(d.parking.reimbursed)} note="Paid to engineers" tone="text-rose-500" />
-            <Figure label="Parking kept" value={money(d.parking.net)} tone={d.parking.net < 0 ? "text-rose-500" : "text-emerald-600"} />
-            <Figure label="Congestion charged" value={money(d.congestion.collected)} note="On client invoices" />
-            <Figure label="Congestion reimbursed" value={money(d.congestion.reimbursed)} tone="text-rose-500" />
-            <Figure label="Congestion kept" value={money(d.congestion.net)} tone={d.congestion.net < 0 ? "text-rose-500" : "text-emerald-600"} />
+            <Figure label="Parking charged" value={<MoneyCounter value={d.parking.collected} />} note="On client invoices" />
+            <Figure label="Parking reimbursed" value={<MoneyCounter value={d.parking.reimbursed} />} note="Paid to engineers" tone="text-rose-500" />
+            <Figure label="Parking kept" value={<MoneyCounter value={d.parking.net} />} tone={d.parking.net < 0 ? "text-rose-500" : "text-emerald-600"} />
+            <Figure label="Congestion charged" value={<MoneyCounter value={d.congestion.collected} />} note="On client invoices" />
+            <Figure label="Congestion reimbursed" value={<MoneyCounter value={d.congestion.reimbursed} />} tone="text-rose-500" />
+            <Figure label="Congestion kept" value={<MoneyCounter value={d.congestion.net} />} tone={d.congestion.net < 0 ? "text-rose-500" : "text-emerald-600"} />
           </div>
         </Section>
 

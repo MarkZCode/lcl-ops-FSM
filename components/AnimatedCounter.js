@@ -320,4 +320,23 @@ export function AnimatedCounter({
   );
 }
 
+// Money, animated, formatted exactly as gbp() in lib/format does.
+//
+// The counter renders `prefix` BEFORE its own minus sign, which on a
+// currency would read "£-31.30". Passing the magnitude and folding the
+// sign into the prefix gives "-£31.30", matching every other figure in
+// the app — a mismatch there would look like a different kind of number
+// rather than the same one animating.
+export function MoneyCounter({ value, decimals = 2, ...props }) {
+  const n = Number(value) || 0;
+  return (
+    <AnimatedCounter
+      value={Math.abs(n)}
+      decimals={decimals}
+      prefix={n < 0 ? "-£" : "£"}
+      {...props}
+    />
+  );
+}
+
 export default AnimatedCounter;

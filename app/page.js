@@ -27,6 +27,7 @@ import JobModal from "@/components/JobModal";
 import { useSectionTour } from "@/components/OnboardingTour";
 import { useAuth } from "@/lib/auth";
 import LogoMark from "@/components/LogoMark";
+import { MoneyCounter } from "@/components/AnimatedCounter";
 
 const PIPELINE = [
   { key: "quote",       label: "Quotes",      dot: "bg-slate-400",  card: "", val: "text-slate-700 dark:text-slate-200", sub: "text-slate-500 dark:text-slate-400" },
@@ -367,7 +368,7 @@ export default function Dashboard() {
               <div className="space-y-4">
                 <Link href="/reports" className="m-hero block">
                   <p className="m-hero-label">Revenue</p>
-                  <p className="m-hero-value bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent">{gbp(stats.revenueCollected)}</p>
+                  <p className="m-hero-value text-emerald-600 dark:text-emerald-400"><MoneyCounter value={stats.revenueCollected} /></p>
                   <div className="m-hero-foot">
                     {stats.monthDoneCount > 0 && (
                       <span className="m-hero-chip">
@@ -383,24 +384,24 @@ export default function Dashboard() {
 
                 <Link href="/reports" className="m-hero block">
                   <p className="m-hero-label">Net Profit</p>
-                  <p className={`m-hero-value ${stats.netProfit < 0 ? "!text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"}`}>{gbp(stats.netProfit)}</p>
+                  <p className={`m-hero-value ${stats.netProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><MoneyCounter value={stats.netProfit} /></p>
                   <div className="m-hero-foot"><span>Revenue minus engineer cost</span></div>
                 </Link>
 
                 <Link href="/reports" className="m-hero block">
                   <p className="m-hero-label">True Profit</p>
-                  <p className={`m-hero-value ${stats.trueProfit < 0 ? "!text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"}`}>{gbp(stats.trueProfit)}</p>
+                  <p className={`m-hero-value ${stats.trueProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><MoneyCounter value={stats.trueProfit} /></p>
                   <div className="m-hero-foot"><span>After engineer cost and expenses</span></div>
                 </Link>
 
                 <div className="grid grid-cols-2 gap-4">
                   <Link href="/reports" className="m-hero block !p-4">
                     <p className="m-hero-label !text-[11px]">Company Exp.</p>
-                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500">{gbp(stats.companyExpenses)}</p>
+                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500"><MoneyCounter value={stats.companyExpenses} /></p>
                   </Link>
                   <Link href="/reports" className="m-hero block !p-4">
                     <p className="m-hero-label !text-[11px]">Engineer Cost</p>
-                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500">{gbp(stats.engineerCost)}</p>
+                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500"><MoneyCounter value={stats.engineerCost} /></p>
                   </Link>
                 </div>
               </div>
@@ -408,12 +409,12 @@ export default function Dashboard() {
               <p className="m-group-title mt-8">Money</p>
               <div className="m-group">
                 <MRow icon={FiCreditCard} label="Company Account" sub="Cumulative profit since day one"
-                  value={gbp(stats.companyAccount)} alert={stats.companyAccount < 0} href="/reports" />
+                  value={<MoneyCounter value={stats.companyAccount} />} alert={stats.companyAccount < 0} href="/reports" />
                 <MRow icon={FiAlertCircle} label="Outstanding Invoices"
                   sub={stats.overdueCount ? `${stats.overdueCount} overdue — chase these` : "Nothing overdue"}
-                  value={gbp(stats.outstanding)} alert={stats.overdueCount > 0} href="/reports" />
+                  value={<MoneyCounter value={stats.outstanding} />} alert={stats.overdueCount > 0} href="/reports" />
                 <MRow icon={FiTrendingUp} label="Pipeline value" sub="All open stages"
-                  value={gbp(stats.pipelineValue)} href="/jobs" />
+                  value={<MoneyCounter value={stats.pipelineValue} />} href="/jobs" />
               </div>
 
               <p className="m-group-title">Work</p>
@@ -438,15 +439,15 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiCheckCircle}
                   label="Revenue"
-                  value={gbp(stats.revenueCollected)}
+                  value={<MoneyCounter value={stats.revenueCollected} />}
                   note={stats.revenueNote}
                   link="/reports"
                 />
                 <Kpi
                   icon={FiPieChart}
                   label="Net Profit"
-                  value={gbp(stats.netProfit)}
-                  valueClassName={`${stats.netProfit < 0 ? "text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"} !text-4xl`}
+                  value={<MoneyCounter value={stats.netProfit} />}
+                  valueClassName={`${stats.netProfit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"} !text-4xl`}
                   note="Revenue minus engineer cost"
                   link="/reports"
                   className="lg:col-span-2"
@@ -454,7 +455,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiCreditCard}
                   label="Company Account"
-                  value={gbp(stats.companyAccount)}
+                  value={<MoneyCounter value={stats.companyAccount} />}
                   valueClassName={stats.companyAccount < 0 ? "text-rose-500" : ""}
                   note="Cumulative profit since day one"
                   link="/reports"
@@ -462,7 +463,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiAlertCircle}
                   label="Outstanding Invoices"
-                  value={gbp(stats.outstanding)}
+                  value={<MoneyCounter value={stats.outstanding} />}
                   pill={stats.overdueCount ? `${stats.overdueCount} overdue` : null}
                   pillTone="down"
                   note={stats.overdueCount ? "Chase these" : "Nothing overdue"}
@@ -473,7 +474,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiBarChart2}
                   label="Company Expenses"
-                  value={gbp(stats.companyExpenses)}
+                  value={<MoneyCounter value={stats.companyExpenses} />}
                   valueClassName="text-rose-500"
                   note={stats.monthLabel}
                   link="/reports"
@@ -481,7 +482,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiUsers}
                   label="Engineer Cost"
-                  value={gbp(stats.engineerCost)}
+                  value={<MoneyCounter value={stats.engineerCost} />}
                   valueClassName="text-rose-500"
                   note={stats.engineerCostNote}
                   link="/reports"
@@ -490,8 +491,8 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiTrendingUp}
                   label="True Profit"
-                  value={gbp(stats.trueProfit)}
-                  valueClassName={`${stats.trueProfit < 0 ? "text-rose-500" : "bg-gradient-to-br from-emerald-400 to-green-600 bg-clip-text text-transparent"} !text-4xl`}
+                  value={<MoneyCounter value={stats.trueProfit} />}
+                  valueClassName={`${stats.trueProfit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"} !text-4xl`}
                   note="After engineer cost and expenses"
                   link="/reports"
                   className="lg:col-span-2"
@@ -518,7 +519,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <Kpi icon={FiInbox}    label="Open quotes"      value={stats.quotes} note="Awaiting approval" link="/jobs?status=quote" />
                 <Kpi icon={FiClock}    label="Today's schedule" value={stats.today}  note="Jobs scheduled"    link="/dispatch" />
-                <Kpi icon={FiTrendingUp} label="Pipeline value" value={gbp(stats.pipelineValue)} note="All open stages" link="/jobs" />
+                <Kpi icon={FiTrendingUp} label="Pipeline value" value={<MoneyCounter value={stats.pipelineValue} />} note="All open stages" link="/jobs" />
                 <Kpi
                   icon={FiBell}
                   label="Renewals due"
