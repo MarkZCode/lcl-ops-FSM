@@ -152,11 +152,17 @@ function SummaryInner() {
     const revenueAll = stats.revenue;            // all work done, incl. unpaid invoices
     const collected = stats.collected;           // money actually in
     const unpaidInvoiced = stats.outstanding;    // invoiced, not yet paid
-    const engineerCost = pay.totalAccrued;       // cost of the work done this period
+    const engineerCost = pay.totalAccrued;       // cost of ALL work done this period
+    // Cost of the work on jobs the customer has actually PAID. Profit is
+    // struck against collected revenue, so an unpaid invoice is held out of
+    // BOTH sides — its revenue and its cost — rather than having its cost
+    // deducted from income that was deliberately excluded.
+    const engineerCostCollected = pay.totalAccruedCollected;
+    const engineerCostUnpaid = Math.round((engineerCost - engineerCostCollected) * 100) / 100;
     const engineerPaid = pay.totalPaid;
     const engineerDue = pay.totalBalance;
     const companyExpenses = exp.total;
-    const netProfit = Math.round((collected - engineerCost) * 100) / 100;
+    const netProfit = Math.round((collected - engineerCostCollected) * 100) / 100;
     const trueProfit = Math.round((netProfit - companyExpenses) * 100) / 100;
 
     // Status spread + cancellation reasons
@@ -277,7 +283,7 @@ function SummaryInner() {
       lineValue, addonValue, discountValue, recResidual,
       parking, congestion, jobRows, jobGroups, expItems, expItemsTotal, expMonths, revJobs,
       revenueAll, collected, unpaidInvoiced,
-      engineerCost, engineerPaid, engineerDue, companyExpenses,
+      engineerCost, engineerCostCollected, engineerCostUnpaid, engineerPaid, engineerDue, companyExpenses,
       netProfit, trueProfit,
       byStatus, cancelRows, cancelledValue, cancelledCount: cancelled.length,
       expRows,
@@ -308,8 +314,10 @@ function SummaryInner() {
       L.push(["Revenue (all work done)", d.revenueAll.toFixed(2), "Completed, invoiced and paid — includes unpaid invoices"]);
       L.push(["  of which collected", d.collected.toFixed(2), "Money actually received"]);
       L.push(["  of which still unpaid", d.unpaidInvoiced.toFixed(2), "Invoiced, not yet paid"]);
-      L.push(["Engineer cost", (-d.engineerCost).toFixed(2), "Cost of the work done this period"]);
-      L.push(["Net profit", d.netProfit.toFixed(2), "Collected minus engineer cost"]);
+      L.push(["Engineer cost on collected work", (-d.engineerCostCollected).toFixed(2), "Cost of the jobs the customer has paid"]);
+      L.push(["Net profit", d.netProfit.toFixed(2), "Collected minus the cost of that collected work"]);
+      L.push(["  (held back) engineer cost on unpaid invoices", (-d.engineerCostUnpaid).toFixed(2), "Excluded until those invoices are paid"]);
+      L.push(["  (memo) total engineer cost, all work", (-d.engineerCost).toFixed(2), "Including work on unpaid invoices"]);
       L.push(["Company expenses", (-d.companyExpenses).toFixed(2), ""]);
       L.push(["True profit", d.trueProfit.toFixed(2), "Net profit minus company expenses"]);
       L.push(["True margin (%)", d.margin.toFixed(1), "True profit as a share of collected"]);
@@ -435,11 +443,17 @@ function SummaryInner() {
 
         {/* ── 1. The bottom line ── */}
         <Section title="Profit & loss" subtitle="Revenue in, costs out, what's left">
-          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-3 lg:grid-cols-6 dark:divide-white/10">
+          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-4 lg:grid-cols-7 dark:divide-white/10">
             <Figure label="Revenue" value={money(d.revenueAll)} note="All work done" />
             <Figure label="Collected" value={money(d.collected)} note="Money received" />
             <Figure label="Unpaid" value={money(d.unpaidInvoiced)} note="Invoiced, not paid" tone={d.unpaidInvoiced > 0 ? "text-amber-600" : ""} />
             <Figure label="Engineer cost" value={money(d.engineerCost)} note={`${d.engineerShare}% of collected`} tone="text-rose-500" />
+            <Figure
+              label="Net profit"
+              value={money(d.netProfit)}
+              note="Collected − engineer cost"
+              tone={d.netProfit < 0 ? "text-rose-500" : "text-emerald-600"}
+            />
             <Figure label="Expenses" value={money(d.companyExpenses)} tone="text-rose-500" />
             <Figure
               label="True profit"
@@ -455,12 +469,19 @@ function SummaryInner() {
                 ["Revenue (all work done)", money(d.revenueAll), "Completed, invoiced and paid — includes unpaid invoices"],
                 ["Collected", money(d.collected), "Money actually received in this period"],
                 ["Still unpaid", money(d.unpaidInvoiced), "Invoiced but not yet paid"],
-                ["− Engineer cost", money(d.engineerCost), "Cost of the work done this period, settled or not"],
-                ["= Net profit", money(d.netProfit), "Collected minus engineer cost"],
+                ["− Engineer cost on collected work", money(d.engineerCostCollected), "Cost of the jobs the customer has paid"],
+                ["= Net profit", money(d.netProfit), "Collected minus the cost of that collected work"],
                 ["− Company expenses", money(d.companyExpenses), "Overheads, fees and running costs"],
               ]}
               total={["= TRUE PROFIT", money(d.trueProfit), `${d.margin}% of collected`]}
             />
+            {d.engineerCostUnpaid > 0 && (
+              <p className="border-t border-navy-100 px-5 py-2.5 text-[11px] text-navy-500 dark:border-white/10">
+                Held back: {money(d.unpaidInvoiced)} of invoiced revenue and the {money(d.engineerCostUnpaid)} of
+                engineer cost that goes with it are both excluded until those invoices are paid. Total engineer
+                cost for all work done this period was {money(d.engineerCost)}.
+              </p>
+            )}
           </div>
         </Section>
 
