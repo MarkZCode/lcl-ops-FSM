@@ -10,7 +10,6 @@ import {
   FiPaperclip,
 } from "react-icons/fi";
 import { fmtDate } from "@/lib/format";
-import Folder from "@/components/Folder";
 import { uploadFile, removeFile, fileSrc } from "@/lib/uploads";
 import { useStore } from "@/lib/store";
 import { toast } from "@/lib/toast";
@@ -110,15 +109,6 @@ export default function JobAttachments({ job, onSave }) {
       </div>
 
       {files.length === 0 ? (
-        <div className="space-y-2">
-        {/* Decorative, but deliberately OUTSIDE the drop target below: nested
-            inside it, the folder would either swallow the click that opens
-            the file picker or have to be pointer-events-none, which kills its
-            own hover animation. Out here it stays interactive and the whole
-            dashed area still browses. */}
-        <div aria-hidden className="h-[176px]">
-          <Folder color="blue" size="sm" />
-        </div>
         <button
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
@@ -131,7 +121,6 @@ export default function JobAttachments({ job, onSave }) {
           <FiUploadCloud className="h-5 w-5" />
           Drop certificates (CP12, EICR…) or photos here, or click to browse
         </button>
-        </div>
       ) : (
         <ul className="space-y-2">
           {files.map((f) => {
