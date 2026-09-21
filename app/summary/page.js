@@ -20,11 +20,12 @@
 import { useMemo, useState } from "react";
 import { FiDownload, FiPieChart } from "react-icons/fi";
 import { useStore } from "@/lib/store";
-import { gbp } from "@/lib/format";
+import { gbp, getJobLines, lineTotal, isAddonCode } from "@/lib/format";
 import { certLabel } from "@/lib/jobCard";
 import {
   computeStats, computeEngineerPay, expensesForRange, computePipeline, jobInRange,
 } from "@/lib/stats";
+import { parkingSummary, congestionSummary } from "@/lib/finance";
 import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
 import PeriodControls from "@/components/PeriodControls";
 import PageHeader from "@/components/PageHeader";
@@ -185,8 +186,80 @@ function SummaryInner() {
     });
     const expRows = Object.entries(expCats).sort((a, b) => b[1] - a[1]);
 
+    // ── Revenue reconciliation ──────────────────────────────────────
+    // The P&L counts job PRICES. The engineer table counts the SERVICE
+    // LINES each engineer worked. Those are different measures and they do
+    // not match: add-on charges (parking, congestion) are on the invoice
+    // but are not engineer work, and a discount comes off the job price
+    // without changing what the lines are worth. Reported as a bug — both
+    // numbers were right, nothing said why they differed. This states it.
+    const revJobs = periodJobs.filter((j) => ["completed", "invoiced", "paid"].includes(j.status));
+    let lineValue = 0, addonValue = 0, discountValue = 0;
+    revJobs.forEach((j) => {
+      getJobLines(j).forEach((l) => {
+        const t = lineTotal(l);
+        if (isAddonCode(l.code)) addonValue += t; else lineValue += t;
+      });
+      discountValue += Number(j.discount) || 0;
+    });
+    const recResidual = Math.round((lineValue + addonValue - discountValue - revenueAll) * 100) / 100;
+
+    // ── Parking / congestion ────────────────────────────────────────
+    const parking = parkingSummary(revJobs);
+    const congestion = congestionSummary(revJobs);
+
+    // ── Per-job register, with the full money breakdown on each row ──
+    const costByJob = {}, paidByJob = {}, engByJob = {};
+    pay.rows.forEach((r) => (r.jobDetails || []).forEach((d) => {
+      costByJob[d.jobId] = (costByJob[d.jobId] || 0) + (Number(d.owed) || 0);
+      if (!engByJob[d.jobId]) engByJob[d.jobId] = [];
+      if (!engByJob[d.jobId].includes(r.name)) engByJob[d.jobId].push(r.name);
+    }));
+    (engineerPayments || []).forEach((p) => (p.jobIds || []).forEach((id) => {
+      paidByJob[id] = (paidByJob[id] || 0) + (Number(p.amount) || 0) / Math.max(1, (p.jobIds || []).length);
+    }));
+    const jobRows = periodJobs.slice().sort((a, b) => String(a.id).localeCompare(String(b.id))).map((j) => {
+      const price = Number(j.price) || 0;
+      const cost = costByJob[j.id] || 0;
+      const earns = ["completed", "invoiced", "paid"].includes(j.status);
+      return {
+        id: j.id,
+        client: (clients.find((c) => c.id === j.clientId) || {}).name || "—",
+        date: (j.scheduledAt || j.createdAt || "").slice(0, 10),
+        status: j.status,
+        services: (j.services || []).map((c) => certLabel(c) || c).join(" + ") || "—",
+        price, cost,
+        paid: paidByJob[j.id] || 0,
+        margin: earns ? Math.round((price - cost) * 100) / 100 : 0,
+        engineers: (engByJob[j.id] || []).join(", ") || "Unassigned",
+      };
+    });
+
+    // ── Every expense line in the period, not just the category totals ──
+    //
+    // A recurring expense is charged once per CALENDAR MONTH the range
+    // covers (that is how expensesForRange totals it), so on a range longer
+    // than a month the line has to show amount x months or the list would
+    // not add up to the total printed under it.
+    const expMonths = Math.max(
+      1,
+      (range.end.getFullYear() - range.start.getFullYear()) * 12 +
+        (range.end.getMonth() - range.start.getMonth()) + 1
+    );
+    const expItems = (expenses || []).filter((e) => {
+      if (e.recurring) return true;
+      try { const dt = new Date(e.date); return dt >= range.start && dt <= range.end; } catch { return false; }
+    }).map((e) => {
+      const unit = Number(e.amount) || 0;
+      const months = e.recurring ? expMonths : 1;
+      return { ...e, unit, months, effective: Math.round(unit * months * 100) / 100 };
+    }).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const expItemsTotal = Math.round(expItems.reduce((s, e) => s + e.effective, 0) * 100) / 100;
+
     return {
       stats, pay, periodJobs, pipeline,
+      lineValue, addonValue, discountValue, recResidual,
+      parking, congestion, jobRows, expItems, expItemsTotal, expMonths, revJobs,
       revenueAll, collected, unpaidInvoiced,
       engineerCost, engineerPaid, engineerDue, companyExpenses,
       netProfit, trueProfit,
@@ -234,15 +307,36 @@ function SummaryInner() {
       blank();
 
       head("Engineer breakdown");
-      L.push(["Engineer", "Jobs", "Revenue", "Labour", "VAT", "Parking", "Payable", "Paid", "Due"]);
+      L.push(["Engineer", "Jobs", "Their line value", "Cost of work", "VAT", "Parking", "Paid", "Due", "Margin (%)"]);
       d.pay.rows.forEach((r) => L.push([
-        r.name, r.jobs, r.revenue.toFixed(2), r.labour.toFixed(2), r.vat.toFixed(2),
-        r.parkingReimbursed.toFixed(2), r.owed.toFixed(2), r.paid.toFixed(2), r.balance.toFixed(2),
+        r.name, r.jobs, r.revenue.toFixed(2), r.accrued.toFixed(2), r.vat.toFixed(2),
+        r.parkingReimbursed.toFixed(2), r.paid.toFixed(2), r.balance.toFixed(2),
+        r.revenue > 0 ? pct(r.revenue - r.accrued, r.revenue).toFixed(1) : "",
       ]));
-      L.push(["TOTAL", d.pay.rows.reduce((s, r) => s + r.jobs, 0),
-        d.pay.rows.reduce((s, r) => s + r.revenue, 0).toFixed(2),
-        d.pay.totalLabour.toFixed(2), d.pay.totalVat.toFixed(2), d.pay.totalParking.toFixed(2),
-        d.pay.totalOwed.toFixed(2), d.pay.totalPaid.toFixed(2), d.pay.totalBalance.toFixed(2)]);
+      L.push(["TOTAL", d.pay.rows.reduce((s, r) => s + r.jobs, 0), d.lineValue.toFixed(2),
+        d.pay.totalAccrued.toFixed(2), d.pay.totalVat.toFixed(2), d.pay.totalParking.toFixed(2),
+        d.pay.totalPaid.toFixed(2), d.pay.totalBalance.toFixed(2),
+        d.lineValue > 0 ? pct(d.lineValue - d.pay.totalAccrued, d.lineValue).toFixed(1) : ""]);
+      blank();
+
+      head("Revenue reconciliation");
+      L.push(["Line", "Amount (GBP)", "What it is"]);
+      L.push(["Service lines worked", d.lineValue.toFixed(2), "What the engineer table totals"]);
+      L.push(["Add-on charges", d.addonValue.toFixed(2), "Parking and congestion — billed, not engineer work"]);
+      L.push(["Discounts given", (-d.discountValue).toFixed(2), "Comes off the job price, not the lines"]);
+      L.push(["= Revenue (job prices)", d.revenueAll.toFixed(2), d.recResidual === 0 ? "Balances exactly" : `Unexplained ${d.recResidual.toFixed(2)}`]);
+      blank();
+
+      head("Parking & congestion");
+      L.push(["Line", "Charged", "Reimbursed", "Kept"]);
+      L.push(["Parking", d.parking.collected.toFixed(2), d.parking.reimbursed.toFixed(2), d.parking.net.toFixed(2)]);
+      L.push(["Congestion", d.congestion.collected.toFixed(2), d.congestion.reimbursed.toFixed(2), d.congestion.net.toFixed(2)]);
+      blank();
+
+      head("Expenses — every line");
+      L.push(["Date", "Description", "Category", "Recurring", "Unit (GBP)", "Months", "Amount (GBP)"]);
+      d.expItems.forEach((e) => L.push([e.date || "", e.name || "", e.category || "Other", e.recurring ? "yes" : "no", e.unit.toFixed(2), e.months, e.effective.toFixed(2)]));
+      L.push(["", "", "", "", "", "TOTAL", d.expItemsTotal.toFixed(2)]);
       blank();
 
       head("Jobs funnel");
@@ -270,17 +364,18 @@ function SummaryInner() {
       L.push(["TOTAL", d.cancelledCount, d.cancelledValue.toFixed(2)]);
       blank();
 
-      head("Job register");
-      L.push(["Job", "Client", "Status", "Date", "Services", "Revenue (GBP)"]);
-      d.periodJobs.slice().sort((a, b) => (a.id > b.id ? 1 : -1)).forEach((j) => {
-        const c = clients.find((x) => x.id === j.clientId);
-        L.push([
-          j.id, c?.name || "", j.status,
-          (j.scheduledAt || j.createdAt || "").slice(0, 10),
-          (j.services || []).map((s) => certLabel(s) || s).join(" + "),
-          (Number(j.price) || 0).toFixed(2),
-        ]);
-      });
+      head("Every job in this period");
+      L.push(["Job", "Client", "Date", "Status", "Services", "Engineer(s)", "Job value", "Engineer cost", "Paid out", "Margin"]);
+      d.jobRows.forEach((j) => L.push([
+        j.id, j.client, j.date, j.status, j.services, j.engineers,
+        j.price.toFixed(2), j.cost.toFixed(2), j.paid.toFixed(2),
+        ["completed", "invoiced", "paid"].includes(j.status) ? j.margin.toFixed(2) : "",
+      ]));
+      L.push(["TOTAL", "", "", "", "", "",
+        d.jobRows.reduce((s, j) => s + j.price, 0).toFixed(2),
+        d.jobRows.reduce((s, j) => s + j.cost, 0).toFixed(2),
+        d.jobRows.reduce((s, j) => s + j.paid, 0).toFixed(2),
+        d.jobRows.reduce((s, j) => s + j.margin, 0).toFixed(2)]);
 
       const csv = L.map((row) => row.map(esc).join(",")).join("\n");
       // BOM so Excel/Sheets read the £ signs and accents correctly.
@@ -365,24 +460,37 @@ function SummaryInner() {
             </div>
           }
         >
+          {/* "Cost of work" is r.accrued — what the period's work COST,
+              settled or not. The obvious-looking r.labour is only the
+              UNSETTLED remainder, so an engineer whose jobs were all paid
+              showed £0.00 against five jobs and £1,079.94 of revenue.
+              "Due" (r.balance) is the unsettled part, stated separately. */}
           <Sheet
             columns={[
-              { label: "Engineer" }, { label: "Jobs", align: "right" }, { label: "Revenue", align: "right" },
-              { label: "Labour", align: "right" }, { label: "VAT", align: "right" }, { label: "Parking", align: "right" },
-              { label: "Payable", align: "right" }, { label: "Paid", align: "right" }, { label: "Due", align: "right" },
+              { label: "Engineer" }, { label: "Jobs", align: "right" },
+              { label: "Their line value", align: "right" },
+              { label: "Cost of work", align: "right" }, { label: "VAT", align: "right" }, { label: "Parking", align: "right" },
+              { label: "Paid", align: "right" }, { label: "Due", align: "right" }, { label: "Margin", align: "right" },
             ]}
             rows={d.pay.rows.map((r) => [
-              r.name, r.jobs, money(r.revenue), money(r.labour),
+              r.name, r.jobs, money(r.revenue), money(r.accrued),
               r.vat > 0 ? money(r.vat) : "—", r.parkingReimbursed > 0 ? money(r.parkingReimbursed) : "—",
-              money(r.owed), r.paid > 0 ? money(r.paid) : "—", money(r.balance),
+              r.paid > 0 ? money(r.paid) : "—", money(r.balance),
+              r.revenue > 0 ? `${pct(r.revenue - r.accrued, r.revenue)}%` : "—",
             ])}
             total={[
               "TOTAL", d.pay.rows.reduce((s, r) => s + r.jobs, 0),
-              money(d.pay.rows.reduce((s, r) => s + r.revenue, 0)),
-              money(d.pay.totalLabour), money(d.pay.totalVat), money(d.pay.totalParking),
-              money(d.pay.totalOwed), money(d.pay.totalPaid), money(d.pay.totalBalance),
+              money(d.lineValue), money(d.pay.totalAccrued),
+              money(d.pay.totalVat), money(d.pay.totalParking),
+              money(d.pay.totalPaid), money(d.pay.totalBalance),
+              d.lineValue > 0 ? `${pct(d.lineValue - d.pay.totalAccrued, d.lineValue)}%` : "—",
             ]}
           />
+          <p className="border-t border-navy-100 px-5 py-2.5 text-[11px] text-navy-500 dark:border-white/10">
+            &ldquo;Their line value&rdquo; is the value of the service lines each engineer worked, which is
+            why it totals {money(d.lineValue)} rather than the {money(d.revenueAll)} of revenue above —
+            see the reconciliation below.
+          </p>
         </Section>
 
         {/* ── 4. Funnel ── */}
@@ -416,6 +524,85 @@ function SummaryInner() {
             columns={[{ label: "Category" }, { label: "Amount", align: "right" }, { label: "Share", align: "right" }]}
             rows={d.expRows.map(([k, v]) => [k, money(v), `${pct(v, d.companyExpenses)}%`])}
             total={["TOTAL", money(d.companyExpenses), "100%"]}
+          />
+        </Section>
+
+        {/* ── Revenue reconciliation ── */}
+        <Section
+          title="Revenue reconciliation"
+          subtitle="Why the P&L revenue and the engineer line totals are different numbers"
+        >
+          <Sheet
+            columns={[{ label: "Line" }, { label: "Amount", align: "right" }, { label: "What it is" }]}
+            rows={[
+              ["Service lines worked", money(d.lineValue), "What the engineer table totals — the work itself"],
+              ["+ Add-on charges", money(d.addonValue), "Parking and congestion — billed, but not engineer work"],
+              ["− Discounts given", money(d.discountValue), "Comes off the job price without changing the lines"],
+            ]}
+            total={["= REVENUE (job prices)", money(d.revenueAll), d.recResidual === 0 ? "Balances exactly" : `Unexplained: ${money(d.recResidual)}`]}
+          />
+        </Section>
+
+        {/* ── Parking & congestion ── */}
+        <Section title="Parking & congestion" subtitle="Charged to the client, reimbursed to the engineer, and what's left">
+          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-3 lg:grid-cols-6 dark:divide-white/10">
+            <Figure label="Parking charged" value={money(d.parking.collected)} note="On client invoices" />
+            <Figure label="Parking reimbursed" value={money(d.parking.reimbursed)} note="Paid to engineers" tone="text-rose-500" />
+            <Figure label="Parking kept" value={money(d.parking.net)} tone={d.parking.net < 0 ? "text-rose-500" : "text-emerald-600"} />
+            <Figure label="Congestion charged" value={money(d.congestion.collected)} note="On client invoices" />
+            <Figure label="Congestion reimbursed" value={money(d.congestion.reimbursed)} tone="text-rose-500" />
+            <Figure label="Congestion kept" value={money(d.congestion.net)} tone={d.congestion.net < 0 ? "text-rose-500" : "text-emerald-600"} />
+          </div>
+        </Section>
+
+        {/* ── Every expense line ── */}
+        <Section title="Expenses — every line" subtitle={`${d.expItems.length} entries${d.expMonths > 1 ? ` across ${d.expMonths} months` : ""} making up ${money(d.expItemsTotal)}`}>
+          <Sheet
+            columns={[
+              { label: "Date" }, { label: "Description" }, { label: "Category" },
+              { label: "Unit", align: "right" }, { label: "x", align: "right" }, { label: "Amount", align: "right" },
+            ]}
+            rows={d.expItems.map((e) => [
+              e.date || "—", e.name || "—",
+              `${e.category || "Other"}${e.recurring ? " · recurring" : ""}`,
+              money(e.unit), e.months > 1 ? `${e.months}` : "1", money(e.effective),
+            ])}
+            total={["", "", "", "", "TOTAL", money(d.expItemsTotal)]}
+          />
+          {Math.abs(d.expItemsTotal - d.companyExpenses) > 0.005 && (
+            <p className="border-t border-navy-100 px-5 py-2.5 text-[11px] text-amber-700 dark:border-white/10">
+              These lines total {money(d.expItemsTotal)}, but the P&amp;L above uses {money(d.companyExpenses)} — a
+              difference of {money(d.companyExpenses - d.expItemsTotal)}. Worth checking before relying on either.
+            </p>
+          )}
+        </Section>
+
+        {/* ── Every job ── */}
+        <Section
+          title="Every job in this period"
+          subtitle={`${d.jobRows.length} jobs — value, engineer cost and margin on each`}
+        >
+          <Sheet
+            columns={[
+              { label: "Job" }, { label: "Client" }, { label: "Date" }, { label: "Status" },
+              { label: "Services" }, { label: "Engineer(s)" },
+              { label: "Job value", align: "right" }, { label: "Engineer cost", align: "right" },
+              { label: "Paid out", align: "right" }, { label: "Margin", align: "right" },
+            ]}
+            rows={d.jobRows.map((j) => [
+              j.id, j.client, j.date,
+              j.status === "in_progress" ? "In progress" : j.status.charAt(0).toUpperCase() + j.status.slice(1),
+              j.services, j.engineers,
+              money(j.price), money(j.cost), j.paid > 0 ? money(j.paid) : "—",
+              ["completed", "invoiced", "paid"].includes(j.status) ? money(j.margin) : "—",
+            ])}
+            total={[
+              "TOTAL", "", "", "", "", "",
+              money(d.jobRows.reduce((s, j) => s + j.price, 0)),
+              money(d.jobRows.reduce((s, j) => s + j.cost, 0)),
+              money(d.jobRows.reduce((s, j) => s + j.paid, 0)),
+              money(d.jobRows.reduce((s, j) => s + j.margin, 0)),
+            ]}
           />
         </Section>
 
