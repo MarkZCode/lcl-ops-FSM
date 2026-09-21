@@ -218,7 +218,15 @@ function SummaryInner() {
     (engineerPayments || []).forEach((p) => (p.jobIds || []).forEach((id) => {
       paidByJob[id] = (paidByJob[id] || 0) + (Number(p.amount) || 0) / Math.max(1, (p.jobIds || []).length);
     }));
-    const jobRows = periodJobs.slice().sort((a, b) => String(a.id).localeCompare(String(b.id))).map((j) => {
+    // Jobs are grouped by what they MEAN to the accounts, not listed in id
+    // order with every status jumbled together. Revenue jobs — the ones the
+    // P&L above is actually built from — sit in one block with their own
+    // subtotal, so the figures at the top can be traced to the rows that
+    // produced them. Open work and cancelled work follow separately.
+    const GROUP_OF = (st) =>
+      ["completed", "invoiced", "paid"].includes(st) ? "revenue"
+        : st === "cancelled" ? "cancelled" : "open";
+    const jobRows = periodJobs.slice().map((j) => {
       const price = Number(j.price) || 0;
       const cost = costByJob[j.id] || 0;
       const earns = ["completed", "invoiced", "paid"].includes(j.status);
@@ -232,8 +240,16 @@ function SummaryInner() {
         paid: paidByJob[j.id] || 0,
         margin: earns ? Math.round((price - cost) * 100) / 100 : 0,
         engineers: (engByJob[j.id] || []).join(", ") || "Unassigned",
+        group: GROUP_OF(j.status),
       };
-    });
+    }).sort((a, b) =>
+      String(a.date).localeCompare(String(b.date)) || String(a.id).localeCompare(String(b.id))
+    );
+    const jobGroups = {
+      revenue: jobRows.filter((j) => j.group === "revenue"),
+      open: jobRows.filter((j) => j.group === "open"),
+      cancelled: jobRows.filter((j) => j.group === "cancelled"),
+    };
 
     // ── Every expense line in the period, not just the category totals ──
     //
@@ -259,7 +275,7 @@ function SummaryInner() {
     return {
       stats, pay, periodJobs, pipeline,
       lineValue, addonValue, discountValue, recResidual,
-      parking, congestion, jobRows, expItems, expItemsTotal, expMonths, revJobs,
+      parking, congestion, jobRows, jobGroups, expItems, expItemsTotal, expMonths, revJobs,
       revenueAll, collected, unpaidInvoiced,
       engineerCost, engineerPaid, engineerDue, companyExpenses,
       netProfit, trueProfit,
@@ -364,14 +380,25 @@ function SummaryInner() {
       L.push(["TOTAL", d.cancelledCount, d.cancelledValue.toFixed(2)]);
       blank();
 
-      head("Every job in this period");
-      L.push(["Job", "Client", "Date", "Status", "Services", "Engineer(s)", "Job value", "Engineer cost", "Paid out", "Margin"]);
-      d.jobRows.forEach((j) => L.push([
-        j.id, j.client, j.date, j.status, j.services, j.engineers,
-        j.price.toFixed(2), j.cost.toFixed(2), j.paid.toFixed(2),
-        ["completed", "invoiced", "paid"].includes(j.status) ? j.margin.toFixed(2) : "",
-      ]));
-      L.push(["TOTAL", "", "", "", "", "",
+      [["revenue", "REVENUE JOBS (what the P&L is built from)"],
+       ["open", "OPEN JOBS (not yet revenue)"],
+       ["cancelled", "CANCELLED JOBS (excluded from every figure)"]].forEach(([key, title]) => {
+        const g = d.jobGroups[key];
+        head(title);
+        L.push(["Job", "Client", "Date", "Status", "Services", "Engineer(s)", "Job value", "Engineer cost", "Paid out", "Margin"]);
+        g.forEach((j) => L.push([
+          j.id, j.client, j.date, j.status, j.services, j.engineers,
+          j.price.toFixed(2), j.cost.toFixed(2), j.paid.toFixed(2),
+          key === "revenue" ? j.margin.toFixed(2) : "",
+        ]));
+        L.push(["SUBTOTAL", "", "", "", "", "",
+          g.reduce((s2, j) => s2 + j.price, 0).toFixed(2),
+          g.reduce((s2, j) => s2 + j.cost, 0).toFixed(2),
+          g.reduce((s2, j) => s2 + j.paid, 0).toFixed(2),
+          key === "revenue" ? g.reduce((s2, j) => s2 + j.margin, 0).toFixed(2) : ""]);
+        blank();
+      });
+      L.push(["ALL JOBS", "", "", "", "", "",
         d.jobRows.reduce((s, j) => s + j.price, 0).toFixed(2),
         d.jobRows.reduce((s, j) => s + j.cost, 0).toFixed(2),
         d.jobRows.reduce((s, j) => s + j.paid, 0).toFixed(2),
@@ -577,33 +604,68 @@ function SummaryInner() {
           )}
         </Section>
 
-        {/* ── Every job ── */}
+        {/* ── Every job, grouped by what it means to the accounts ── */}
         <Section
           title="Every job in this period"
-          subtitle={`${d.jobRows.length} jobs — value, engineer cost and margin on each`}
+          subtitle={`${d.jobRows.length} jobs — revenue work, open work and cancelled work kept apart`}
+          right={
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px]">
+              <span className="text-navy-500">Revenue <strong className="text-navy-900 dark:text-slate-100">{d.jobGroups.revenue.length}</strong></span>
+              <span className="text-navy-500">Open <strong className="text-navy-900 dark:text-slate-100">{d.jobGroups.open.length}</strong></span>
+              <span className="text-navy-500">Cancelled <strong className="text-navy-900 dark:text-slate-100">{d.jobGroups.cancelled.length}</strong></span>
+            </div>
+          }
         >
-          <Sheet
-            columns={[
-              { label: "Job" }, { label: "Client" }, { label: "Date" }, { label: "Status" },
-              { label: "Services" }, { label: "Engineer(s)" },
-              { label: "Job value", align: "right" }, { label: "Engineer cost", align: "right" },
-              { label: "Paid out", align: "right" }, { label: "Margin", align: "right" },
-            ]}
-            rows={d.jobRows.map((j) => [
-              j.id, j.client, j.date,
-              j.status === "in_progress" ? "In progress" : j.status.charAt(0).toUpperCase() + j.status.slice(1),
-              j.services, j.engineers,
-              money(j.price), money(j.cost), j.paid > 0 ? money(j.paid) : "—",
-              ["completed", "invoiced", "paid"].includes(j.status) ? money(j.margin) : "—",
-            ])}
-            total={[
-              "TOTAL", "", "", "", "", "",
-              money(d.jobRows.reduce((s, j) => s + j.price, 0)),
-              money(d.jobRows.reduce((s, j) => s + j.cost, 0)),
-              money(d.jobRows.reduce((s, j) => s + j.paid, 0)),
-              money(d.jobRows.reduce((s, j) => s + j.margin, 0)),
-            ]}
-          />
+          {[
+            { key: "revenue", label: "Revenue jobs", hint: "Completed, invoiced or paid — these are what the P&L above is built from", tone: "text-emerald-700" },
+            { key: "open", label: "Open jobs", hint: "Quoted, scheduled or in progress — not yet revenue", tone: "text-blue-700" },
+            { key: "cancelled", label: "Cancelled jobs", hint: "Work lost — excluded from every figure above", tone: "text-rose-700" },
+          ].map(({ key, label, hint, tone }) => {
+            const g = d.jobGroups[key];
+            const sum = (fn) => g.reduce((s2, j) => s2 + fn(j), 0);
+            return (
+              <div key={key} className="border-t border-navy-100 first:border-t-0 dark:border-white/10">
+                <div className="bg-navy-50/60 px-5 py-2 dark:bg-white/[0.03]">
+                  <p className={`text-xs font-bold ${tone}`}>{label} · {g.length}</p>
+                  <p className="text-[11px] text-navy-500">{hint}</p>
+                </div>
+                <Sheet
+                  columns={[
+                    { label: "Job" }, { label: "Client" }, { label: "Date" }, { label: "Status" },
+                    { label: "Services" }, { label: "Engineer(s)" },
+                    { label: "Job value", align: "right" }, { label: "Engineer cost", align: "right" },
+                    { label: "Paid out", align: "right" }, { label: "Margin", align: "right" },
+                  ]}
+                  rows={g.map((j) => [
+                    j.id, j.client, j.date,
+                    j.status === "in_progress" ? "In progress" : j.status.charAt(0).toUpperCase() + j.status.slice(1),
+                    j.services, j.engineers,
+                    money(j.price), money(j.cost), j.paid > 0 ? money(j.paid) : "—",
+                    key === "revenue" ? money(j.margin) : "—",
+                  ])}
+                  total={g.length ? [
+                    `${label.toUpperCase()} SUBTOTAL`, "", "", "", "", "",
+                    money(sum((j) => j.price)), money(sum((j) => j.cost)),
+                    money(sum((j) => j.paid)), key === "revenue" ? money(sum((j) => j.margin)) : "—",
+                  ] : null}
+                />
+              </div>
+            );
+          })}
+          <div className="border-t-2 border-navy-200 bg-navy-50/80 px-5 py-3 dark:border-white/20 dark:bg-white/[0.04]">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-bold">
+              <span className="text-navy-900 dark:text-slate-100">ALL {d.jobRows.length} JOBS</span>
+              <span className="tnum text-navy-900 dark:text-slate-100">
+                Value {money(d.jobRows.reduce((s2, j) => s2 + j.price, 0))}
+                {" · "}Engineer cost {money(d.jobRows.reduce((s2, j) => s2 + j.cost, 0))}
+                {" · "}Margin {money(d.jobRows.reduce((s2, j) => s2 + j.margin, 0))}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] font-normal text-navy-500">
+              Revenue-job value here ({money(d.jobGroups.revenue.reduce((s2, j) => s2 + j.price, 0))}) is the
+              same {money(d.revenueAll)} the P&amp;L reports — open and cancelled work is excluded from it.
+            </p>
+          </div>
         </Section>
 
         {/* ── 7. Cancellations ── */}
