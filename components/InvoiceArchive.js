@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Folder from "@/components/Folder";
 import Link from "next/link";
 import { FiFileText, FiDownload, FiSearch, FiExternalLink } from "react-icons/fi";
 import { useStore } from "@/lib/store";
@@ -126,6 +127,9 @@ export default function InvoiceArchive() {
 
       {rows.length === 0 ? (
         <div className="card grid place-items-center p-10 text-center text-sm text-navy-400">
+          <span aria-hidden className="mb-2 block h-[176px]">
+            <Folder color="black" size="sm" />
+          </span>
           {jobs.some((j) => j.invoiceNumber)
             ? "No invoices match that search."
             : "No invoices raised yet. Invoicing a job files it here automatically."}

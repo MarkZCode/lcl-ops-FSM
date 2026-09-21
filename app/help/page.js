@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Folder from "@/components/Folder";
 import {
   FiBookOpen,
   FiFileText,
@@ -641,6 +642,9 @@ function CompanyDocs() {
       <div>
         {companyDocs.length === 0 ? (
           <div className="card grid place-items-center p-10 text-center text-sm text-navy-400">
+            <span aria-hidden className="mb-2 block h-[176px]">
+              <Folder color="white" size="sm" />
+            </span>
             No documents yet. Upload insurance, accreditations and certificates to
             keep them in one place.
           </div>
