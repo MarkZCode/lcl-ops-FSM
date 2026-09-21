@@ -5,32 +5,31 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { visibleNavLinks, visibleUtilityLinks, PRIMARY_HREFS } from "@/lib/nav";
-import { useHideWhileScrolling } from "@/lib/useHideOnScroll";
 
 // App-style bottom tab bar for mobile. Black surface matching the dark
 // sidebar so both navs read as one chrome system. Every tab is a real
 // destination — the full menu lives behind the top-bar hamburger.
 //
-// The bar used to hide on scroll-DOWN and only reveal on an explicit
-// scroll-UP — which broke the thing a tab bar exists for: after any downward
-// scroll it stayed off-screen until you deliberately scrolled back up, so the
-// next tap on a tab either hit nothing or was spent revealing the bar rather
-// than navigating (reported: "have to tap Jobs/Dashboard/Reports two or three
-// times"). It was removed entirely for that reason.
+// ALWAYS VISIBLE. Two attempts at hiding it on scroll have both been
+// reverted now. The first hid on scroll-down and only came back on an
+// explicit scroll-up, so a tab tap after scrolling was spent revealing the
+// bar instead of navigating ("have to tap Jobs two or three times"). The
+// second hid while scrolling in either direction and came back 220ms after
+// it stopped — but momentum scrolling on a phone keeps firing scroll events
+// long after the finger has left the glass, so the bar spends most of a
+// flick off-screen and any screenshot or glance mid-scroll shows it sliding
+// away half-drawn (reported: "look at the bottom, why is it not properly
+// showing at all").
 //
-// This is a DIFFERENT, safer pattern: hide only WHILE scrolling is actually
-// happening (either direction), reveal a fixed short moment after it stops —
-// see useHideWhileScrolling. A real tap only ever happens after scrolling has
-// settled, so the bar is reliably back on screen before that tap lands; it
-// never depends on which direction you happened to scroll last. This is what
-// makes content feel full-screen while moving without repeating the earlier
-// tap-reliability bug. Still always visible for the slide-out drawer case
-// (translate-y-full there is a real overlap, not a scroll gesture).
+// A tab bar's whole job is to be in the same place every time you look
+// down. The content behind it already reads as continuous through the
+// translucent blur; that's what the full-screen feel was actually for.
+// Only the slide-out drawer still hides it, and that's a real overlap
+// rather than a scroll gesture.
 export default function BottomNav() {
   const pathname = usePathname();
   const { can, user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const scrollHidden = useHideWhileScrolling({ resetKey: pathname });
 
   // Hide while the slide-out drawer is open so the two don't visually overlap.
   useEffect(() => {
@@ -50,7 +49,7 @@ export default function BottomNav() {
   return (
     <nav
       className={`fixed inset-x-0 bottom-0 z-30 backdrop-blur-md transition-transform duration-300 ease-out will-change-transform lg:hidden ${
-        drawerOpen || scrollHidden ? "translate-y-full" : "translate-y-0"
+        drawerOpen ? "translate-y-full" : "translate-y-0"
       }`}
       style={{
         // Only HALF the safe-area inset. The full inset pushed the tabs a
