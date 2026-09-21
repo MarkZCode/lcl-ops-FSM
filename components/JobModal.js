@@ -19,7 +19,6 @@ import {
 import { gbp, lineTotal, linesTotal, getJobLines, lineGross } from "@/lib/format";
 import { detectConflicts } from "@/lib/dispatch";
 import { ukDateTimeToUtcIso } from "@/lib/ukTime";
-import DurationPicker from "@/components/DurationPicker";
 
 function toLocal(iso) {
   if (!iso) return null;
@@ -1368,27 +1367,43 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
           </div>
           <div className="min-w-0">
             <label className="label">Expected duration</label>
-            {/* Sized and coloured off the app's own tokens — 42px segments
-                to match .input, --radius-ctl corners, --surface-raised
-                fill. justify-start so it lines up with the fields beside
-                it rather than centring in its column. */}
-            <DurationPicker
-              className="!justify-start"
-              value={{
-                hours: Math.floor((Number(form.durationMinutes) || 0) / 60),
-                minutes: (Number(form.durationMinutes) || 0) % 60,
-              }}
-              onChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  durationMinutes: (Number(v.hours) || 0) * 60 + (Number(v.minutes) || 0),
-                }))
-              }
-              maxHours={12}
-              maxMinutes={59}
-            />
+            {/* Plain number fields on purpose.
+                This was briefly the animated DurationPicker, which does not
+                survive being a real form control: it clips each segment with
+                clip-path: path(), and clip-path clips the HIT AREA too — the
+                path is built from an async measurement while the input's
+                width animates, so the clickable region ends up offset from
+                what you see (taps landing below the control, not on it). Its
+                hidden measuring span is also position:absolute with no
+                positioned ancestor, so it escaped and stole clicks from the
+                fields around it. A duration on a job is typed, on a phone,
+                by someone standing in a hallway — it has to just work. */}
+            <div className="flex min-w-0 items-center gap-1.5">
+              <input
+                type="number" inputMode="numeric" min="0" max="12"
+                className="input min-w-0 flex-1 px-1.5 text-center"
+                placeholder="0"
+                value={Math.floor((Number(form.durationMinutes) || 0) / 60) || ""}
+                onChange={(e) => {
+                  const h = Math.min(12, Math.max(0, Math.trunc(Number(e.target.value) || 0)));
+                  setForm((f) => ({ ...f, durationMinutes: h * 60 + ((Number(f.durationMinutes) || 0) % 60) }));
+                }}
+              />
+              <span className="shrink-0 text-xs text-navy-400">hr</span>
+              <input
+                type="number" inputMode="numeric" min="0" max="59" step="5"
+                className="input min-w-0 flex-1 px-1.5 text-center"
+                placeholder="0"
+                value={(Number(form.durationMinutes) || 0) % 60 || ""}
+                onChange={(e) => {
+                  const m = Math.min(59, Math.max(0, Math.trunc(Number(e.target.value) || 0)));
+                  setForm((f) => ({ ...f, durationMinutes: Math.floor((Number(f.durationMinutes) || 0) / 60) * 60 + m }));
+                }}
+              />
+              <span className="shrink-0 text-xs text-navy-400">min</span>
+            </div>
             <p className="mt-1 text-[11px] text-navy-400">
-              How long the visit takes — separate from the arrival window above.
+              How long the visit takes — separate from the arrival window.
             </p>
           </div>
         </div>
