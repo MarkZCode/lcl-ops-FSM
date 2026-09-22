@@ -23,7 +23,7 @@ import { useStore } from "@/lib/store";
 import { gbp, getJobLines, lineTotal, isAddonCode } from "@/lib/format";
 import { certLabel } from "@/lib/jobCard";
 import {
-  computeStats, computeEngineerPay, expensesForRange, computePipeline, jobInRange,
+  computeStats, computeEngineerPay, expensesForRange, computePipeline, jobInRange, profitBases,
 } from "@/lib/stats";
 import { parkingSummary, congestionSummary } from "@/lib/finance";
 import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
@@ -122,10 +122,14 @@ function ShareBar({ segments }) {
 
 function Figure({ label, value, note, tone = "" }) {
   return (
-    <div className="px-5 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500">{label}</p>
-      <p className={`tnum mt-0.5 text-2xl font-black ${tone || "text-navy-900 dark:text-slate-100"}`}>{value}</p>
-      {note && <p className="mt-0.5 text-[11px] text-navy-400">{note}</p>}
+    // min-w-0 so the tile can be narrower than its number, and the figure
+    // steps down a size on small screens. At eight tiles across a laptop,
+    // "£780.28" at text-2xl was wider than its ~90px of usable column and
+    // ran out past the edge of the card.
+    <div className="min-w-0 px-4 py-3 sm:px-5">
+      <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-navy-500" title={label}>{label}</p>
+      <p className={`tnum mt-0.5 break-words text-xl font-black sm:text-2xl ${tone || "text-navy-900 dark:text-slate-100"}`}>{value}</p>
+      {note && <p className="mt-0.5 text-[11px] leading-snug text-navy-400">{note}</p>}
     </div>
   );
 }
@@ -317,7 +321,13 @@ function SummaryInner() {
     }).sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const expItemsTotal = Math.round(expItems.reduce((s, e) => s + e.effective, 0) * 100) / 100;
 
+    // The same period counted two internally-consistent ways — see
+    // profitBases() in lib/stats.js for why the headline figure alone
+    // can read as a loss on a month that made money.
+    const bases = profitBases(jobs, range, engineers, engineerPayments, expenses);
+
     return {
+      bases,
       stats, pay, periodJobs, pipeline,
       lineValue, addonValue, discountValue, recResidual,
       parking, congestion, jobRows, jobGroups, serviceRows, serviceJobCount,
@@ -360,6 +370,23 @@ function SummaryInner() {
       L.push(["Company expenses", (-d.companyExpenses).toFixed(2), ""]);
       L.push(["True profit", d.trueProfit.toFixed(2), "Net profit minus company expenses"]);
       L.push(["True margin (%)", d.margin.toFixed(1), "True profit as a share of collected"]);
+      blank();
+
+      head("Counted two ways");
+      L.push(["Basis", "Revenue", "Engineer cost", "Expenses", "Profit", "Note"]);
+      L.push([
+        "Earned", d.bases.earned.revenue.toFixed(2), (-d.bases.earned.engineerCost).toFixed(2),
+        (-d.bases.earned.expenses).toFixed(2), d.bases.earned.profit.toFixed(2),
+        "All work done this period, and the full engineer cost of that work",
+      ]);
+      L.push([
+        "Cash", d.bases.cash.revenue.toFixed(2), (-d.bases.cash.engineerCost).toFixed(2),
+        (-d.bases.cash.expenses).toFixed(2), d.bases.cash.profit.toFixed(2),
+        "Only money in and out of the bank in this period",
+      ]);
+      L.push(["Still coming in from clients", d.bases.awaiting.fromClients.toFixed(2), "", "", "", "Invoiced, not yet paid"]);
+      L.push(["Still to pay engineers", d.bases.awaiting.toEngineers.toFixed(2), "", "", "", "Owed for work already done"]);
+      L.push(["", "", "", "", "", "True profit above mixes the two bases (cash in, work-done costs) — these do not."]);
       blank();
 
       head("Engineer pay position");
@@ -495,7 +522,7 @@ function SummaryInner() {
 
         {/* ── 1. The bottom line ── */}
         <Section title="Profit & loss" subtitle="Revenue in, costs out, what's left">
-          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-4 lg:grid-cols-8 dark:divide-white/10">
+          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-3 lg:grid-cols-4 dark:divide-white/10">
             <Figure label="Revenue" value={<MoneyCounter value={d.revenueAll} />} note="All work done" />
             <Figure label="Collected" value={<MoneyCounter value={d.collected} />} note="Money received" />
             <Figure label="Unpaid" value={<MoneyCounter value={d.unpaidInvoiced} />} note="Invoiced, not paid" tone={d.unpaidInvoiced > 0 ? "text-amber-600" : ""} />
@@ -541,6 +568,60 @@ function SummaryInner() {
               </p>
             )}
           </div>
+        </Section>
+
+        {/* ── 1b. The same month, counted consistently ── */}
+        <Section
+          title="Counted two ways"
+          subtitle="True profit above takes income as cash received but costs as work done — these two don't mix the bases"
+        >
+          <div className="grid grid-cols-1 divide-y divide-navy-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 dark:divide-white/10">
+            <div className="px-5 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500">Earned — is the work profitable?</p>
+              <p className={`tnum mt-1 break-words text-2xl font-black sm:text-3xl ${d.bases.earned.profit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}>
+                <MoneyCounter value={d.bases.earned.profit} />
+              </p>
+              <dl className="mt-3 space-y-1 text-[12px]">
+                <div className="flex justify-between"><dt className="text-navy-500">All work done</dt><dd className="tnum font-semibold">{money(d.bases.earned.revenue)}</dd></div>
+                <div className="flex justify-between"><dt className="text-navy-500">− Engineer cost (all of it)</dt><dd className="tnum font-semibold text-rose-500">{money(d.bases.earned.engineerCost)}</dd></div>
+                <div className="flex justify-between"><dt className="text-navy-500">− Expenses</dt><dd className="tnum font-semibold text-rose-500">{money(d.bases.earned.expenses)}</dd></div>
+              </dl>
+              <p className="mt-2 text-[11px] leading-snug text-navy-400">
+                Counts an invoice the moment the work is done, and the engineer&apos;s fee for it at the same time.
+              </p>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500">Cash — what actually moved</p>
+              <p className={`tnum mt-1 break-words text-2xl font-black sm:text-3xl ${d.bases.cash.profit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}>
+                <MoneyCounter value={d.bases.cash.profit} />
+              </p>
+              <dl className="mt-3 space-y-1 text-[12px]">
+                <div className="flex justify-between"><dt className="text-navy-500">Collected</dt><dd className="tnum font-semibold">{money(d.bases.cash.revenue)}</dd></div>
+                <div className="flex justify-between"><dt className="text-navy-500">− Paid out to engineers</dt><dd className="tnum font-semibold text-rose-500">{money(d.bases.cash.engineerCost)}</dd></div>
+                <div className="flex justify-between"><dt className="text-navy-500">− Expenses</dt><dd className="tnum font-semibold text-rose-500">{money(d.bases.cash.expenses)}</dd></div>
+              </dl>
+              <p className="mt-2 text-[11px] leading-snug text-navy-400">
+                Only money in and out of the bank. Ignores what&apos;s invoiced but unpaid, and what engineers are still owed.
+              </p>
+            </div>
+          </div>
+          {(d.bases.awaiting.fromClients > 0 || d.bases.awaiting.toEngineers > 0) && (
+            <div className="border-t border-navy-100 bg-navy-50/50 px-5 py-3 dark:border-white/10 dark:bg-white/[0.03]">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500">Still in flight</p>
+              <div className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
+                <span className="text-navy-600 dark:text-slate-300">
+                  Coming in from clients <strong className="tnum text-amber-600">{money(d.bases.awaiting.fromClients)}</strong>
+                </span>
+                <span className="text-navy-600 dark:text-slate-300">
+                  Still to pay engineers <strong className="tnum text-rose-500">{money(d.bases.awaiting.toEngineers)}</strong>
+                </span>
+              </div>
+              <p className="mt-1.5 text-[11px] leading-snug text-navy-400">
+                This is the gap between the two figures above. It is work already done that hasn&apos;t finished
+                turning into money yet — not a loss.
+              </p>
+            </div>
+          )}
         </Section>
 
         {/* ── 2. Where the money goes ── */}
@@ -675,7 +756,7 @@ function SummaryInner() {
 
         {/* ── Parking & congestion ── */}
         <Section title="Parking & congestion" subtitle="Charged to the client, reimbursed to the engineer, and what's left">
-          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-3 lg:grid-cols-6 dark:divide-white/10">
+          <div className="grid grid-cols-2 divide-x divide-y divide-navy-100 sm:grid-cols-3 lg:grid-cols-4 dark:divide-white/10">
             <Figure label="Parking charged" value={<MoneyCounter value={d.parking.collected} />} note="On client invoices" />
             <Figure label="Parking reimbursed" value={<MoneyCounter value={d.parking.reimbursed} />} note="Paid to engineers" tone="text-rose-500" />
             <Figure label="Parking kept" value={<MoneyCounter value={d.parking.net} />} tone={d.parking.net < 0 ? "text-rose-500" : "text-emerald-600"} />

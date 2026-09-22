@@ -15,7 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { gbp, fmtDate, serviceShort } from "@/lib/format";
 import { getRenewals } from "@/lib/renewals";
-import { getPeriodRange, jobInRange, jobDate, computeOperatingKpis, expensesForRange, computeEngineerPay, computeStats } from "@/lib/stats";
+import { getPeriodRange, jobInRange, jobDate, computeOperatingKpis, expensesForRange, computeEngineerPay, computeStats, profitBases } from "@/lib/stats";
 import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
 import PeriodControls from "@/components/PeriodControls";
 import { isToday, parseISO } from "date-fns";
@@ -274,7 +274,12 @@ export default function Dashboard() {
       ((companyStats.collected ?? 0) - companyPay.totalAccrued - companyExpTotal) * 100
     ) / 100;
 
-    return { active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: selectedRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, netProfit, trueProfit, revenueCollected, unpaidInvoiced, revenueNote, engineerCostNote, engineerPaid, engineerOutstanding, companyExpenses, engineerCost, companyAccount };
+    // The same period counted without mixing bases — see profitBases().
+    // True Profit takes income as cash collected but costs as work done, so
+    // a month waiting on invoices reads as a loss it didn't make.
+    const bases = profitBases(jobs, selectedRange, engineers, engineerPayments, expenses);
+
+    return { bases, active, today, quotes, outstanding, overdueCount, monthRevenue, monthDoneCount: monthDone.length, monthLabel: selectedRange.label, avgValue, pipelineValue, renewals, urgentProspects, pipeline, pipelineMax, netProfit, trueProfit, revenueCollected, unpaidInvoiced, revenueNote, engineerCostNote, engineerPaid, engineerOutstanding, companyExpenses, engineerCost, companyAccount };
   }, [jobs, engineers, engineerPayments, expenses, renewalStats, ctl.range]);
 
   // How the business is running, not just what it billed — measured over the
@@ -391,7 +396,20 @@ export default function Dashboard() {
                 <Link href="/reports" className="m-hero block">
                   <p className="m-hero-label">True Profit</p>
                   <p className={`m-hero-value ${stats.trueProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><MoneyCounter value={stats.trueProfit} /></p>
-                  <div className="m-hero-foot"><span>After engineer cost and expenses</span></div>
+                  <div className="m-hero-foot">
+                    <span>After engineer cost and expenses</span>
+                  </div>
+                  {/* Without this, a month whose invoices haven't cleared
+                      reads as a loss: the income side waits for the cash
+                      while the engineer's fee is deducted the day the work
+                      is done. Says so, with the consistent figure. */}
+                  {Math.abs(stats.bases.earned.profit - stats.trueProfit) >= 0.01 && (
+                    <div className="m-hero-foot">
+                      <span className={stats.bases.earned.profit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"}>
+                        {gbp(stats.bases.earned.profit)} counting work done, not cash in
+                      </span>
+                    </div>
+                  )}
                 </Link>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -493,7 +511,11 @@ export default function Dashboard() {
                   label="True Profit"
                   value={<MoneyCounter value={stats.trueProfit} />}
                   valueClassName={`${stats.trueProfit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"} !text-4xl`}
-                  note="After engineer cost and expenses"
+                  note={
+                    Math.abs(stats.bases.earned.profit - stats.trueProfit) >= 0.01
+                      ? `After engineer cost and expenses · ${gbp(stats.bases.earned.profit)} counting work done, not cash in`
+                      : "After engineer cost and expenses"
+                  }
                   link="/reports"
                   className="lg:col-span-2"
                 />

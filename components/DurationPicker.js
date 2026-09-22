@@ -263,18 +263,18 @@ function DurationPicker({
             data-slot="duration-picker"
             data-editing={isEditing || undefined}
             data-disabled={disabled || undefined}
-            className={cn('flex flex-row items-center justify-center text-card-foreground', disabled && 'opacity-50', className)}
+            className={cn('flex min-w-0 max-w-full flex-row items-center text-card-foreground', disabled && 'opacity-50', className)}
             {...props}
         >
             <SquircleSegment leftRadius={CORNER_RADIUS} rightRadius={innerRadius} style={{ paddingRight: innerPadRight, backgroundColor: "var(--surface-raised)", height: SEGMENT_H }}
                 className="flex items-center gap-1 pl-2">
                 <DurationField value={hoursText} onValueChange={handleHoursChange} max={maxHours} isEditing={isEditing} shouldReduceMotion={!!shouldReduceMotion} disabled={disabled} swayX={swayX} inputRef={hoursInputRef} onRequestEdit={openEdit} />
-                <motion.span style={{ x: swayX, color: 'var(--text-muted)' }} className='text-sm font-semibold'>{hoursLabel}</motion.span>
+                <motion.span style={{ x: swayX, color: 'var(--text-muted)' }} className='shrink-0 text-sm font-semibold'>{hoursLabel}</motion.span>
             </SquircleSegment>
             <SquircleSegment leftRadius={innerRadius} rightRadius={innerRadius} style={{ marginLeft: segmentSpacing, paddingLeft: innerPadLeft, paddingRight: innerPadRight, backgroundColor: "var(--surface-raised)", height: SEGMENT_H }}
                 className="flex items-center gap-1">
                 <DurationField value={minutesText} onValueChange={handleMinutesChange} max={maxMinutes} isEditing={isEditing} shouldReduceMotion={!!shouldReduceMotion} disabled={disabled} swayX={swayX} onRequestEdit={openEdit} />
-                <motion.span style={{ x: swayX, color: 'var(--text-muted)' }} className='text-sm font-medium'>{minutesLabel}</motion.span>
+                <motion.span style={{ x: swayX, color: 'var(--text-muted)' }} className='shrink-0 text-sm font-medium'>{minutesLabel}</motion.span>
             </SquircleSegment>
             <SquircleSegment asChild leftRadius={innerRadius} rightRadius={CORNER_RADIUS} style={{ marginLeft: segmentSpacing }}>
                 <button
@@ -284,7 +284,7 @@ function DurationPicker({
                     disabled={disabled}
                     aria-label={isEditing ? 'Save duration' : 'Edit duration'}
                     style={{ backgroundColor: 'var(--surface-raised)', width: SEGMENT_H, height: SEGMENT_H }}
-                    className='flex justify-center items-center active:scale-90 transition-transform disabled:active:scale-100'
+                    className='flex shrink-0 justify-center items-center active:scale-90 transition-transform disabled:active:scale-100'
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18">
                         <motion.path fill="var(--text-muted)" stroke="var(--text-muted)" strokeWidth={0} strokeLinejoin="round" strokeLinecap="round" style={{ strokeWidth: iconStrokeWidth, strokeOpacity: iconStrokeOpacity }} d={iconPath} />

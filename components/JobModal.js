@@ -1366,7 +1366,14 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
               />
             </div>
           </div>
-          <div className="min-w-0">
+          {/* Full width on phones and two columns from `sm` up.
+              The duration picker is three segments that SEPARATE when you
+              tap them — its width is part of how it works, and it cannot
+              usefully shrink to a quarter-column. Given one of four narrow
+              tracks it simply overflowed, and the confirm button hung off
+              the right edge of the modal. It gets the room it needs
+              instead of being squeezed and breaking the layout. */}
+          <div className="min-w-0 sm:col-span-2">
             <label className="label">Expected duration</label>
             <DurationPicker
               className="mt-1"
