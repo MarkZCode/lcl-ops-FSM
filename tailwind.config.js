@@ -37,9 +37,8 @@ module.exports = {
         },
       },
       fontFamily: {
-        // Geist Sans (Vercel) — tighter, more corporate cut than Inter. Kept
-        // Inter as a secondary fallback so any inline font-feature-settings
-        // overrides keep working.
+        // Inter Tight for UI, Space Grotesk for display — see the note in
+        // app/layout.js for why it's two families and not one.
         sans: ["var(--font-sans)", "var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
         heading: ["var(--font-heading)", "var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],

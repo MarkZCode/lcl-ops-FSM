@@ -1,28 +1,32 @@
-import { Inter, Outfit, JetBrains_Mono } from "next/font/google";
+import { Inter_Tight, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import AuthGate from "@/components/AuthGate";
 import PWARegister from "@/components/PWARegister";
 
-// TWO faces, which is what the reference actually does and why a single
-// family kept reading wrong:
+// TWO faces, deliberately — one family everywhere is what made small text
+// read soft, because a face that looks premium in a headline looks juvenile
+// in a 12px label.
 //
-//   Inter  — all UI text: labels, table cells, buttons, body. A neutral
-//            grotesk. Nothing about it is characterful, which is exactly
-//            the point at 12–15px where personality becomes noise.
-//   Outfit — display only: page titles and big figures. Geometric and
-//            confident at 28px+, where Inter would look plain.
+//   Inter Tight    — all UI text: labels, table cells, buttons, body.
+//                    Inter's proportions with tighter sidebearings, so a
+//                    dense table of figures fits more per row without
+//                    dropping the size. Neutral on purpose: at 12–15px,
+//                    personality is noise.
+//   Space Grotesk  — display only: page titles and big figures. Sharp
+//                    terminals and a slightly technical cut — character
+//                    without roundness.
 //
-// Using one geometric face for everything (the previous Plus Jakarta pass)
-// is what made small text read soft/childish — rounded terminals that look
-// premium in a headline look juvenile in a 12px label.
-//
-// History: this started on IBM Plex Sans ("institutional"), moved to Plus
-// Jakarta to match a supplied reference, and is now split. Don't collapse
-// it back to one family without checking with the owner.
-const inter = Inter({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-sans" });
-const plex = Inter({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-inter" });
-const plexHeading = Outfit({ subsets: ["latin"], display: "swap", weight: ["500", "600", "700"], variable: "--font-heading" });
+// History: IBM Plex Sans ("institutional"), then Plus Jakarta to match a
+// supplied reference, then Inter + Outfit. Outfit was the problem: a
+// geometric face whose round bowls and single-storey shapes read as
+// childish at display sizes on a finance screen. Replaced at the owner's
+// request, Sep 2026, after offering four directions — this is the one
+// they picked. Don't collapse it to one family, and don't reintroduce a
+// round geometric for headings, without checking with the owner.
+const inter = Inter_Tight({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-sans" });
+const plex = Inter_Tight({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-inter" });
+const plexHeading = Space_Grotesk({ subsets: ["latin"], display: "swap", weight: ["500", "600", "700"], variable: "--font-heading" });
 const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono" });
 
 export const metadata = {
