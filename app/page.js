@@ -58,8 +58,24 @@ const STATUS_PILL = {
   cancelled: "pill-rose",
 };
 
+// A cost-derived figure, or a dash.
+//
+// Never render £0.00 for something that simply hasn't loaded. "Engineer Cost
+// £0.00" and "Net Profit = Revenue" are confident, specific claims about the
+// month — and if engineers, expenses and payments aren't in memory they're
+// also false, while looking exactly like a real month with no costs. A dash
+// says "not known yet", which is the truth.
+function CostFigure({ ready, children }) {
+  if (ready) return children;
+  return (
+    <span className="text-navy-300 dark:text-slate-600" title="Engineer and expense data hasn't loaded yet — not calculated">
+      —
+    </span>
+  );
+}
+
 export default function Dashboard() {
-  const { jobs: allJobs, clients, hydrated, engineers, expenses, engineerPayments } = useStore();
+  const { jobs: allJobs, clients, hydrated, engineers, expenses, engineerPayments, financeReady, retryHydrate } = useStore();
 
   // The ONLY thing this page wanted the prospects table for was one number:
   // how many renewals fall due in the next 14 days. Getting it in the browser
@@ -348,6 +364,18 @@ export default function Dashboard() {
       </div>
 
       <div className="page space-y-6">
+        {hydrated && !financeReady && (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            <span className="min-w-0 flex-1">
+              <strong>Costs haven&apos;t loaded.</strong> Engineer rates, expenses and payments
+              didn&apos;t come back from the server, so profit figures are shown as &ldquo;—&rdquo;
+              rather than calculated without them. Revenue and job counts are correct.
+            </span>
+            <button type="button" className="btn-outline shrink-0" onClick={() => retryHydrate?.()}>
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Same period control Reports uses, same shared state — changing it
             here changes what Reports shows too, and vice versa. */}
@@ -389,13 +417,13 @@ export default function Dashboard() {
 
                 <Link href="/reports" className="m-hero block">
                   <p className="m-hero-label">Net Profit</p>
-                  <p className={`m-hero-value ${stats.netProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><MoneyCounter value={stats.netProfit} /></p>
+                  <p className={`m-hero-value ${stats.netProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><CostFigure ready={financeReady}><MoneyCounter value={stats.netProfit} /></CostFigure></p>
                   <div className="m-hero-foot"><span>Revenue minus engineer cost</span></div>
                 </Link>
 
                 <Link href="/reports" className="m-hero block">
                   <p className="m-hero-label">True Profit</p>
-                  <p className={`m-hero-value ${stats.trueProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><MoneyCounter value={stats.trueProfit} /></p>
+                  <p className={`m-hero-value ${stats.trueProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><CostFigure ready={financeReady}><MoneyCounter value={stats.trueProfit} /></CostFigure></p>
                   <div className="m-hero-foot">
                     <span>After engineer cost and expenses</span>
                   </div>
@@ -415,11 +443,11 @@ export default function Dashboard() {
                 <div className="grid grid-cols-2 gap-4">
                   <Link href="/reports" className="m-hero block !p-4">
                     <p className="m-hero-label !text-[11px]">Company Exp.</p>
-                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500"><MoneyCounter value={stats.companyExpenses} /></p>
+                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500"><CostFigure ready={financeReady}><MoneyCounter value={stats.companyExpenses} /></CostFigure></p>
                   </Link>
                   <Link href="/reports" className="m-hero block !p-4">
                     <p className="m-hero-label !text-[11px]">Engineer Cost</p>
-                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500"><MoneyCounter value={stats.engineerCost} /></p>
+                    <p className="m-hero-value !text-3xl !mt-1 !text-rose-500"><CostFigure ready={financeReady}><MoneyCounter value={stats.engineerCost} /></CostFigure></p>
                   </Link>
                 </div>
               </div>
@@ -427,7 +455,7 @@ export default function Dashboard() {
               <p className="m-group-title mt-8">Money</p>
               <div className="m-group">
                 <MRow icon={FiCreditCard} label="Company Account" sub="Cumulative profit since day one"
-                  value={<MoneyCounter value={stats.companyAccount} />} alert={stats.companyAccount < 0} href="/reports" />
+                  value={<CostFigure ready={financeReady}><MoneyCounter value={stats.companyAccount} /></CostFigure>} alert={stats.companyAccount < 0} href="/reports" />
                 <MRow icon={FiAlertCircle} label="Outstanding Invoices"
                   sub={stats.overdueCount ? `${stats.overdueCount} overdue — chase these` : "Nothing overdue"}
                   value={<MoneyCounter value={stats.outstanding} />} alert={stats.overdueCount > 0} href="/reports" />
@@ -464,7 +492,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiPieChart}
                   label="Net Profit"
-                  value={<MoneyCounter value={stats.netProfit} />}
+                  value={<CostFigure ready={financeReady}><MoneyCounter value={stats.netProfit} /></CostFigure>}
                   valueClassName={`${stats.netProfit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"} !text-4xl`}
                   note="Revenue minus engineer cost"
                   link="/reports"
@@ -473,7 +501,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiCreditCard}
                   label="Company Account"
-                  value={<MoneyCounter value={stats.companyAccount} />}
+                  value={<CostFigure ready={financeReady}><MoneyCounter value={stats.companyAccount} /></CostFigure>}
                   valueClassName={stats.companyAccount < 0 ? "text-rose-500" : ""}
                   note="Cumulative profit since day one"
                   link="/reports"
@@ -492,7 +520,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiBarChart2}
                   label="Company Expenses"
-                  value={<MoneyCounter value={stats.companyExpenses} />}
+                  value={<CostFigure ready={financeReady}><MoneyCounter value={stats.companyExpenses} /></CostFigure>}
                   valueClassName="text-rose-500"
                   note={stats.monthLabel}
                   link="/reports"
@@ -500,7 +528,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiUsers}
                   label="Engineer Cost"
-                  value={<MoneyCounter value={stats.engineerCost} />}
+                  value={<CostFigure ready={financeReady}><MoneyCounter value={stats.engineerCost} /></CostFigure>}
                   valueClassName="text-rose-500"
                   note={stats.engineerCostNote}
                   link="/reports"
@@ -509,7 +537,7 @@ export default function Dashboard() {
                 <Kpi
                   icon={FiTrendingUp}
                   label="True Profit"
-                  value={<MoneyCounter value={stats.trueProfit} />}
+                  value={<CostFigure ready={financeReady}><MoneyCounter value={stats.trueProfit} /></CostFigure>}
                   valueClassName={`${stats.trueProfit < 0 ? "text-rose-500" : "text-emerald-600 dark:text-emerald-400"} !text-4xl`}
                   note={
                     Math.abs(stats.bases.earned.profit - stats.trueProfit) >= 0.01
