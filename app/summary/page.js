@@ -277,11 +277,22 @@ function SummaryInner() {
     //
     // A job's value is split evenly across its services, and its engineer
     // cost is split the same way, so margin per service is comparable.
+    // Parking and the congestion charge are NOT services. They were being
+    // treated as one here — taking an equal share of the job's value and
+    // appearing in this table as though "Parking Charge" were a line of
+    // business. They're pass-through charges on the invoice, reported on
+    // their own in the Parking & congestion section below, so they're
+    // taken off the job's value before it's split and they never appear
+    // as a row.
     const svcAgg = {};
     revJobs.forEach((j) => {
-      const svcs = j.services || [];
+      const svcs = (j.services || []).filter((code) => !isAddonCode(code));
       if (!svcs.length) return;
-      const priceShare = (Number(j.price) || 0) / svcs.length;
+      const addonValueOnJob = getJobLines(j)
+        .filter((l) => isAddonCode(l.code))
+        .reduce((sum, l) => sum + lineTotal(l), 0);
+      const jobWorkValue = Math.max(0, (Number(j.price) || 0) - addonValueOnJob);
+      const priceShare = jobWorkValue / svcs.length;
       const costShare = (costByJob[j.id] || 0) / svcs.length;
       svcs.forEach((code) => {
         if (!svcAgg[code]) svcAgg[code] = { code, count: 0, revenue: 0, cost: 0 };
