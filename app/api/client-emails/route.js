@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/supabaseAdmin";
 import { getGmailAccessToken, headerVal } from "@/lib/gmailReply";
+import { fetchRepliesFrom, configuredMailboxes } from "@/lib/hostingerInbox";
 
 // Was 30s — too tight. Listing + fetching up to 30 individual Gmail messages
 // (even batched 8-at-a-time) can genuinely exceed 30s depending on Gmail API
@@ -46,14 +47,6 @@ export async function POST(request) {
   if (!(await requireUser(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const configured =
-    process.env.GMAIL_CLIENT_ID &&
-    process.env.GMAIL_CLIENT_SECRET &&
-    process.env.GMAIL_REFRESH_TOKEN;
-  if (!configured) {
-    return NextResponse.json({ notConfigured: true }, { status: 503 });
-  }
-
   let body;
   try { body = await request.json(); }
   catch { return NextResponse.json({ error: "Invalid body" }, { status: 400 }); }
@@ -61,6 +54,57 @@ export async function POST(request) {
   const clientEmail = (body?.clientEmail || "").trim().toLowerCase();
   if (!clientEmail) {
     return NextResponse.json({ error: "Missing clientEmail" }, { status: 400 });
+  }
+
+  // ── Hostinger first ────────────────────────────────────────────────────
+  // Client mail is SENT from the company mailboxes, so replies arrive
+  // there. Reading Gmail would look at an inbox this client's reply never
+  // touches and confidently report "no replies" — worse than an error,
+  // because it reads as "they haven't got back to us".
+  const mailboxes = configuredMailboxes();
+  if (mailboxes.length) {
+    try {
+      const { messages, mailboxes: status } = await fetchRepliesFrom(clientEmail, { limit: 15 });
+      const reachable = status.filter((m) => m.ok);
+      if (reachable.length) {
+        return NextResponse.json({
+          source: "hostinger",
+          messages: messages.map((m) => ({
+            messageId: m.id,
+            from: m.from,
+            to: m.mailbox,
+            subject: m.subject,
+            date: m.date,
+            snippet: (m.text || "").slice(0, 2000),
+          })),
+          // Named so a half-broken setup is visible rather than silently
+          // returning fewer replies than exist.
+          unreachable: status.filter((m) => !m.ok).map((m) => `${m.mailbox || m.identity}: ${m.error}`),
+        });
+      }
+      return NextResponse.json(
+        {
+          error: "Couldn't reach the company mailboxes.",
+          details: status.map((m) => `${m.mailbox || m.identity}: ${m.error}`).join("; "),
+        },
+        { status: 502 }
+      );
+    } catch (err) {
+      return NextResponse.json(
+        { error: "Couldn't read the company mailboxes.", details: String(err?.message || err) },
+        { status: 502 }
+      );
+    }
+  }
+
+  // ── Gmail fallback ─────────────────────────────────────────────────────
+  // Only reached while no Hostinger mailbox has credentials yet.
+  const configured =
+    process.env.GMAIL_CLIENT_ID &&
+    process.env.GMAIL_CLIENT_SECRET &&
+    process.env.GMAIL_REFRESH_TOKEN;
+  if (!configured) {
+    return NextResponse.json({ notConfigured: true }, { status: 503 });
   }
 
   let accessToken;
