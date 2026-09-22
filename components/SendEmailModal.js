@@ -15,6 +15,8 @@ import InvoiceModal from "./InvoiceModal";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { renderTemplate, buildContext } from "@/lib/email";
+import { JOB_TEMPLATE_PURPOSES } from "@/lib/templates";
+import { fileSrc } from "@/lib/uploads";
 import { buildInvoicePrefill } from "@/lib/invoiceData";
 import { toWhatsAppNumber } from "@/lib/whatsapp";
 import { toast } from "@/lib/toast";
@@ -56,8 +58,18 @@ export default function SendEmailModal({
   // template rewrite in lib/settings.js) — needs docType "invoice" too, or
   // the attach checkbox silently offered a quote PDF instead.
   const docType = (tplKey === "invoice" || tplKey === "job_completed") ? "invoice" : "quote";
-  const attachable = Boolean(job);
-  const docLabel = docType === "quote" ? "quote" : "invoice";
+  // The certificate email sends the CERTIFICATE — the real file uploaded to
+  // the job, not a generated quote or invoice PDF. Anything else would
+  // attach the wrong document to the one email whose entire purpose is the
+  // document.
+  const isCertEmail = tplKey === "certificate";
+  const certFiles = isCertEmail
+    ? (job?.attachments || []).filter((f) => /pdf$/i.test(f.name || f.filename || "") || f.contentType === "application/pdf")
+    : [];
+  const attachable = Boolean(job) && (!isCertEmail || certFiles.length > 0);
+  const docLabel = isCertEmail
+    ? (certFiles.length === 1 ? "certificate" : `${certFiles.length} certificates`)
+    : docType === "quote" ? "quote" : "invoice";
 
   const ctx = buildContext({ job, client, property, email });
 
@@ -94,6 +106,10 @@ export default function SendEmailModal({
 
     const tpl = templates[tplKey];
     if (!tpl) return;
+    // Tick the attachment only for the emails that are ABOUT a document.
+    // It defaulted to on for everything, which is how a booking
+    // confirmation went out with a quote PDF stapled to it.
+    setAttach(["quote", "invoice", "job_completed", "certificate"].includes(tplKey));
     setSubject(renderTemplate(tpl.subject, ctx));
     // The signature goes through renderTemplate as well. It ends with the
     // sender's name, and the body now opens with "this is {{sender}} here"
@@ -178,7 +194,31 @@ export default function SendEmailModal({
     let invNoUsed = null;
     let attachedFilename = null;
     let attachFailed = false;
-    if (attachable && attach) {
+    if (isCertEmail && attach && certFiles.length) {
+      // Fetch each stored certificate and send it as-is. No regeneration —
+      // the document the client gets must be byte-for-byte the one on the
+      // job, which is what an inspector will be shown.
+      try {
+        attachments = [];
+        for (const f of certFiles) {
+          const res = await fetch(fileSrc(f));
+          if (!res.ok) throw new Error(`couldn't read ${f.name || "certificate"}`);
+          const buf = await res.arrayBuffer();
+          let binary = "";
+          const bytes = new Uint8Array(buf);
+          for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+          attachments.push({
+            filename: f.name || f.filename || "certificate.pdf",
+            base64: btoa(binary),
+            contentType: "application/pdf",
+          });
+        }
+        attachedFilename = attachments.map((a) => a.filename).join(", ");
+      } catch (e) {
+        attachFailed = true;
+        attachments = undefined;
+      }
+    } else if (attachable && attach) {
       try {
         // Allocated against the job so the emailed PDF, the job page and
         // the payment record all quote the same invoice number.
@@ -206,6 +246,15 @@ export default function SendEmailModal({
         // silently reporting the send as fully successful.
         attachFailed = true;
       }
+    }
+
+    // "Booking confirmed ... on to be confirmed" is not a confirmation. The
+    // auto-send path already refuses this; the manual one didn't, so it
+    // shipped a blank date to a real client.
+    if ((tplKey === "booking" || tplKey === "reminder") && !job?.scheduledAt) {
+      setStatus("idle");
+      setMessage("Set an appointment date on this job first — this email would go out saying \u201con to be confirmed\u201d.");
+      return;
     }
 
     try {
@@ -327,7 +376,7 @@ export default function SendEmailModal({
     >
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2">
-          {Object.keys(templates).map((key) => (
+          {JOB_TEMPLATE_PURPOSES.filter((key) => templates[key]).map((key) => (
             <button
               key={key}
               onClick={() => setTplKey(key)}
