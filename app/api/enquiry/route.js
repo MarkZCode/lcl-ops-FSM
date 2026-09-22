@@ -140,8 +140,9 @@ export async function POST(req) {
   // Reuse a property the client already has at this postcode rather than
   // stacking a near-duplicate onto their record every time they enquire.
   const properties = Array.isArray(client.properties) ? [...client.properties] : [];
+  const bare = (v) => String(v || "").replace(/\s/g, "").toUpperCase();
   let property = e.postcode
-    ? properties.find((p) => (p.postcode || "").replace(/\s/g, "").toUpperCase() === e.postcode.replace(/\s/g, ""))
+    ? properties.find((p) => bare(p.postcode) === bare(e.postcode))
     : null;
   // A first enquiry often gives only a postcode and a later one the full
   // address. Upgrade the label rather than leaving the property named after

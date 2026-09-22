@@ -43,6 +43,20 @@ export default function EngineerPayModal({
   // intentions and the row click used to do only the second, so there was no
   // way to see what a figure was actually made of before paying it.
   const [focusedJobId, setFocusedJobId] = useState(null);
+  // Which part of the pay run you're in.
+  //
+  // This modal used to be one long column: four metric tiles, the job table,
+  // its own totals, a per-job breakdown, a reconciliation warning, bank
+  // details, the payment box and the payment history, all stacked and all on
+  // screen at once. Everything had been added to the same surface in the
+  // order it was thought of, so nothing looked more important than anything
+  // else and a phone showed about a fifth of it at a time.
+  //
+  // A pay run is actually three separate moments: work out what's owed, send
+  // the money, check what's already been sent. Those are now three tabs. The
+  // money state (the metric row) stays above them, because it's the one
+  // thing that's true in all three.
+  const [tab, setTab] = useState("jobs");
   // Write a manual amount against THIS engineer on that job, never job-wide.
   // A job-level figure was applied to everyone working the job, so setting
   // one person's fee silently pinned their colleague's to the same number
@@ -70,6 +84,7 @@ export default function EngineerPayModal({
     setSelectedJobIds(new Set());
     setAmount("");
     setFocusedJobId(null);
+    setTab("jobs");
   }, [engineer?.id, open]);
 
   if (!row || !engineer) return null;
@@ -222,7 +237,7 @@ export default function EngineerPayModal({
     <Modal
       open={open}
       onClose={onClose}
-      wide
+      xwide
       title={`${engineer.name} · ${range.label}`}
       footer={
         <>
@@ -293,6 +308,39 @@ export default function EngineerPayModal({
           </p>
         )}
 
+        {/* Sections. Labelled with the number that matters for each one, so
+            you can see where the work is before choosing a tab. */}
+        <div className="scroll-area -mx-1 overflow-x-auto px-1">
+          <div className="flex w-max gap-1 rounded-xl bg-navy-50 p-1 dark:bg-white/5">
+            {[
+              { k: "jobs", l: "Jobs", badge: jd.length || null },
+              { k: "pay", l: "Pay", badge: row.balance > 0 ? gbp(row.balance) : null },
+              { k: "history", l: "History", badge: periodPayments.length || null },
+            ].map(({ k, l, badge }) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setTab(k)}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                  tab === k
+                    ? "bg-navy-800 text-white shadow-sm dark:bg-white/15"
+                    : "text-navy-500 hover:bg-navy-100 dark:hover:bg-white/5"
+                }`}
+              >
+                {l}
+                {badge != null && (
+                  <span className={`tnum rounded-md px-1.5 py-0.5 text-[11px] font-bold ${
+                    tab === k ? "bg-white/20 text-white" : "bg-navy-100 text-navy-600 dark:bg-white/10 dark:text-navy-300"
+                  }`}>
+                    {badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {tab === "jobs" && (<>
         {/* Job breakdown */}
         {row.jobDetails?.length > 0 ? (
           <div>
@@ -685,6 +733,7 @@ export default function EngineerPayModal({
         ) : (
           <p className="text-sm text-navy-400">No completed jobs in this period.</p>
         )}
+        </>)}
 
         {/* Reconciliation guard. A payment can only honestly settle jobs worth
           what it paid. Silent drift here is what let three jobs read "Paid"
@@ -707,7 +756,8 @@ export default function EngineerPayModal({
         );
       })()}
 
-      {/* Bank details */}
+        {tab === "pay" && (<>
+        {/* Bank details */}
         <div className="rounded-xl border border-navy-100 bg-navy-50/40 p-4">
           <h3 className="mb-2 section-label text-xs">Bank details</h3>
           {engineer.bankName || engineer.bankAccountName || engineer.bankSortCode || engineer.bankAccountNumber ? (
@@ -814,7 +864,17 @@ export default function EngineerPayModal({
             {error && <p className="mt-2 text-xs text-rose-600">{error}</p>}
           </div>
         )}
+        {row.balance <= 0 && (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+            Nothing outstanding for {range.label} — everything in this period has been paid.
+          </p>
+        )}
+        </>)}
 
+        {tab === "history" && periodPayments.length === 0 && (
+          <p className="text-sm text-navy-400">No payments recorded for these jobs yet.</p>
+        )}
+        {tab === "history" && (<>
         {/* Payment history — scoped to periodPayments (this period's jobs
             only). row.payments also includes payments for jobs from other
             periods that simply happened to be sent while this range was open;
@@ -865,6 +925,7 @@ export default function EngineerPayModal({
             </ul>
           </div>
         )}
+        </>)}
       </div>
     </Modal>
   );

@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FiX } from "react-icons/fi";
 
-export default function Modal({ open, onClose, title, children, footer, wide }) {
+// `xwide` exists for one case: a table that genuinely needs the room. The
+// engineer pay run is nine columns of figures, and at `wide` (672px) it was
+// squeezed into a 640px-minimum table with a horizontal scrollbar under it —
+// so reading one engineer's period meant scrolling sideways through money.
+export default function Modal({ open, onClose, title, children, footer, wide, xwide }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -45,8 +49,8 @@ export default function Modal({ open, onClose, title, children, footer, wide }) 
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative z-10 flex max-h-[85dvh] w-full flex-col rounded-t-xl bg-white shadow-xl sm:max-h-[88dvh] sm:rounded-xl ${
-          wide ? "sm:max-w-2xl" : "sm:max-w-lg"
+        className={`relative z-10 flex max-h-[92dvh] w-full flex-col rounded-t-xl bg-white shadow-xl sm:max-h-[90dvh] sm:rounded-xl ${
+          xwide ? "sm:max-w-5xl" : wide ? "sm:max-w-2xl" : "sm:max-w-lg"
         }`}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-navy-100 px-5 py-4">

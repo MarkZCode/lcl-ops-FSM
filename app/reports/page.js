@@ -24,6 +24,8 @@ import BarChart from "@/components/BarChart";
 import RequirePermission from "@/components/RequirePermission";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
+import Link from "next/link";
+import { LuChartPie } from "react-icons/lu";
 
 // Remembers the last period/range you picked so leaving Reports and coming
 // back (or refreshing) doesn't silently reset it to "this month". Same key
@@ -244,7 +246,21 @@ function ReportsInner() {
 
   return (
     <>
-      <PageHeader icon={FiActivity} title={expensesOnly ? "Company Expenses" : "Reports"} subtitle={expensesOnly ? "Log and review company expenses" : "Revenue, profit and financial overview"} />
+      <PageHeader
+        icon={FiActivity}
+        title={expensesOnly ? "Company Expenses" : "Reports"}
+        subtitle={expensesOnly ? "Log and review company expenses" : "Revenue, profit and financial overview"}
+        // Summary opens from here rather than from the nav. It's the same
+        // period and the same figures as the tabs below, laid out in full —
+        // so it belongs next to them, not as a second financial section in
+        // the sidebar competing with this one.
+        actions={!expensesOnly && (
+          <Link href="/summary" className="btn-outline shrink-0" title="Full breakdown of this period — finances, engineer pay, funnel, expenses">
+            <LuChartPie className="h-4 w-4" />
+            <span className="hidden sm:inline">Summary</span>
+          </Link>
+        )}
+      />
 
       <div className="page space-y-6">
         {/* Section tabs — each financial area gets its own dedicated view.
