@@ -62,6 +62,27 @@ async function hydrateSeenFromServer() {
   return loadSeen();
 }
 
+
+// The first line of a reply that actually says something.
+//
+// Leading with line one produced a bell full of rows reading "Hi", "Hi
+// Lisa" and "On Wed, Sep 23 2026 at 1:50 AM Landlord Compliance London <"
+// — the greeting and the quoted header, never the message. Skips both, and
+// falls back to the raw first line rather than showing nothing.
+const GREETING_ONLY = /^(hi|hello|hey|dear|good\s+(morning|afternoon|evening))\b[\s,.!-]*[a-z'’-]*[\s,.!-]*$/i;
+const QUOTED_HEADER = /^(on\s.+wrote:?$|on\s.+<|-{2,}\s*original message|from:\s)/i;
+
+function replyPreview(detail) {
+  const lines = String(detail || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const meaty = lines.find(
+    (l) => l.length > 2 && !GREETING_ONLY.test(l) && !QUOTED_HEADER.test(l) && !l.startsWith(">")
+  );
+  return meaty || lines[0] || "(no text)";
+}
+
 export default function NotificationBell() {
   const { jobs, clients } = useStore();
   const { user, isAdmin } = useAuth();
@@ -116,7 +137,17 @@ export default function NotificationBell() {
         if (a.direction === "in") out.push({ ...a, jobId: job.id, clientName: client?.name || "Client" });
       }
     }
-    return out.sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 20);
+    // One row per CONVERSATION, not per message. A client who replies four
+    // times about one job is one thing to deal with; four identical-looking
+    // rows in the bell is how a notification list stops being read at all.
+    // Newest reply wins, and it carries the count.
+    const latestPerJob = new Map();
+    for (const r of out.sort((a, b) => new Date(b.at) - new Date(a.at))) {
+      const existing = latestPerJob.get(r.jobId);
+      if (existing) { existing.replyCount += 1; continue; }
+      latestPerJob.set(r.jobId, { ...r, replyCount: 1 });
+    }
+    return [...latestPerJob.values()].slice(0, 20);
   }, [jobs, clients, isAdmin, user]);
 
   // Tasks — split into "mine", "team", filter out done.
@@ -315,8 +346,18 @@ export default function NotificationBell() {
                             <p className="truncate text-xs font-semibold text-white">{a.clientName}</p>
                             <span className="shrink-0 text-[10px] text-navy-500">{fmtDate(a.at)}</span>
                           </div>
-                          <p className="text-[11px] text-navy-400">{a.jobId}</p>
-                          <p className="mt-0.5 text-xs text-navy-300 line-clamp-2">{(a.detail || "").split("\n")[0]}</p>
+                          <p className="text-[11px] text-navy-400">
+                            {a.jobId}
+                            {a.replyCount > 1 && (
+                              <span className="ml-1.5 rounded bg-navy-800 px-1.5 py-0.5 text-[10px] font-semibold text-navy-300">
+                                {a.replyCount} replies
+                              </span>
+                            )}
+                          </p>
+                          {/* First NON-EMPTY line. Leading with line one gave
+                              a wall of rows reading "Hi" and "Hi Lisa" — the
+                              greeting, never the message. */}
+                          <p className="mt-0.5 text-xs text-navy-300 line-clamp-2">{replyPreview(a.detail)}</p>
                         </div>
                         {isNew(a.id) && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-400" />}
                       </Link>
