@@ -2,10 +2,22 @@
 
 // Unified in-app notification inbox — the bell icon in the top bar.
 // Three sections:
-//   1. My tasks — everything assigned to the current user or "Everyone",
-//      broken into overdue / due today / open, priority-first.
-//   2. Team tasks — recent "Everyone" tasks (broader team context).
-//   3. Replies — inbound client replies across all jobs (as before).
+//   1. Needs you now — tasks assigned to YOU that are overdue or due
+//      today, priority-first.
+//   2. Replies — inbound client replies on jobs that are yours to answer.
+//
+// WHAT IS DELIBERATELY NOT HERE
+// A notification is something you have to act on today. Two things used to
+// be counted that aren't:
+//   • every open task assigned to you with a FUTURE due date. A task due in
+//     three weeks is a plan, not a notification, and it sat on the badge
+//     permanently until the day it was done.
+//   • every unassigned "Everyone" task created in the last fortnight. Work
+//     nobody has picked up is a queue to review on the Tasks page, not an
+//     alert to each person individually — and it meant the same badge
+//     number appeared for everyone regardless of what they were doing.
+// Both are still one tap away on /tasks. The bell now only carries things
+// with a deadline that has arrived.
 //
 // Task counters + reply counters merge into one badge on the bell, and
 // each item deep-links via taskDeepLink so tapping a linked task jumps
@@ -52,7 +64,7 @@ async function hydrateSeenFromServer() {
 
 export default function NotificationBell() {
   const { jobs, clients } = useStore();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState(() => loadSeen());
   const [tasks, setTasks] = useState([]);
@@ -86,16 +98,26 @@ export default function NotificationBell() {
 
   // ── Notification list build-up ──────────────────────────────────────────
   // Client replies (unchanged from before).
+  // An engineer sees replies on the jobs they're actually on; the office
+  // sees all of them. A client reply is only a notification for the person
+  // who has to answer it — everyone else getting the same badge is how a
+  // number stops meaning anything.
   const replies = useMemo(() => {
+    const mine = (job) => {
+      if (isAdmin || user?.role !== "engineer") return true;
+      if (job.engineerId === user.engineerId) return true;
+      return (job.visits || []).some((v) => v.engineerId === user.engineerId);
+    };
     const out = [];
     for (const job of jobs) {
+      if (!mine(job)) continue;
       const client = clients.find((c) => c.id === job.clientId);
       for (const a of job.activity || []) {
         if (a.direction === "in") out.push({ ...a, jobId: job.id, clientName: client?.name || "Client" });
       }
     }
     return out.sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 20);
-  }, [jobs, clients]);
+  }, [jobs, clients, isAdmin, user]);
 
   // Tasks — split into "mine", "team", filter out done.
   const now = new Date();
@@ -121,12 +143,9 @@ export default function NotificationBell() {
     // if (fresh.length > 0) playPing();
     knownMineIds.current = currentIds;
   }, [myTasks, user]);
-  const teamTasks = useMemo(() => {
-    return tasks
-      .filter((t) => t && t.status !== "done" && !t.assigneeId)
-      // Only show recent everyone-tasks (last 14 days) so ancient ones don't clog the bell.
-      .filter((t) => (now - new Date(t.createdAt || 0)) < 14 * 86400_000);
-  }, [tasks, now]);
+  // Unassigned "Everyone" tasks are intentionally NOT surfaced here any
+  // more — see the header. They're a queue to pick up on /tasks, not an
+  // alert delivered identically to every person in the company.
 
   // Split my-tasks by urgency for the panel headings + counters.
   const myBuckets = useMemo(() => {
@@ -149,13 +168,13 @@ export default function NotificationBell() {
   // Merge everything into one flat feed for the unread counter.
   const allItems = useMemo(() => {
     const items = [];
+    // Only what has a deadline that has already arrived, plus replies.
+    // Upcoming and unassigned tasks are shown on /tasks, never counted here.
     for (const t of myBuckets.overdue)  items.push({ id: `task-od-${t.id}`, at: t.updatedAt || t.createdAt, kind: "task_overdue" });
     for (const t of myBuckets.dueToday) items.push({ id: `task-du-${t.id}`, at: t.updatedAt || t.createdAt, kind: "task_due" });
-    for (const t of myBuckets.upcoming) items.push({ id: `task-up-${t.id}`, at: t.createdAt, kind: "task_upcoming" });
-    for (const t of teamTasks)          items.push({ id: `task-tm-${t.id}`, at: t.createdAt, kind: "task_team" });
     for (const r of replies)            items.push({ id: r.id, at: r.at, kind: "reply" });
     return items;
-  }, [myBuckets, teamTasks, replies]);
+  }, [myBuckets, replies]);
 
   // Auto-mark old items as seen so the badge only reflects genuinely new stuff.
   const jobsLoaded = useRef(false);
@@ -209,7 +228,7 @@ export default function NotificationBell() {
 
   const isNew = (id) => !seen.has(id);
   const totalMine = myBuckets.overdue.length + myBuckets.dueToday.length + myBuckets.upcoming.length;
-  const anything = totalMine || teamTasks.length || replies.length;
+  const anything = totalMine || myBuckets.upcoming.length || replies.length;
 
   return (
     <div ref={panelRef} className="relative">
@@ -249,9 +268,9 @@ export default function NotificationBell() {
               <p className="px-4 py-10 text-center text-xs text-navy-500">You&apos;re all clear.</p>
             ) : (
               <>
-                {/* My tasks */}
+                {/* Needs you now */}
                 {totalMine > 0 && (
-                  <Section title="My tasks" count={totalMine}>
+                  <Section title="Needs you now" count={totalMine}>
                     {myBuckets.overdue.length > 0 && (
                       <SubHead icon={FiAlertTriangle} tone="rose" label={`Overdue (${myBuckets.overdue.length})`} />
                     )}
@@ -264,21 +283,16 @@ export default function NotificationBell() {
                     {myBuckets.dueToday.map((t) => (
                       <TaskRow key={t.id} task={t} kind="due" isNew={isNew(`task-du-${t.id}`)} onClose={() => setOpen(false)} />
                     ))}
-                    {myBuckets.upcoming.length > 0 && (
-                      <SubHead icon={FiUser} tone="blue" label={`Assigned to you (${myBuckets.upcoming.length})`} />
-                    )}
-                    {myBuckets.upcoming.map((t) => (
-                      <TaskRow key={t.id} task={t} kind="upcoming" isNew={isNew(`task-up-${t.id}`)} onClose={() => setOpen(false)} />
-                    ))}
                   </Section>
                 )}
 
-                {/* Team tasks */}
-                {teamTasks.length > 0 && (
-                  <Section title="Team tasks" count={teamTasks.length}>
-                    <SubHead icon={FiUsers} tone="violet" label="Assigned to everyone" />
-                    {teamTasks.slice(0, 8).map((t) => (
-                      <TaskRow key={t.id} task={t} kind="team" isNew={isNew(`task-tm-${t.id}`)} onClose={() => setOpen(false)} />
+                {/* Coming up — context, deliberately not counted on the
+                    badge. Nothing here has a deadline that has arrived. */}
+                {myBuckets.upcoming.length > 0 && (
+                  <Section title="Coming up">
+                    <SubHead icon={FiUser} tone="blue" label={`Assigned to you (${myBuckets.upcoming.length})`} />
+                    {myBuckets.upcoming.map((t) => (
+                      <TaskRow key={t.id} task={t} kind="upcoming" isNew={false} onClose={() => setOpen(false)} />
                     ))}
                   </Section>
                 )}

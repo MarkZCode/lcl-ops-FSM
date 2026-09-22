@@ -91,8 +91,11 @@ function UserFooter({ user, onLogout, expanded = true, withControls = false, dar
       {/* Theme + notifications sit here rather than crowding the brand row. */}
       {withControls && (
         <div className={`mb-2 flex items-center ${expanded ? "gap-1 px-1" : "flex-col gap-1"}`}>
+          {/* Theme only. The bell lives in the top bar — the rail used to
+              carry a second one a few hundred pixels below it, showing the
+              same count, so a glance couldn't tell whether that was two
+              notifications or four. */}
           <ThemeToggle className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${dark ? "text-slate-300 hover:text-white" : "text-navy-500 hover:text-navy-900"}`} />
-          <NotificationBell />
         </div>
       )}
       <div
@@ -111,7 +114,7 @@ function UserFooter({ user, onLogout, expanded = true, withControls = false, dar
         >
           {user?.avatarUrl ? (
             <img src={user.avatarUrl} alt={user.username || user.name || ""}
-              className="h-9 w-9 rounded-full object-cover ring-2 ring-brand-400" />
+              className="h-9 w-9 rounded-full object-cover ring-2 ring-navy-900 dark:ring-white/70" />
           ) : (
             <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-500 text-xs font-bold text-white">
               {initials}
