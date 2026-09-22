@@ -95,7 +95,10 @@ export default function SendEmailModal({
     const tpl = templates[tplKey];
     if (!tpl) return;
     setSubject(renderTemplate(tpl.subject, ctx));
-    const sig = email.signature ? `\n\n${email.signature}` : "";
+    // The signature goes through renderTemplate as well. It ends with the
+    // sender's name, and the body now opens with "this is {{sender}} here"
+    // — signing off as someone else would give the whole thing away.
+    const sig = email.signature ? `\n\n${renderTemplate(email.signature, ctx)}` : "";
     setBody(renderTemplate(tpl.body, ctx) + sig);
     setTo(client?.email || "");
     setPhone(client?.phone || "");
@@ -215,6 +218,10 @@ export default function SendEmailModal({
           to,
           subject,
           text: body,
+          // The server maps this to the right mailbox (accounts@ for
+          // invoices, bookings@ for appointments, …) — see
+          // mailboxForPurpose in lib/emailProviders.js.
+          purpose: tplKey,
           fromName: email.fromName,
           fromEmail: email.fromEmail,
           replyTo: email.replyTo,

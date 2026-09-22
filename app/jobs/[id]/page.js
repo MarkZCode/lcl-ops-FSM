@@ -251,7 +251,9 @@ export default function JobDetailPage() {
     const { renderTemplate, buildContext } = await import("@/lib/email");
     const ctx = buildContext({ job: nextJob, client, property, email: emailSettings });
     const subject = renderTemplate(tpl.subject, ctx);
-    const body = renderTemplate(tpl.body, ctx) + (emailSettings?.signature ? `\n\n${emailSettings.signature}` : "");
+    // Signature rendered too — it signs off with {{sender}}, the same
+    // person the body introduces.
+    const body = renderTemplate(tpl.body, ctx) + (emailSettings?.signature ? `\n\n${renderTemplate(emailSettings.signature, ctx)}` : "");
     // job_completed now carries the invoice in the same email (see the
     // template rewrite in lib/settings.js) — same attachment path as a
     // dedicated Invoice send, or auto-notifying on "Completed" would fire
@@ -291,7 +293,7 @@ export default function JobDetailPage() {
         const res = await fetch("/api/send-email", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ to: client.email, subject, text: body, fromName: emailSettings?.fromName, fromEmail: emailSettings?.fromEmail, replyTo: emailSettings?.replyTo, attachments }),
+          body: JSON.stringify({ to: client.email, subject, text: body, purpose: tplKey, fromName: emailSettings?.fromName, fromEmail: emailSettings?.fromEmail, replyTo: emailSettings?.replyTo, attachments }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {

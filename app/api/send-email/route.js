@@ -14,7 +14,7 @@ import { requireUser, supabaseAdmin } from "@/lib/supabaseAdmin";
 import { rateLimitOr429, LIMITS } from "@/lib/rateLimit";
 import { sendEmailRaw } from "@/lib/emailSend";
 import { buildHtml } from "@/lib/emailTrack";
-import { EMAIL_PROVIDERS, resolveProvider } from "@/lib/emailProviders";
+import { EMAIL_PROVIDERS, resolveProvider, mailboxForPurpose } from "@/lib/emailProviders";
 
 // Loose RFC-5322-ish check — keeps obviously broken addresses out so the
 // SMTP server doesn't reject silently or, worse, accept and bounce later.
@@ -77,8 +77,18 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { to, subject, text, fromName, bcc, attachments, prospectId, campaignLabel, identity } = body || {};
-  const provider = resolveProvider(body?.provider);
+  const { to, subject, text, fromName, bcc, attachments, prospectId, campaignLabel, purpose } = body || {};
+  // Which mailbox this goes out from is decided HERE, not by the browser.
+  // mailboxForPurpose reads the Hostinger/Resend credentials to know what's
+  // actually available, and those are server-only env vars — asking the
+  // client would always get "not configured" and quietly send everything
+  // from Gmail. The caller sends the template purpose; the server maps it
+  // to accounts@ / bookings@ / certificates@ and so on. An explicit
+  // provider/identity in the request still wins, for the outreach paths
+  // that choose their own.
+  const routed = mailboxForPurpose(purpose);
+  const identity = body?.identity ?? routed.identity;
+  const provider = resolveProvider(body?.provider ?? routed.provider);
   const dailyCap = EMAIL_PROVIDERS[provider].dailyCap;
   // attachments: [{ filename, base64, contentType }]
   const atts = Array.isArray(attachments) ? attachments : [];
