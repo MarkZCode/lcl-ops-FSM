@@ -13,7 +13,7 @@ import {
   getVisits, isSplit, visitLines, unassignedLines, schedulableLines,
   deriveJobStatus, visitProgress, readyToInvoice, isVisitBooked,
   splitPerService, assignLineToVisit,
-  makeVisit, syncJobFromVisits, VISIT_STATUSES, VISIT_OUTCOMES,
+  makeVisit, syncJobFromVisits, VISIT_STATUSES, VISIT_OUTCOMES, isVisitConfirmed,
 } from "@/lib/visits";
 
 // Split a job into separate engineer visits — different people, different
@@ -96,7 +96,11 @@ export default function VisitsPanel({ job }) {
       if (v.id !== id) return v;
       const next = { ...v, ...patch };
       if (patch.status === undefined && ["pending", "scheduled"].includes(v.status)) {
-        next.status = isVisitBooked(next) ? "scheduled" : "pending";
+        // Booking a visit no longer marks it Scheduled on its own. Writing an
+        // engineer and a date against a leg is us making an offer; only the
+        // engineer confirming turns it into an appointment, and that's the
+        // Awaiting confirmation / Engineer confirmed control below.
+        next.status = isVisitBooked(next) && next.engineerConfirmedAt ? "scheduled" : "pending";
       }
       return next;
     });
@@ -272,6 +276,25 @@ export default function VisitsPanel({ job }) {
                 <span className={`pill ${VISIT_STATUSES.find((s) => s.key === v.status)?.pill || "pill-neutral"}`}>
                   {VISIT_STATUSES.find((s) => s.key === v.status)?.label || v.status}
                 </span>
+                {/* An engineer and a date on a visit is an OFFER. This is the
+                    record of them saying yes — and the job cannot reach
+                    Scheduled until every leg has it (see deriveJobStatus). */}
+                {isVisitBooked(v) && !["completed", "cancelled"].includes(v.status) && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      patchVisit(v.id, isVisitConfirmed(v)
+                        ? { engineerConfirmedAt: null, status: "pending" }
+                        : { engineerConfirmedAt: new Date().toISOString(), status: "scheduled" })
+                    }
+                    className={`pill ${isVisitConfirmed(v) ? "pill-green" : "pill-amber"} cursor-pointer`}
+                    title={isVisitConfirmed(v)
+                      ? "Engineer has confirmed. Click to undo."
+                      : "Mark that the engineer has confirmed this visit — the job can't be Scheduled until every leg is confirmed."}
+                  >
+                    {isVisitConfirmed(v) ? "Engineer confirmed" : "Awaiting confirmation"}
+                  </button>
+                )}
                 <span className="tnum ml-auto text-[13px] text-navy-500">{gbp(value)}</span>
                 <button
                   type="button"

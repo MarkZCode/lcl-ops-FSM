@@ -32,7 +32,7 @@ import { gbp, fmtDate, getJobLines, lineTotal, lineGross, jobDiscount, jobPayabl
 import { jobFinancialsSplit } from "@/lib/finance";
 import { dateLine, certLabel, acceptanceProgress } from "@/lib/jobCard";
 import { computeCertExpiry } from "@/lib/renewals";
-import { isSplit, getVisits, visitLines } from "@/lib/visits";
+import { isSplit, getVisits, visitLines, blockersForScheduling } from "@/lib/visits";
 import { supabase } from "@/lib/supabase";
 import StatusBadge from "@/components/StatusBadge";
 import JobModal from "@/components/JobModal";
@@ -209,6 +209,22 @@ export default function JobDetailPage() {
     if (s === "cancelled" && !extra.cancelReason) {
       setCancelOpen(true);
       return;
+    }
+    // A job cannot be called Scheduled while any of its services still has
+    // no engineer, no date, or an engineer who hasn't confirmed. The board
+    // showing "Scheduled" is what the morning is planned around — if it can
+    // say that while nobody has agreed to attend, it's worse than saying
+    // nothing. Blocked here rather than silently corrected, and the message
+    // names the exact services so it's actionable.
+    if (s === "scheduled") {
+      const blockers = blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer");
+      if (blockers.length) {
+        toast.error(
+          `Can't schedule ${job.id} yet — ${blockers.join("; ")}.`,
+          { duration: 8000 }
+        );
+        return;
+      }
     }
     const patch = { status: s, ...extra };
     if (DONE_STATUSES.includes(s) && !job.certExpiry) {
