@@ -52,12 +52,21 @@ export default function BottomNav() {
         drawerOpen ? "translate-y-full" : "translate-y-0"
       }`}
       style={{
-        // Only HALF the safe-area inset. The full inset pushed the tabs a
-        // long way up from the bottom edge, leaving the dead band the app
-        // appeared not to fill; half still clears the iOS home indicator /
-        // Android gesture bar while letting the tabs sit down where they
-        // belong.
-        paddingBottom: "calc(env(safe-area-inset-bottom) / 2)",
+        // Full safe-area inset — matching what AuthGate's scroll-area already
+        // pads its content by (pb-[calc(4rem+env(safe-area-inset-bottom))]).
+        // A previous pass here used HALF the inset instead, on the theory
+        // that the full value left a dead band the app didn't fill — but the
+        // real dead band was min-h-screen/h-screen using 100vh (see
+        // AuthGate.js), which on mobile Safari is sized off the largest
+        // possible viewport and can sit taller than the true visible screen.
+        // With that fixed to dvh, this needs the FULL inset again: padding
+        // is inside this element's own box, so the bar's background already
+        // reaches the true bottom edge regardless of how much padding sits
+        // here — the padding only decides how far the tap targets and their
+        // background sit above the home indicator / gesture bar, and the
+        // half-measure was putting them closer to it than the OS actually
+        // reserves for a native control there.
+        paddingBottom: "env(safe-area-inset-bottom)",
         // Translucent + blurred rather than an opaque bar with a hard border,
         // so content scrolling underneath reads as one continuous surface
         // instead of a separate box sitting on top of it — reported as "it

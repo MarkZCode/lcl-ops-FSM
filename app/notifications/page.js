@@ -157,6 +157,7 @@ function Inner() {
         icon={FiBell}
         title="Notifications"
         subtitle="Every task, reply and reminder — routed to the right person"
+        back={{ label: "Back" }}
         actions={
           filtered.length > 0 && (
             <button className="btn-outline text-sm" onClick={markAllRead}>

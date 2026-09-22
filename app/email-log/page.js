@@ -183,6 +183,7 @@ function EmailLogInner() {
         <PageHeader
           title="Email log"
           subtitle="One-time setup needed before the first email"
+          back={{ href: "/campaigns", label: "Back to Campaigns" }}
           actions={
             <button className="btn-secondary flex items-center gap-2" onClick={load}>
               <FiRefreshCw /> Re-check
@@ -280,6 +281,7 @@ function EmailLogInner() {
       <PageHeader
         title="Email log"
         subtitle="Daily quota, send history, and reply tracking"
+        back={{ href: "/campaigns", label: "Back to Campaigns" }}
         actions={
           <>
             <Link href="/prospects" className="btn-primary flex items-center gap-2">

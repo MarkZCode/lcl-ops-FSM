@@ -1,3 +1,9 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FiArrowLeft } from "react-icons/fi";
+
 // Page header. Sits directly below TopBar (desktop) or at the top of the
 // screen (mobile).
 //
@@ -12,7 +18,35 @@
 // the header follows the theme instead of assuming one.
 // On mobile with viewportFit:"cover" the header needs safe-area-inset-top padding
 // so the title isn't hidden under the notch / Dynamic Island.
-export default function PageHeader({ title, subtitle, actions, icon: Icon, meta }) {
+//
+// `back`: pages that are a drill-down rather than a nav/tab destination
+// (Summary, Inbox, Notifications, Email log, Import preview, …) pass this to
+// get the same "← Back to X" affordance /jobs/[id] and /clients/[id] already
+// had — those two just hard-coded their own Link instead of going through
+// here, which is why every OTHER drill-down page never got one: there was
+// nowhere shared to add it. `{ label }` alone uses router.back() (one screen
+// back, whichever of Dashboard/Reports/etc. you actually came from — Summary
+// opens from both); `{ href, label }` links to a fixed destination instead,
+// for pages that only ever have one sensible parent.
+function BackLink({ back }) {
+  const router = useRouter();
+  const label = back.label || "Back";
+  const className = "mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800 dark:text-slate-400 dark:hover:text-slate-200";
+  if (back.href) {
+    return (
+      <Link href={back.href} className={className}>
+        <FiArrowLeft /> {label}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={() => router.back()} className={className}>
+      <FiArrowLeft /> {label}
+    </button>
+  );
+}
+
+export default function PageHeader({ title, subtitle, actions, icon: Icon, meta, back }) {
   return (
     <div className="bar-navy rule-brand relative">
       <div
@@ -24,33 +58,36 @@ export default function PageHeader({ title, subtitle, actions, icon: Icon, meta 
         // the KPI row and the tables all line up on the same left edge. The
         // bar itself still spans the full width — only its contents are
         // constrained, which is what keeps the chrome looking continuous.
-        className="page flex items-center justify-between gap-3 !py-4 sm:!py-6 lg:!pt-5"
+        className="page flex flex-col !py-4 sm:!py-6 lg:!pt-5"
         style={{ paddingTop: "calc(1.25rem + env(safe-area-inset-top))" }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          {Icon && (
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy-50 text-navy-700 ring-1 ring-navy-200 sm:h-10 sm:w-10">
-              <Icon className="h-5 w-5" />
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-navy-400 dark:text-navy-500">
-              Landlord Compliance London
-            </p>
-            <h1 className="mt-0.5 truncate text-lg font-bold tracking-tight text-navy-900 sm:text-2xl">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="mt-0.5 truncate text-sm text-navy-500">{subtitle}</p>
+        {back && <BackLink back={back} />}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {Icon && (
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy-50 text-navy-700 ring-1 ring-navy-200 sm:h-10 sm:w-10">
+                <Icon className="h-5 w-5" />
+              </span>
             )}
-            {meta && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>
-            )}
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-navy-400 dark:text-navy-500">
+                Landlord Compliance London
+              </p>
+              <h1 className="mt-0.5 truncate text-lg font-bold tracking-tight text-navy-900 sm:text-2xl">
+                {title}
+              </h1>
+              {subtitle && (
+                <p className="mt-0.5 truncate text-sm text-navy-500">{subtitle}</p>
+              )}
+              {meta && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>
+              )}
+            </div>
           </div>
+          {actions && (
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          )}
         </div>
-        {actions && (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
-        )}
       </div>
     </div>
   );

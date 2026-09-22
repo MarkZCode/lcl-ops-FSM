@@ -104,6 +104,7 @@ function InboxInner() {
       <PageHeader
         title="Inbox"
         subtitle="Live Gmail feed — incoming and outgoing"
+        back={{ label: "Back" }}
         actions={
           <button onClick={() => load()} disabled={refreshing}
             className="btn-secondary flex items-center gap-2">

@@ -74,7 +74,17 @@ export default function AuthGate({ children }) {
             so it started to the right of the sidebar and the app had no
             single clean top edge — which is the main structural difference
             from the reference layout. */}
-        <div className="flex min-h-screen w-full max-w-[100vw] flex-col overflow-x-hidden lg:h-screen">
+        {/* dvh, not the plain vh min-h-screen/h-screen gave us — on mobile
+            Safari, 100vh is sized off the LARGEST possible viewport (address
+            bar hidden), which is taller than what's actually on screen once
+            that bar (or, in a standalone/home-screen install, nothing at
+            all) settles. The shell then measured itself against a viewport
+            bigger than the real one, leaving a dead strip of the true screen
+            below everything else it painted — including the fixed bottom
+            nav, which sat that same distance above the true bottom edge
+            ("nav bar is way up, leaving a lot of space"). dvh tracks the
+            viewport the browser is actually showing right now. */}
+        <div className="flex min-h-dvh w-full max-w-[100vw] flex-col overflow-x-hidden lg:h-dvh">
           <SyncErrorBanner />
           <TopBar />
           <div className="flex min-h-0 w-full flex-1 flex-col overflow-x-hidden lg:flex-row">

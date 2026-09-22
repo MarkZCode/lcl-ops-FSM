@@ -344,6 +344,7 @@ export default function ImportPage() {
       <PageHeader
         title="Import Jobs & Clients"
         subtitle="Bulk import from CSV export or screenshot scraper"
+        back={{ label: "Back" }}
       />
 
       <div className="p-4 sm:p-8">

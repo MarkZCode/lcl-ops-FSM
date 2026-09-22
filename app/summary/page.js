@@ -521,6 +521,7 @@ function SummaryInner() {
         icon={FiPieChart}
         title="Summary"
         subtitle={`Everything for ${range.label}, laid out end to end`}
+        back={{ label: "Back" }}
         actions={
           <button onClick={downloadCsv} disabled={busy} className="btn-primary shrink-0">
             <FiDownload /> <span className="hidden sm:inline">Download CSV</span><span className="sm:hidden">CSV</span>
