@@ -74,17 +74,19 @@ export default function AuthGate({ children }) {
             so it started to the right of the sidebar and the app had no
             single clean top edge — which is the main structural difference
             from the reference layout. */}
-        {/* dvh, not the plain vh min-h-screen/h-screen gave us — on mobile
-            Safari, 100vh is sized off the LARGEST possible viewport (address
-            bar hidden), which is taller than what's actually on screen once
-            that bar (or, in a standalone/home-screen install, nothing at
-            all) settles. The shell then measured itself against a viewport
-            bigger than the real one, leaving a dead strip of the true screen
-            below everything else it painted — including the fixed bottom
-            nav, which sat that same distance above the true bottom edge
-            ("nav bar is way up, leaving a lot of space"). dvh tracks the
-            viewport the browser is actually showing right now. */}
-        <div className="flex min-h-dvh w-full max-w-[100vw] flex-col overflow-x-hidden lg:h-dvh">
+        {/* --app-height (set in ViewportHeightFix.js from window.innerHeight,
+            in real pixels) instead of a vh/dvh unit. 100vh measures off the
+            LARGEST possible mobile Safari viewport (address bar hidden) —
+            taller than what's really on screen — and switching to 100dvh
+            didn't close the gap either: this app runs installed to the home
+            screen (standalone display), where dvh support has its own
+            history of WebKit bugs not tracking the true visual viewport.
+            Either way the symptom was the same: the shell measured itself
+            against the wrong number and left a dead strip of real screen
+            below everything it painted, including the fixed bottom nav
+            ("still not going to the bottom... leaving like 20% of the
+            screen untouched"). window.innerHeight has no such ambiguity. */}
+        <div className="flex min-h-[var(--app-height,100dvh)] w-full max-w-[100vw] flex-col overflow-x-hidden lg:h-[var(--app-height,100dvh)]">
           <SyncErrorBanner />
           <TopBar />
           <div className="flex min-h-0 w-full flex-1 flex-col overflow-x-hidden lg:flex-row">

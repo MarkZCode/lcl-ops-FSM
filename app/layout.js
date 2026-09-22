@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import AuthGate from "@/components/AuthGate";
 import PWARegister from "@/components/PWARegister";
+import ViewportHeightFix from "@/components/ViewportHeightFix";
 
 // TWO faces, deliberately — one family everywhere is what made small text
 // read soft, because a face that looks premium in a headline looks juvenile
@@ -70,12 +71,19 @@ export default function RootLayout({ children }) {
               // surface and reads washed out on white. Only an explicit
               // "light" choice from the toggle opts out; everyone else,
               // including OS-light users, gets dark.
-              "try{var t=localStorage.getItem('lcl-theme');var isDark=t!=='light';if(isDark)document.documentElement.classList.add('dark');var m=document.createElement('meta');m.name='theme-color';m.content=isDark?'#0a0a0a':'#f6f6f7';document.head.appendChild(m)}catch(e){document.documentElement.classList.add('dark')}",
+              // Same reasoning as ViewportHeightFix.js: set --app-height
+              // before first paint (blocking script, runs before body
+              // renders) from window.innerHeight, the one number that can't
+              // be wrong, instead of the shell painting one frame against a
+              // vh/dvh unit that mobile Safari has repeatedly gotten wrong
+              // for this app. ViewportHeightFix keeps it updated after this.
+              "try{var t=localStorage.getItem('lcl-theme');var isDark=t!=='light';if(isDark)document.documentElement.classList.add('dark');var m=document.createElement('meta');m.name='theme-color';m.content=isDark?'#0a0a0a':'#f6f6f7';document.head.appendChild(m);document.documentElement.style.setProperty('--app-height',window.innerHeight+'px')}catch(e){document.documentElement.classList.add('dark')}",
           }}
         />
       </head>
       <body>
         <PWARegister />
+        <ViewportHeightFix />
         <AuthProvider>
           <AuthGate>{children}</AuthGate>
         </AuthProvider>
