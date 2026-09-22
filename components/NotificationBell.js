@@ -265,7 +265,7 @@ export default function NotificationBell() {
     <div ref={panelRef} className="relative">
       <button
         onClick={handleToggle}
-        className="relative grid h-9 w-9 place-items-center rounded-lg text-navy-400 hover:bg-navy-800 hover:text-white"
+        className="relative grid h-9 w-9 place-items-center rounded-lg text-navy-500 hover:bg-navy-100 hover:text-navy-900 dark:text-navy-400 dark:hover:bg-navy-800 dark:hover:text-white"
         aria-label={`Notifications${unreadCount ? ` (${unreadCount} unread)` : ""}`}
       >
         <FiBell className="h-[18px] w-[18px]" />
@@ -277,18 +277,23 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="fixed right-4 top-[3.75rem] z-[9998] w-[min(calc(100vw-2rem),22rem)] rounded-2xl border border-navy-700 bg-navy-900 shadow-2xl lg:absolute lg:left-full lg:right-auto lg:top-0 lg:ml-2 lg:w-96">
-          <div className="flex items-center justify-between border-b border-navy-700 px-4 py-3">
+        // Anchored to the bell's RIGHT edge and dropping below it.
+        // `lg:left-full` opened the panel to the right of the button — which
+        // was right when the bell lived in the sidebar rail, and wrong the
+        // moment it moved to the top bar, where the button already sits at
+        // the right edge of the window. The panel simply ran off the screen.
+        <div className="fixed right-4 top-[3.75rem] z-[9998] w-[min(calc(100vw-2rem),22rem)] overflow-hidden rounded-2xl border border-navy-200 bg-white shadow-2xl lg:absolute lg:right-0 lg:left-auto lg:top-full lg:mt-2 lg:w-96 dark:border-navy-700 dark:bg-navy-900">
+          <div className="flex items-center justify-between border-b border-navy-100 px-4 py-3 dark:border-navy-700">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-bold text-white">Notifications</p>
+              <p className="text-sm font-bold text-navy-900 dark:text-white">Notifications</p>
               {unreadCount > 0 && <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{unreadCount}</span>}
             </div>
             <div className="flex items-center gap-1">
               <Link href="/notifications" onClick={() => setOpen(false)}
-                className="rounded-md px-2 py-1 text-[11px] font-semibold text-navy-300 hover:bg-navy-800 hover:text-white">
+                className="rounded-md px-2 py-1 text-[11px] font-semibold text-navy-500 hover:bg-navy-100 hover:text-navy-900 dark:text-navy-300 dark:hover:bg-navy-800 dark:hover:text-white">
                 See all →
               </Link>
-              <button onClick={() => setOpen(false)} className="text-navy-400 hover:text-white">
+              <button onClick={() => setOpen(false)} className="text-navy-400 hover:text-navy-900 dark:hover:text-white">
                 <FiX className="h-4 w-4" />
               </button>
             </div>
@@ -296,7 +301,7 @@ export default function NotificationBell() {
 
           <div className="scroll-area max-h-[70vh] overflow-y-auto">
             {!anything ? (
-              <p className="px-4 py-10 text-center text-xs text-navy-500">You&apos;re all clear.</p>
+              <p className="px-4 py-10 text-center text-xs text-navy-500 dark:text-navy-400">You&apos;re all clear.</p>
             ) : (
               <>
                 {/* Needs you now */}
@@ -336,20 +341,20 @@ export default function NotificationBell() {
                         key={a.id}
                         href={`/jobs/${a.jobId}`}
                         onClick={() => setOpen(false)}
-                        className="flex items-start gap-3 border-b border-navy-800 px-4 py-3 hover:bg-navy-800"
+                        className="flex items-start gap-3 border-b border-navy-100 px-4 py-3 hover:bg-navy-50 dark:border-navy-800 dark:hover:bg-navy-800"
                       >
-                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-900 text-blue-400">
+                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400">
                           <FiCornerDownLeft className="h-3.5 w-3.5" />
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline justify-between gap-1">
-                            <p className="truncate text-xs font-semibold text-white">{a.clientName}</p>
-                            <span className="shrink-0 text-[10px] text-navy-500">{fmtDate(a.at)}</span>
+                            <p className="truncate text-xs font-semibold text-navy-900 dark:text-white">{a.clientName}</p>
+                            <span className="shrink-0 text-[10px] text-navy-400">{fmtDate(a.at)}</span>
                           </div>
-                          <p className="text-[11px] text-navy-400">
+                          <p className="text-[11px] text-navy-500 dark:text-navy-400">
                             {a.jobId}
                             {a.replyCount > 1 && (
-                              <span className="ml-1.5 rounded bg-navy-800 px-1.5 py-0.5 text-[10px] font-semibold text-navy-300">
+                              <span className="ml-1.5 rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-600 dark:bg-navy-800 dark:text-navy-300">
                                 {a.replyCount} replies
                               </span>
                             )}
@@ -357,7 +362,7 @@ export default function NotificationBell() {
                           {/* First NON-EMPTY line. Leading with line one gave
                               a wall of rows reading "Hi" and "Hi Lisa" — the
                               greeting, never the message. */}
-                          <p className="mt-0.5 text-xs text-navy-300 line-clamp-2">{replyPreview(a.detail)}</p>
+                          <p className="mt-0.5 text-xs text-navy-600 line-clamp-2 dark:text-navy-300">{replyPreview(a.detail)}</p>
                         </div>
                         {isNew(a.id) && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-400" />}
                       </Link>
@@ -375,10 +380,10 @@ export default function NotificationBell() {
 
 function Section({ title, count, children }) {
   return (
-    <div className="border-b border-navy-800 last:border-b-0">
-      <div className="flex items-center justify-between px-4 py-2 bg-navy-950/40">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-navy-400">{title}</span>
-        <span className="rounded-full bg-navy-800 px-1.5 py-0.5 text-[10px] font-bold text-navy-300">{count}</span>
+    <div className="border-b border-navy-100 last:border-b-0 dark:border-navy-800">
+      <div className="flex items-center justify-between bg-navy-50 px-4 py-2 dark:bg-navy-950/40">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-navy-500 dark:text-navy-400">{title}</span>
+        <span className="rounded-full bg-navy-200 px-1.5 py-0.5 text-[10px] font-bold text-navy-700 dark:bg-navy-800 dark:text-navy-300">{count}</span>
       </div>
       <div>{children}</div>
     </div>
@@ -386,12 +391,15 @@ function Section({ title, count, children }) {
 }
 
 function SubHead({ icon: Icon, tone, label }) {
+  // The -300 shades were picked to sit on a dark sidebar. On the white
+  // panel they're barely legible, so each tone gets a readable light-mode
+  // weight and keeps the original for dark.
   const toneClass = {
-    rose:   "text-rose-300",
-    amber:  "text-amber-300",
-    blue:   "text-blue-300",
-    violet: "text-violet-300",
-  }[tone] || "text-navy-300";
+    rose:   "text-rose-600 dark:text-rose-300",
+    amber:  "text-amber-600 dark:text-amber-300",
+    blue:   "text-blue-600 dark:text-blue-300",
+    violet: "text-violet-600 dark:text-violet-300",
+  }[tone] || "text-navy-500 dark:text-navy-300";
   return (
     <div className={`flex items-center gap-1.5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-wider ${toneClass}`}>
       <Icon className="h-3 w-3" />{label}
@@ -413,14 +421,14 @@ function TaskRow({ task, kind, isNew, onClose }) {
     <Link
       href={taskDeepLink(task)}
       onClick={onClose}
-      className="flex items-start gap-3 border-b border-navy-800 px-4 py-3 last:border-b-0 hover:bg-navy-800 transition"
+      className="flex items-start gap-3 border-b border-navy-100 px-4 py-3 transition last:border-b-0 hover:bg-navy-50 dark:border-navy-800 dark:hover:bg-navy-800"
     >
-      <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-navy-800">
+      <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-navy-100 dark:bg-navy-800">
         <FiCheckSquare className={`h-3.5 w-3.5 ${kind === "overdue" ? "text-rose-400" : kind === "due" ? "text-amber-400" : "text-brand-400"}`} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-1">
-          <p className="truncate text-xs font-semibold text-white">{task.title}</p>
+          <p className="truncate text-xs font-semibold text-navy-900 dark:text-white">{task.title}</p>
           <span className={`shrink-0 text-[10px] font-semibold ${overdue ? "text-rose-400" : d === 0 ? "text-amber-400" : "text-navy-500"}`}>
             {dueLabel || fmtDate(task.createdAt)}
           </span>
@@ -430,12 +438,12 @@ function TaskRow({ task, kind, isNew, onClose }) {
             <span className={`h-1 w-1 rounded-full ${p.dot}`} />{p.label}
           </span>
           {linkedLabel && (
-            <span className="truncate text-[11px] text-navy-400">→ {linkedLabel}</span>
+            <span className="truncate text-[11px] text-navy-500 dark:text-navy-400">→ {linkedLabel}</span>
           )}
         </div>
       </div>
       {isNew && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-400" />}
-      <FiChevronRight className="mt-2 h-3 w-3 shrink-0 text-navy-600" />
+      <FiChevronRight className="mt-2 h-3 w-3 shrink-0 text-navy-300 dark:text-navy-600" />
     </Link>
   );
 }
