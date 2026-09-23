@@ -52,21 +52,24 @@ export default function BottomNav() {
         drawerOpen ? "translate-y-full" : "translate-y-0"
       }`}
       style={{
-        // Full safe-area inset — matching what AuthGate's scroll-area already
-        // pads its content by (pb-[calc(4rem+env(safe-area-inset-bottom))]).
-        // A previous pass here used HALF the inset instead, on the theory
-        // that the full value left a dead band the app didn't fill — but the
-        // real dead band was min-h-screen/h-screen using 100vh (see
-        // AuthGate.js), which on mobile Safari is sized off the largest
-        // possible viewport and can sit taller than the true visible screen.
-        // With that fixed to dvh, this needs the FULL inset again: padding
-        // is inside this element's own box, so the bar's background already
-        // reaches the true bottom edge regardless of how much padding sits
-        // here — the padding only decides how far the tap targets and their
-        // background sit above the home indicator / gesture bar, and the
-        // half-measure was putting them closer to it than the OS actually
-        // reserves for a native control there.
-        paddingBottom: "env(safe-area-inset-bottom)",
+        // NO safe-area padding here — none. Three passes tried a value here
+        // (full inset, then half, then full again paired with a dvh/
+        // innerHeight shell fix) and every one of them left a real, visible
+        // gap between this bar and the true bottom edge, reported each time
+        // ("still not going to the bottom... 20% of the screen untouched").
+        // This app runs installed to the home screen (standalone display),
+        // where window.innerHeight (what --app-height in AuthGate.js is now
+        // built from) already comes back SHORTER than the physical screen —
+        // iOS has already carved the home-indicator strip out of it. Adding
+        // env(safe-area-inset-bottom) again on top of that reserved the same
+        // strip a second time, and what showed through in that doubled gap
+        // wasn't even this app's own background — it was the OS/PWA chrome
+        // behind the page, which is why it stayed a flat light grey in the
+        // screenshot even though the app itself was in dark mode: nothing of
+        // ours was painting there. Zero padding lets the bar's own
+        // background reach the actual edge instead of stopping a second
+        // safe-area short of it.
+        paddingBottom: 0,
         // Translucent + blurred rather than an opaque bar with a hard border,
         // so content scrolling underneath reads as one continuous surface
         // instead of a separate box sitting on top of it — reported as "it

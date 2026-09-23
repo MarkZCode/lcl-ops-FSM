@@ -91,9 +91,12 @@ export default function AuthGate({ children }) {
           <TopBar />
           <div className="flex min-h-0 w-full flex-1 flex-col overflow-x-hidden lg:flex-row">
             <Sidebar />
-            {/* Mobile bottom padding = tab-bar height (4rem) + notch safe-area,
-                so the footer is never hidden behind the bottom nav. */}
-            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(4rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
+            {/* Mobile bottom padding = just the tab-bar's own height (4rem).
+                No added env(safe-area-inset-bottom) here any more — see the
+                comment in BottomNav.js on why that was reserving the home
+                indicator strip a second time, on top of the one already
+                baked out of window.innerHeight in this standalone install. */}
+            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-16 lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
             <div className="flex min-h-full flex-col">
               <main className="flex-1 min-w-0">{children}</main>
               <footer className="bar-navy border-t border-white/[0.06] px-5 py-3 sm:px-8">
@@ -117,7 +120,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v97</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v98</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed
