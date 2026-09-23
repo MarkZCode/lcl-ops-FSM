@@ -48,34 +48,29 @@ export default function BottomNav() {
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-30 backdrop-blur-md transition-transform duration-300 ease-out will-change-transform lg:hidden ${
+      className={`fixed inset-x-0 bottom-0 z-30 transition-transform duration-300 ease-out will-change-transform lg:hidden ${
         drawerOpen ? "translate-y-full" : "translate-y-0"
       }`}
       style={{
-        // NO safe-area padding here — none. Three passes tried a value here
-        // (full inset, then half, then full again paired with a dvh/
-        // innerHeight shell fix) and every one of them left a real, visible
-        // gap between this bar and the true bottom edge, reported each time
-        // ("still not going to the bottom... 20% of the screen untouched").
-        // This app runs installed to the home screen (standalone display),
-        // where window.innerHeight (what --app-height in AuthGate.js is now
-        // built from) already comes back SHORTER than the physical screen —
-        // iOS has already carved the home-indicator strip out of it. Adding
-        // env(safe-area-inset-bottom) again on top of that reserved the same
-        // strip a second time, and what showed through in that doubled gap
-        // wasn't even this app's own background — it was the OS/PWA chrome
-        // behind the page, which is why it stayed a flat light grey in the
-        // screenshot even though the app itself was in dark mode: nothing of
-        // ours was painting there. Zero padding lets the bar's own
-        // background reach the actual edge instead of stopping a second
-        // safe-area short of it.
+        // NO safe-area padding here — none. This app runs installed to the
+        // home screen (standalone display), where window.innerHeight (what
+        // --app-height in AuthGate.js is built from) already comes back
+        // SHORTER than the physical screen — iOS has already carved the
+        // home-indicator strip out of it. Adding env(safe-area-inset-bottom)
+        // again on top of that reserved the same strip a second time.
         paddingBottom: 0,
-        // Translucent + blurred rather than an opaque bar with a hard border,
-        // so content scrolling underneath reads as one continuous surface
-        // instead of a separate box sitting on top of it — reported as "it
-        // looks separated".
-        backgroundColor: "color-mix(in srgb, var(--surface-card) 85%, transparent)",
-        borderTop: "1px solid color-mix(in srgb, var(--hairline) 60%, transparent)",
+        // Solid, not translucent. This used backdrop-blur-md over a
+        // color-mix(...,transparent) background for a "content reads as one
+        // continuous surface" effect — but backdrop-filter on a fixed,
+        // always-on-screen element is a well-documented WebKit compositing
+        // trap on iOS: it can silently drop out of the render tree after a
+        // scroll, a theme change, or seemingly nothing, and the fix isn't a
+        // CSS tweak, it's not using backdrop-filter there at all. This bar
+        // has now failed three different ways (sliding away mid-scroll, a
+        // gap below it, and outright not rendering on some screens) — a
+        // primary nav needs to just always be there over looking fancy.
+        backgroundColor: "var(--surface-card)",
+        borderTop: "1px solid var(--hairline)",
       }}
     >
       <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))` }}>
