@@ -10,37 +10,48 @@ module.exports = {
     extend: {
       colors: {
         // Same brand palette as the LCL website (logo navy + green).
+        // Apple's neutral ladder. This palette is used for nearly all text,
+        // borders and muted surfaces across the app, so retargeting it here
+        // moves the whole product onto Apple's greys in one place rather
+        // than through 200 components. #1d1d1f at the dark end is the
+        // system's near-black ink — never pure black, which is reserved
+        // for the nav and for true void.
         navy: {
-          50: "#eef1f6",
-          100: "#d4dbe8",
-          200: "#a7b6cf",
-          300: "#7488ad",
-          400: "#4a6088",
-          500: "#2f456b",
-          600: "#22344f",
-          700: "#1a283d",
-          800: "#14213d",
-          900: "#0c1626",
-          950: "#070d18",
+          50: "#f5f5f7",
+          100: "#e8e8ed",
+          200: "#d2d2d7",
+          300: "#b0b0b5",
+          400: "#86868b",
+          500: "#6e6e73",
+          600: "#4a4a4d",
+          700: "#333333",
+          800: "#1d1d1f",
+          900: "#1d1d1f",
+          950: "#000000",
         },
+        // Action Blue. The single interactive colour — every link, every
+        // filled action, every focus signal. 500 is #0066cc exactly; 600
+        // is the focus-ring sibling; 400 is the on-dark variant, because
+        // Action Blue disappears against a #272729 tile.
         brand: {
-          50: "#eef8ef",
-          100: "#d6eed9",
-          200: "#aedcb3",
-          300: "#7cc486",
-          400: "#54ad60",
-          500: "#3fa34d",
-          600: "#2f8a3d",
-          700: "#276f32",
-          800: "#22592b",
-          900: "#1d4925",
+          50: "#f0f7ff",
+          100: "#dbeeff",
+          200: "#b3dcff",
+          300: "#66b5ff",
+          400: "#2997ff",
+          500: "#0066cc",
+          600: "#0071e3",
+          700: "#0055aa",
+          800: "#004488",
+          900: "#003366",
         },
       },
       fontFamily: {
-        // Inter Tight for UI, Space Grotesk for display — see the note in
-        // app/layout.js for why it's two families and not one.
-        sans: ["var(--font-sans)", "var(--font-inter)", "ui-sans-serif", "system-ui", "sans-serif"],
-        heading: ["var(--font-heading)", "var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        // SF Pro first — on the Macs and iPhones this is used on, these
+        // names resolve to the real system faces. --font-sans / --font-heading
+        // are the next/font Inter Tight fallbacks for everywhere else.
+        sans: ['"SF Pro Text"', "system-ui", "-apple-system", "BlinkMacSystemFont", "var(--font-sans)", "sans-serif"],
+        heading: ['"SF Pro Display"', "system-ui", "-apple-system", "BlinkMacSystemFont", "var(--font-heading)", "var(--font-sans)", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       boxShadow: {

@@ -5,26 +5,20 @@ import AuthGate from "@/components/AuthGate";
 import PWARegister from "@/components/PWARegister";
 import ViewportHeightFix from "@/components/ViewportHeightFix";
 
-// TWO faces, deliberately — one family everywhere is what made small text
-// read soft, because a face that looks premium in a headline looks juvenile
-// in a 12px label.
+// SF Pro, with Inter Tight as the fallback for non-Apple platforms.
 //
-//   Inter Tight    — all UI text: labels, table cells, buttons, body.
-//                    Inter's proportions with tighter sidebearings, so a
-//                    dense table of figures fits more per row without
-//                    dropping the size. Neutral on purpose: at 12–15px,
-//                    personality is noise.
-//   Space Grotesk  — display only: page titles and big figures. Sharp
-//                    terminals and a slightly technical cut — character
-//                    without roundness.
+//   --font-sans     SF Pro Text    — body, tables, labels, buttons (<20px)
+//   --font-heading  SF Pro Display — titles and big figures (>=19px)
 //
-// History: IBM Plex Sans ("institutional"), then Plus Jakarta to match a
-// supplied reference, then Inter + Outfit. Outfit was the problem: a
-// geometric face whose round bowls and single-storey shapes read as
-// childish at display sizes on a finance screen. Replaced at the owner's
-// request, Sep 2026, after offering four directions — this is the one
-// they picked. Don't collapse it to one family, and don't reintroduce a
-// round geometric for headings, without checking with the owner.
+// `-apple-system` resolves to the real SF Pro on macOS, iOS and Safari,
+// which is every device this is actually used on. Everywhere else the
+// stack falls through to Inter Tight, the closest open substitute — still
+// loaded via next/font so that fallback is a real webfont rather than
+// whatever the machine happens to have.
+//
+// History: IBM Plex Sans, then Plus Jakarta, then Inter + Outfit, then
+// Inter Tight + Space Grotesk. Moved onto SF Pro in Sep 2026 when the
+// owner asked for the Apple system applied in full.
 const inter = Inter_Tight({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-sans" });
 const plex = Inter_Tight({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-inter" });
 const plexHeading = Space_Grotesk({ subsets: ["latin"], display: "swap", weight: ["500", "600", "700"], variable: "--font-heading" });

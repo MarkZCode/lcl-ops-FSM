@@ -16,23 +16,31 @@
 :root {
   --font-inter: "Inter", system-ui, sans-serif;
 
-  --surface-page:   #f6f6f7;
+  /* Apple: parchment page, white cards, pearl for secondary fills. The
+     tile alternation between page and card IS the section divider, which
+     is why the hairlines below get so much quieter. */
+  --surface-page:   #f5f5f7;   /* parchment */
   --surface-card:   #ffffff;
-  --surface-raised: #f1f1f3;
-  --surface-sunken: #fafafb;
+  --surface-raised: #fafafc;   /* pearl */
+  --surface-sunken: #f5f5f7;
 
   /* Light mode is the opt-out, but it still has to hold up. These were a
      touch too faint — hairlines you could barely see and muted text that
      read as washed out rather than quiet. */
-  --hairline:        rgba(13, 28, 51, 0.13);
-  --hairline-strong: rgba(13, 28, 51, 0.22);
+  --hairline:        rgba(0, 0, 0, 0.08);
+  --hairline-strong: #e0e0e0;
 
-  --text-primary:   #0b1420;
-  --text-secondary: #45505f;
-  --text-muted:     #6b7583;
+  /* Near-black, not pure black — keeps the page photographic rather than
+     printed. One ink for all text on light surfaces. */
+  --text-primary:   #1d1d1f;
+  --text-secondary: #333333;
+  --text-muted:     #7a7a7a;
 
-  --accent:      #3fa34d;
-  --accent-text: #2f8a3d;
+  /* Action Blue. The single interactive colour in the system — every
+     link, every filled action, every focus ring. There is no second
+     accent by design. */
+  --accent:      #0066cc;
+  --accent-text: #0066cc;
   --pos:         #16a34a;
   --neg:         #e11d48;
 
@@ -40,8 +48,12 @@
      and these two tokens drive everything: cards, panels, modals, inputs,
      buttons, and every .rounded-xl/.rounded-2xl via the normalisation below.
      Softened to sit closer to the rounded, calmer reference dashboards. */
-  --radius-card: 28px;
-  --radius-ctl:  18px;
+  /* Apple's radius ladder: 18px for cards, pill for anything that reads
+     as an action. Nothing in between. */
+  --radius-card: 18px;
+  --radius-ctl:  9999px;
+  --radius-field: 12px;  /* multi-line + select, where a pill reads wrong */
+  --shadow-product: rgba(0, 0, 0, 0.22) 3px 5px 30px 0;
 
   /* ── Clay ──────────────────────────────────────────────────────────
      Claymorphism: surfaces read as soft, moulded objects rather than
@@ -60,30 +72,19 @@
      One token per role so the whole look is retuned from here, not by
      hunting box-shadows through 1,100 lines. */
   --clay:
-    0 18px 30px -18px rgba(13, 28, 51, 0.22),
-    0 5px 10px -6px  rgba(13, 28, 51, 0.10),
-    inset 0 2px 4px -2px rgba(255, 255, 255, 0.90),
-    inset 0 -4px 8px -5px rgba(13, 28, 51, 0.10);
+    none;
   --clay-lift:
-    0 26px 40px -20px rgba(13, 28, 51, 0.26),
-    0 8px 14px -8px   rgba(13, 28, 51, 0.12),
-    inset 0 2px 4px -2px rgba(255, 255, 255, 0.90),
-    inset 0 -4px 8px -5px rgba(13, 28, 51, 0.10);
+    none;
   /* Buttons are smaller, so the same shadow scaled down — plus a real
      pressed state, because a clay button that doesn't squash when you
      push it is the thing that makes the style look fake. */
   --clay-btn:
-    0 7px 14px -7px rgba(13, 28, 51, 0.30),
-    0 2px 4px -2px  rgba(13, 28, 51, 0.16),
-    inset 0 2px 3px -2px rgba(255, 255, 255, 0.45),
-    inset 0 -3px 5px -3px rgba(13, 28, 51, 0.22);
+    none;
   --clay-btn-pressed:
-    inset 0 3px 7px -2px rgba(13, 28, 51, 0.30),
-    inset 0 -1px 2px -1px rgba(255, 255, 255, 0.30);
+    none;
   /* Inputs are the inverse: pressed INTO the clay, not sitting on it. */
   --clay-inset:
-    inset 0 2px 5px -2px rgba(13, 28, 51, 0.15),
-    inset 0 -1px 1px 0   rgba(255, 255, 255, 0.70);
+    none;
 }
 
 .dark {
@@ -93,20 +94,24 @@
   /* TRUE NEUTRAL — no blue in the greys. The old values carried a slate
      cast (#9ba1ab, #0a0a0c) which, combined with the unmapped blue-tinted
      navy-200/300 steps below, is what made the whole app read "bluish". */
-  --surface-page:   #0a0a0a;
-  --surface-card:   #141415;
-  --surface-raised: #1c1c1e;
-  --surface-sunken: #0f0f10;
+  /* The near-black tile set. Three micro-steps so a dark surface sitting
+     directly on another still separates, without a border. */
+  --surface-page:   #000000;   /* true void */
+  --surface-card:   #272729;   /* tile 1 */
+  --surface-raised: #2a2a2c;   /* tile 2 — a step lighter */
+  --surface-sunken: #252527;   /* tile 3 — a step darker */
 
-  --hairline:        rgba(255, 255, 255, 0.08);
-  --hairline-strong: rgba(255, 255, 255, 0.15);
+  --hairline:        rgba(255, 255, 255, 0.10);
+  --hairline-strong: rgba(255, 255, 255, 0.18);
 
-  --text-primary:   #fafafa;
-  --text-secondary: #a1a1a8;
-  --text-muted:     #71717a;
+  --text-primary:   #ffffff;
+  --text-secondary: #cccccc;
+  --text-muted:     #86868b;
 
-  --accent:      #3fa34d;
-  --accent-text: #4ea95c;
+  /* Sky Link Blue. Action Blue disappears against a #272729 tile, so the
+     dark surfaces get the brighter sibling. */
+  --accent:      #2997ff;
+  --accent-text: #2997ff;
   --pos:         #4ade80;
   --neg:         #fb7185;
 
@@ -115,26 +120,15 @@
      percent white — at light-mode strength it reads as a hard chrome rim
      rather than a lit clay edge. */
   --clay:
-    0 18px 30px -18px rgba(0, 0, 0, 0.85),
-    0 5px 10px -6px  rgba(0, 0, 0, 0.60),
-    inset 0 1px 1px 0   rgba(255, 255, 255, 0.06),
-    inset 0 -4px 8px -5px rgba(0, 0, 0, 0.55);
+    none;
   --clay-lift:
-    0 26px 40px -20px rgba(0, 0, 0, 0.95),
-    0 8px 14px -8px   rgba(0, 0, 0, 0.65),
-    inset 0 1px 1px 0   rgba(255, 255, 255, 0.09),
-    inset 0 -4px 8px -5px rgba(0, 0, 0, 0.55);
+    none;
   --clay-btn:
-    0 7px 14px -7px rgba(0, 0, 0, 0.75),
-    0 2px 4px -2px  rgba(0, 0, 0, 0.55),
-    inset 0 1px 1px 0   rgba(255, 255, 255, 0.14),
-    inset 0 -3px 5px -3px rgba(0, 0, 0, 0.45);
+    none;
   --clay-btn-pressed:
-    inset 0 3px 7px -2px rgba(0, 0, 0, 0.65),
-    inset 0 -1px 2px -1px rgba(255, 255, 255, 0.07);
+    none;
   --clay-inset:
-    inset 0 2px 5px -2px rgba(0, 0, 0, 0.55),
-    inset 0 -1px 1px 0   rgba(255, 255, 255, 0.05);
+    none;
 }
 
 html,
@@ -159,6 +153,12 @@ body {
 body {
   background-color: var(--surface-page);
   color: var(--text-primary);
+  /* 17px, not 16px. The extra pixel is what makes a page read as an
+     article rather than a dashboard — it is the single most recognisable
+     thing about Apple's body copy, and the tracking goes with it. */
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.374px;
   @apply antialiased;
   font-feature-settings: "ss01", "cv11", "cv09";
   letter-spacing: -0.011em;
@@ -175,11 +175,11 @@ h1, h2, h3, h4 {
      applied via @apply is resolved fine by a one-shot production build but
      fails intermittently under `next dev`'s incremental Tailwind pass
      ("class does not exist"). Same colour, no JIT/@apply interaction. */
-  background-color: rgba(63, 163, 77, 0.2); /* brand-500 @ 20% */
+  background-color: rgba(0, 102, 204, 0.2); /* Action Blue @ 20% */
   color: #0c1626; /* navy-900 */
 }
 .dark ::selection {
-  background-color: rgba(63, 163, 77, 0.3); /* brand-500 @ 30% */
+  background-color: rgba(0, 102, 204, 0.3); /* Action Blue @ 30% */
   color: #ffffff;
 }
 
@@ -255,7 +255,7 @@ h1, h2, h3, h4 {
   .input::placeholder { color: var(--text-muted); }
   .input:focus {
     border-color: var(--accent);
-    box-shadow: var(--clay-inset), 0 0 0 3px rgba(63, 163, 77, 0.13);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
   }
   .input:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -285,22 +285,23 @@ h1, h2, h3, h4 {
   .btn-primary, .btn-navy, .btn-danger {
     box-shadow: var(--clay-btn);
   }
-  .btn-primary:active, .btn-navy:active, .btn-danger:active {
-    box-shadow: var(--clay-btn-pressed);
-    transform: translateY(1px);
+  /* scale(0.95) is the system-wide press. The old 1px dent belonged to the
+     clay look; with shadows gone there is nothing to dent into. */
+  .btn:active, .btn-primary:active, .btn-navy:active, .btn-danger:active {
+    transform: scale(0.95);
   }
   .btn-primary:disabled, .btn-navy:disabled, .btn-danger:disabled {
     box-shadow: none;
   }
   .btn:focus-visible {
-    --tw-ring-color: rgba(63, 163, 77, 0.4); /* brand-500 @ 40% */
+    --tw-ring-color: #0071e3; /* Focus Blue — the system's only focus signal */
   }
   .btn-primary {
     @apply btn text-white;
     background-color: var(--accent);
   }
   .btn-primary:hover { background-color: #379044; }
-  .btn-primary:active { background-color: #2f8a3d; }
+  .btn-primary:active { transform: scale(0.95); }
 
   .btn-navy {
     @apply btn;
@@ -952,7 +953,7 @@ h1, h2, h3, h4 {
    slate. That single unmapped step is most of the "bluish" look. */
 :root .text-navy-300 { color: var(--text-secondary); }
 :root .text-navy-200 { color: var(--text-secondary); }
-:root.dark .text-brand-400 { color: #4ea95c; }
+:root.dark .text-brand-400 { color: #2997ff; } /* Sky Link Blue on dark */
 :root .text-slate-400, :root .text-slate-500 { color: var(--text-muted); }
 :root.dark .text-slate-100, :root.dark .text-slate-200 { color: var(--text-primary); }
 :root.dark .text-slate-300 { color: var(--text-secondary); }
@@ -1308,3 +1309,27 @@ html, body { max-width: 100%; overflow-x: hidden; }
 
 /* Prose inside a page still wants a shorter measure than a table does. */
 .measure { max-width: 68ch; }
+
+
+/* ── Apple display type ───────────────────────────────────────────────
+   Headlines run SF Pro Display at weight 600 with negative tracking —
+   the "Apple tight" cadence. Applied by size so it reaches every heading
+   in the app without touching each component. Weight 500 is deliberately
+   absent from the ladder: mid-weight always resolves to 600. */
+h1, h2, h3, .m-hero-value, .metric-value {
+  font-family: theme("fontFamily.heading");
+  letter-spacing: -0.374px;
+}
+h1 { letter-spacing: -0.28px; }
+.font-medium { font-weight: 600; }
+
+/* A pill is the action grammar — it is wrong on a box you type paragraphs
+   into. Multi-line fields keep a soft 12px corner. */
+textarea.input,
+textarea {
+  border-radius: var(--radius-field);
+}
+
+/* The one shadow in the system, for imagery resting on a surface. Nothing
+   else gets elevation — depth comes from the surface changing colour. */
+.product-shadow { box-shadow: var(--shadow-product); }
