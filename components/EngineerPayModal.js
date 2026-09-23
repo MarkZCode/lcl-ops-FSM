@@ -10,6 +10,7 @@ import { grossUpTransfer, certificationRateForLine, inspectionRateForLine, rateF
 import { certificationForEngineer, certificationPatch } from "@/lib/visits";
 import { DEFAULT_TRANSFER_FEE } from "@/lib/constants";
 import { uploadFile, removeFile, fileSrc } from "@/lib/uploads";
+import { DeleteButtonSlot } from "./DeleteButton";
 // generateEngineerStatement is lazy-imported in downloadStatement — it pulls
 // jsPDF + the base64 logo (~150kB) which would otherwise bloat /reports.
 
@@ -884,9 +885,15 @@ export default function EngineerPayModal({
           <div>
             <h3 className="mb-2 section-label text-xs">Payment history</h3>
             <ul className="divide-y divide-navy-100 rounded-xl border border-navy-100">
+              {/* Rows flex-wrap so the delete control drops onto its own
+                  line rather than squeezing the amounts on a phone: a 132px
+                  reserved slot out of a 335px row leaves the text 159px,
+                  which wraps "£38.74 sent · £38.00 to them + £0.74 fee"
+                  into a ragged stack. Wrapping keeps both readable at every
+                  width, and nothing ever overflows the row. */}
               {periodPayments.map((p) => (
-                <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                  <div className="min-w-0">
+                <li key={p.id} className="flex min-h-[64px] flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 text-sm">
+                  <div className="min-w-[200px] flex-1">
                     {/* Lead with what LEFT THE ACCOUNT — that's the figure
                         typed into the bank and the one being reconciled
                         against a statement. Showing only the engineer's
@@ -903,7 +910,7 @@ export default function EngineerPayModal({
                       <p className="text-[11px] text-navy-400">Covers {p.jobIds.join(", ")}</p>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="ml-auto flex shrink-0 items-center gap-2">
                     {p.proof && (
                       <button
                         type="button"
@@ -916,9 +923,19 @@ export default function EngineerPayModal({
                         <FiExternalLink />
                       </button>
                     )}
-                    <button type="button" className="text-navy-400 hover:text-rose-500" onClick={() => onRemovePayment(p.id)} aria-label="Remove payment">
-                      <FiTrash2 className="h-4 w-4" />
-                    </button>
+                    {/* Deleting a recorded payment rewrites what an
+                        engineer is owed, so it gets a deliberate two-step
+                        gesture rather than a single tap on a small icon.
+                        DeleteButtonSlot reserves the full 132px the control
+                        expands into, and `side="left"` opens the recess
+                        leftwards — at the end of a row there is nothing to
+                        the right to grow into, and a right-pinned box would
+                        appear to slide sideways as it opened. Nothing else
+                        in the row moves. */}
+                    <DeleteButtonSlot
+                      side="left"
+                      onConfirm={() => onRemovePayment(p.id)}
+                    />
                   </div>
                 </li>
               ))}
