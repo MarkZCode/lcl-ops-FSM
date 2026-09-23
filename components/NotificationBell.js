@@ -26,7 +26,7 @@
 // to the prospect/job/client the task is about (matching what the phone
 // push notification does).
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   FiBell, FiX, FiCornerDownLeft, FiCheckSquare, FiClock, FiAlertTriangle,
@@ -94,6 +94,12 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState(() => loadSeen());
   const [tasks, setTasks] = useState([]);
+  // Unique per MOUNT. supabase.channel(name) returns the EXISTING channel
+  // when one of that name is already registered, and calling .on() on a
+  // channel that has already subscribed throws — which took the whole page
+  // down, because this component is mounted twice (the desktop top bar and
+  // the mobile bar both render a bell; only one is visible, but both mount).
+  const channelId = useId();
   const panelRef = useRef(null);
 
   // Hydrate seen state from server in the background.
@@ -124,17 +130,25 @@ export default function NotificationBell() {
     // second, not on the next poll. Needs `tasks` in the supabase_realtime
     // publication (supabase/ENABLE-REALTIME.sql); until it is, the poll
     // above still delivers it, just slower.
-    const channel = supabase
-      .channel("lcl-tasks-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, fetchTasks)
-      .subscribe();
+    // Live sync is a convenience on top of the poll above. It must never be
+    // able to break the page: everything here is wrapped, and if the
+    // subscription can't be created the poll still delivers, just slower.
+    let channel = null;
+    try {
+      channel = supabase
+        .channel(`lcl-tasks-live-${channelId}`)
+        .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, fetchTasks)
+        .subscribe();
+    } catch (err) {
+      console.warn("[tasks] live sync unavailable — falling back to polling.", err);
+    }
 
     return () => {
       cancelled = true;
       clearInterval(t);
-      try { supabase.removeChannel(channel); } catch {}
+      try { if (channel) supabase.removeChannel(channel); } catch {}
     };
-  }, []);
+  }, [channelId]);
 
   // ── Notification list build-up ──────────────────────────────────────────
   // Client replies (unchanged from before).
