@@ -35,6 +35,7 @@ import RequirePermission from "@/components/RequirePermission";
 import UserManagement from "@/components/UserManagement";
 import EngineerModal from "@/components/EngineerModal";
 import { useConfirm } from "@/components/ConfirmProvider";
+import HookSidebar from "@/components/HookSidebar";
 
 const SETTINGS_NAV = [
   { id: "config", label: "Configuration" },
@@ -360,6 +361,33 @@ function SettingsInner() {
     return () => clearTimeout(t);
   }, [settingsParams]);
 
+  // Which section the hooked rail should point at.
+  //
+  // The nav is anchor links, so `usePathname` can never tell the component
+  // which one is current — a hash isn't part of the pathname. Driven here
+  // instead by what's actually on screen: the topmost section whose
+  // heading has crossed the sticky header. rootMargin's -120px top edge is
+  // that header's height, so a section counts as "current" when its title
+  // reaches the top of the readable area, not when it first peeks in.
+  const [activeSection, setActiveSection] = useState(0);
+  useEffect(() => {
+    const nodes = SETTINGS_NAV.map((sec) => document.getElementById(sec.id)).filter(Boolean);
+    if (!nodes.length) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+        if (!visible) return;
+        const i = SETTINGS_NAV.findIndex((sec) => sec.id === visible.target.id);
+        if (i >= 0) setActiveSection(i);
+      },
+      { rootMargin: "-120px 0px -55% 0px", threshold: 0 }
+    );
+    nodes.forEach((n) => io.observe(n));
+    return () => io.disconnect();
+  }, []);
+
   const [engModalOpen, setEngModalOpen] = useState(false);
   const [editEngineer, setEditEngineer] = useState(null);
   const [removeEng, setRemoveEng] = useState(null);
@@ -387,14 +415,18 @@ function SettingsInner() {
           sticky sub-nav on the left replaces scrolling through all 9 open
           sections to find one. */}
       <div className="page lg:grid lg:grid-cols-[200px_1fr] lg:items-start lg:gap-10">
-        <nav className="hidden lg:sticky lg:top-24 lg:block lg:space-y-1">
-          {SETTINGS_NAV.map((s) => (
-            <a key={s.id} href={`#${s.id}`}
-              className="block rounded-lg px-3 py-1.5 text-sm text-navy-500 transition-colors hover:bg-navy-50 hover:text-navy-900">
-              {s.label}
-            </a>
-          ))}
-        </nav>
+        {/* The 200px grid column is this nav's own space, so the rail has
+            the ~20px left gutter it draws into without eating label width,
+            and nothing is drawn outside the list box. Controlled by
+            `value` rather than left to route-matching: these are anchor
+            links, and a hash is not part of the pathname. */}
+        <HookSidebar
+          className="hidden lg:sticky lg:top-24 lg:flex"
+          label="Settings"
+          items={SETTINGS_NAV.map((sec) => ({ label: sec.label, href: `#${sec.id}` }))}
+          value={activeSection}
+          onChange={setActiveSection}
+        />
         <div className="space-y-2.5 sm:space-y-6">
         <SettingsGroup title="Configuration" id="config">
   {/* Configuration shortcuts */}
