@@ -484,7 +484,7 @@ function formatBytes(bytes) {
 }
 
 function CompanyDocs() {
-  const { companyDocs, addCompanyDoc, removeCompanyDoc } = useStore();
+  const { companyDocs, addCompanyDoc, updateCompanyDoc, removeCompanyDoc } = useStore();
   const [category, setCategory] = useState(DOC_CATEGORIES[0]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -660,9 +660,22 @@ function CompanyDocs() {
                       {d.name}
                     </p>
                     <p className="text-xs text-navy-500">
-                      <span className="rounded-full bg-navy-100 px-2 py-0.5 font-semibold">
-                        {d.category}
-                      </span>
+                      {/* A plain badge before this couldn't be changed once
+                          uploaded — the only way to fix a wrong category was
+                          delete and re-upload. This is the same badge, just
+                          styled as a select so re-categorizing is a click. */}
+                      <select
+                        className="cursor-pointer rounded-full border-0 bg-navy-100 px-2 py-0.5 font-semibold text-navy-700 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                        value={d.category}
+                        onChange={(e) => updateCompanyDoc(d.id, { category: e.target.value })}
+                        aria-label="Category"
+                      >
+                        {DOC_CATEGORIES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
                       {d.size ? (
                         <span className="ml-2">{formatBytes(d.size)}</span>
                       ) : null}
