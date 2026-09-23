@@ -36,11 +36,12 @@
   --text-secondary: #333333;
   --text-muted:     #7a7a7a;
 
-  /* Action Blue. The single interactive colour in the system — every
-     link, every filled action, every focus ring. There is no second
-     accent by design. */
-  --accent:      #0066cc;
-  --accent-text: #0066cc;
+  /* LCL brand green stays the accent. Apple's single-accent DISCIPLINE
+     is kept — one interactive colour for every link, filled action and
+     focus ring — but the colour itself is the company's, not Apple's.
+     The FSM has to match the logo and the website. */
+  --accent:      #3fa34d;
+  --accent-text: #2f8a3d;
   --pos:         #16a34a;
   --neg:         #e11d48;
 
@@ -72,19 +73,30 @@
      One token per role so the whole look is retuned from here, not by
      hunting box-shadows through 1,100 lines. */
   --clay:
-    none;
+    0 18px 30px -18px rgba(13, 28, 51, 0.22),
+    0 5px 10px -6px  rgba(13, 28, 51, 0.10),
+    inset 0 2px 4px -2px rgba(255, 255, 255, 0.90),
+    inset 0 -4px 8px -5px rgba(13, 28, 51, 0.10);
   --clay-lift:
-    none;
+    0 26px 40px -20px rgba(13, 28, 51, 0.26),
+    0 8px 14px -8px   rgba(13, 28, 51, 0.12),
+    inset 0 2px 4px -2px rgba(255, 255, 255, 0.90),
+    inset 0 -4px 8px -5px rgba(13, 28, 51, 0.10);
   /* Buttons are smaller, so the same shadow scaled down — plus a real
      pressed state, because a clay button that doesn't squash when you
      push it is the thing that makes the style look fake. */
   --clay-btn:
-    none;
+    0 7px 14px -7px rgba(13, 28, 51, 0.30),
+    0 2px 4px -2px  rgba(13, 28, 51, 0.16),
+    inset 0 2px 3px -2px rgba(255, 255, 255, 0.45),
+    inset 0 -3px 5px -3px rgba(13, 28, 51, 0.22);
   --clay-btn-pressed:
-    none;
+    inset 0 3px 7px -2px rgba(13, 28, 51, 0.30),
+    inset 0 -1px 2px -1px rgba(255, 255, 255, 0.30);
   /* Inputs are the inverse: pressed INTO the clay, not sitting on it. */
   --clay-inset:
-    none;
+    inset 0 2px 5px -2px rgba(13, 28, 51, 0.15),
+    inset 0 -1px 1px 0   rgba(255, 255, 255, 0.70);
 }
 
 .dark {
@@ -108,10 +120,10 @@
   --text-secondary: #cccccc;
   --text-muted:     #86868b;
 
-  /* Sky Link Blue. Action Blue disappears against a #272729 tile, so the
-     dark surfaces get the brighter sibling. */
-  --accent:      #2997ff;
-  --accent-text: #2997ff;
+  /* The lighter green on dark tiles, same reasoning as Apple's Sky Link
+     Blue: the standard accent loses contrast against #272729. */
+  --accent:      #3fa34d;
+  --accent-text: #4ea95c;
   --pos:         #4ade80;
   --neg:         #fb7185;
 
@@ -120,15 +132,26 @@
      percent white — at light-mode strength it reads as a hard chrome rim
      rather than a lit clay edge. */
   --clay:
-    none;
+    0 18px 30px -18px rgba(0, 0, 0, 0.85),
+    0 5px 10px -6px  rgba(0, 0, 0, 0.60),
+    inset 0 1px 1px 0   rgba(255, 255, 255, 0.06),
+    inset 0 -4px 8px -5px rgba(0, 0, 0, 0.55);
   --clay-lift:
-    none;
+    0 26px 40px -20px rgba(0, 0, 0, 0.95),
+    0 8px 14px -8px   rgba(0, 0, 0, 0.65),
+    inset 0 1px 1px 0   rgba(255, 255, 255, 0.09),
+    inset 0 -4px 8px -5px rgba(0, 0, 0, 0.55);
   --clay-btn:
-    none;
+    0 7px 14px -7px rgba(0, 0, 0, 0.75),
+    0 2px 4px -2px  rgba(0, 0, 0, 0.55),
+    inset 0 1px 1px 0   rgba(255, 255, 255, 0.14),
+    inset 0 -3px 5px -3px rgba(0, 0, 0, 0.45);
   --clay-btn-pressed:
-    none;
+    inset 0 3px 7px -2px rgba(0, 0, 0, 0.65),
+    inset 0 -1px 2px -1px rgba(255, 255, 255, 0.07);
   --clay-inset:
-    none;
+    inset 0 2px 5px -2px rgba(0, 0, 0, 0.55),
+    inset 0 -1px 1px 0   rgba(255, 255, 255, 0.05);
 }
 
 html,
@@ -175,11 +198,11 @@ h1, h2, h3, h4 {
      applied via @apply is resolved fine by a one-shot production build but
      fails intermittently under `next dev`'s incremental Tailwind pass
      ("class does not exist"). Same colour, no JIT/@apply interaction. */
-  background-color: rgba(0, 102, 204, 0.2); /* Action Blue @ 20% */
+  background-color: rgba(63, 163, 77, 0.2); /* brand-500 @ 20% */
   color: #0c1626; /* navy-900 */
 }
 .dark ::selection {
-  background-color: rgba(0, 102, 204, 0.3); /* Action Blue @ 30% */
+  background-color: rgba(63, 163, 77, 0.3); /* brand-500 @ 30% */
   color: #ffffff;
 }
 
@@ -255,7 +278,7 @@ h1, h2, h3, h4 {
   .input::placeholder { color: var(--text-muted); }
   .input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.25);
+    box-shadow: var(--clay-inset), 0 0 0 3px rgba(63, 163, 77, 0.13);
   }
   .input:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -285,23 +308,22 @@ h1, h2, h3, h4 {
   .btn-primary, .btn-navy, .btn-danger {
     box-shadow: var(--clay-btn);
   }
-  /* scale(0.95) is the system-wide press. The old 1px dent belonged to the
-     clay look; with shadows gone there is nothing to dent into. */
-  .btn:active, .btn-primary:active, .btn-navy:active, .btn-danger:active {
-    transform: scale(0.95);
+  .btn-primary:active, .btn-navy:active, .btn-danger:active {
+    box-shadow: var(--clay-btn-pressed);
+    transform: translateY(1px);
   }
   .btn-primary:disabled, .btn-navy:disabled, .btn-danger:disabled {
     box-shadow: none;
   }
   .btn:focus-visible {
-    --tw-ring-color: #0071e3; /* Focus Blue — the system's only focus signal */
+    --tw-ring-color: rgba(63, 163, 77, 0.4); /* brand-500 @ 40% */
   }
   .btn-primary {
     @apply btn text-white;
     background-color: var(--accent);
   }
   .btn-primary:hover { background-color: #379044; }
-  .btn-primary:active { transform: scale(0.95); }
+  .btn-primary:active { background-color: #2f8a3d; }
 
   .btn-navy {
     @apply btn;
@@ -953,7 +975,7 @@ h1, h2, h3, h4 {
    slate. That single unmapped step is most of the "bluish" look. */
 :root .text-navy-300 { color: var(--text-secondary); }
 :root .text-navy-200 { color: var(--text-secondary); }
-:root.dark .text-brand-400 { color: #2997ff; } /* Sky Link Blue on dark */
+:root.dark .text-brand-400 { color: #4ea95c; }
 :root .text-slate-400, :root .text-slate-500 { color: var(--text-muted); }
 :root.dark .text-slate-100, :root.dark .text-slate-200 { color: var(--text-primary); }
 :root.dark .text-slate-300 { color: var(--text-secondary); }

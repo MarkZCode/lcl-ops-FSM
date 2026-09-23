@@ -29,21 +29,21 @@ module.exports = {
           900: "#1d1d1f",
           950: "#000000",
         },
-        // Action Blue. The single interactive colour — every link, every
-        // filled action, every focus signal. 500 is #0066cc exactly; 600
-        // is the focus-ring sibling; 400 is the on-dark variant, because
-        // Action Blue disappears against a #272729 tile.
+        // LCL brand green — same palette as the logo and the website.
+        // Apple's single-accent DISCIPLINE is kept (one interactive colour
+        // for everything), but not Apple's blue: the FSM has to look like
+        // the same company as the site it sits behind.
         brand: {
-          50: "#f0f7ff",
-          100: "#dbeeff",
-          200: "#b3dcff",
-          300: "#66b5ff",
-          400: "#2997ff",
-          500: "#0066cc",
-          600: "#0071e3",
-          700: "#0055aa",
-          800: "#004488",
-          900: "#003366",
+          50: "#eef8ef",
+          100: "#d6eed9",
+          200: "#aedcb3",
+          300: "#7cc486",
+          400: "#54ad60",
+          500: "#3fa34d",
+          600: "#2f8a3d",
+          700: "#276f32",
+          800: "#22592b",
+          900: "#1d4925",
         },
       },
       fontFamily: {
