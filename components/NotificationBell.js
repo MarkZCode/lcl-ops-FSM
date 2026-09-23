@@ -2,16 +2,18 @@
 
 // Unified in-app notification inbox — the bell icon in the top bar.
 // Three sections:
-//   1. Needs you now — tasks assigned to YOU that are overdue or due
-//      today, priority-first.
+//   1. Needs you now — a task newly assigned to YOU, and anything of
+//      yours that is overdue or due today, priority-first.
 //   2. Replies — inbound client replies on jobs that are yours to answer.
 //
 // WHAT IS DELIBERATELY NOT HERE
 // A notification is something you have to act on today. Two things used to
 // be counted that aren't:
-//   • every open task assigned to you with a FUTURE due date. A task due in
-//     three weeks is a plan, not a notification, and it sat on the badge
-//     permanently until the day it was done.
+//   • a task assigned to you with a future due date, AFTER you have seen
+//     it. The assignment itself is an event and is counted once; what was
+//     wrong before was counting it again every day until it was done, so
+//     a task due in three weeks sat on the badge for three weeks. Event,
+//     then silence — not a standing tally.
 //   • every unassigned "Everyone" task created in the last fortnight. Work
 //     nobody has picked up is a queue to review on the Tasks page, not an
 //     alert to each person individually — and it meant the same badge
@@ -38,7 +40,10 @@ import { daysUntilDue, priorityMeta, taskDeepLink } from "@/lib/tasks";
 import { playPing } from "@/lib/sound";
 
 const SEEN_KEY = "lcl-seen-activity";
-const TASK_REFRESH_MS = 45_000;
+// Backstop only — the live subscription below is what makes an assignment
+// land immediately. 45s was the whole delivery mechanism, so "assign a task
+// and get told" could take three quarters of a minute.
+const TASK_REFRESH_MS = 20_000;
 
 function loadSeen() {
   try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) || "[]")); } catch { return new Set(); }
@@ -114,7 +119,21 @@ export default function NotificationBell() {
     };
     fetchTasks();
     const t = setInterval(fetchTasks, TASK_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(t); };
+
+    // Live. A task assigned to someone should reach their bell in about a
+    // second, not on the next poll. Needs `tasks` in the supabase_realtime
+    // publication (supabase/ENABLE-REALTIME.sql); until it is, the poll
+    // above still delivers it, just slower.
+    const channel = supabase
+      .channel("lcl-tasks-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, fetchTasks)
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      try { supabase.removeChannel(channel); } catch {}
+    };
   }, []);
 
   // ── Notification list build-up ──────────────────────────────────────────
@@ -203,6 +222,9 @@ export default function NotificationBell() {
     // Upcoming and unassigned tasks are shown on /tasks, never counted here.
     for (const t of myBuckets.overdue)  items.push({ id: `task-od-${t.id}`, at: t.updatedAt || t.createdAt, kind: "task_overdue" });
     for (const t of myBuckets.dueToday) items.push({ id: `task-du-${t.id}`, at: t.updatedAt || t.createdAt, kind: "task_due" });
+    // Keyed on task AND assignee, so re-assigning an existing task to you
+    // is a fresh event rather than something already marked seen.
+    for (const t of myBuckets.upcoming) items.push({ id: `task-as-${t.id}-${t.assigneeId}`, at: t.updatedAt || t.createdAt, kind: "task_assigned" });
     for (const r of replies)            items.push({ id: r.id, at: r.at, kind: "reply" });
     return items;
   }, [myBuckets, replies]);
@@ -322,13 +344,19 @@ export default function NotificationBell() {
                   </Section>
                 )}
 
-                {/* Coming up — context, deliberately not counted on the
-                    badge. Nothing here has a deadline that has arrived. */}
+                {/* Assigned to you. Counted while unseen, quiet afterwards —
+                    the badge marks the arrival, not the existence. */}
                 {myBuckets.upcoming.length > 0 && (
-                  <Section title="Coming up">
-                    <SubHead icon={FiUser} tone="blue" label={`Assigned to you (${myBuckets.upcoming.length})`} />
+                  <Section title="Assigned to you" count={myBuckets.upcoming.length}>
+                    <SubHead icon={FiUser} tone="blue" label={`${myBuckets.upcoming.length} open`} />
                     {myBuckets.upcoming.map((t) => (
-                      <TaskRow key={t.id} task={t} kind="upcoming" isNew={false} onClose={() => setOpen(false)} />
+                      <TaskRow
+                        key={t.id}
+                        task={t}
+                        kind="upcoming"
+                        isNew={isNew(`task-as-${t.id}-${t.assigneeId}`)}
+                        onClose={() => setOpen(false)}
+                      />
                     ))}
                   </Section>
                 )}

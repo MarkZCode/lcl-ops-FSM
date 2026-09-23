@@ -3,8 +3,9 @@
 -- ============================================================================
 --
 -- WHAT THIS DOES
--- The app subscribes to changes on `jobs`, `clients`, `engineers` and
--- `app_settings` (which holds expenses and engineer payments), so a job booked
+-- The app subscribes to changes on `jobs`, `clients`, `engineers`,
+-- `app_settings` (which holds expenses and engineer payments) and `tasks`
+-- (so a task assigned to someone reaches their bell at once), so a job booked
 -- or completed on one device appears on every other device in about a second.
 -- Postgres only broadcasts changes for tables in the `supabase_realtime`
 -- publication, so until this runs the subscription connects and then sits
@@ -23,7 +24,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['jobs', 'clients', 'engineers', 'app_settings'] loop
+  foreach t in array array['jobs', 'clients', 'engineers', 'app_settings', 'tasks'] loop
     -- REPLICA IDENTITY FULL makes the OLD row available on UPDATE/DELETE.
     -- Without it a delete arrives with only the primary key.
     execute format('alter table public.%I replica identity full', t);
@@ -38,7 +39,7 @@ begin
   end loop;
 end $$;
 
--- Check it worked — jobs, clients, engineers and app_settings should all be listed.
+-- Check it worked — all five should be listed.
 select tablename
 from pg_publication_tables
 where pubname = 'supabase_realtime' and schemaname = 'public'
