@@ -62,6 +62,9 @@ function makeId() {
   return "es-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+// SMTP send + filing the copy in the mailbox's Sent folder over IMAP.
+export const maxDuration = 30;
+
 export async function POST(request) {
   const user = await requireUser(request);
   if (!user) {
