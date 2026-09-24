@@ -24,7 +24,7 @@ import {
   FiMoreHorizontal,
 } from "react-icons/fi";
 import { invoiceConfig } from "@/lib/invoiceConfig";
-import { buildInvoiceLines } from "@/lib/invoiceData";
+import { buildInvoicePrefill } from "@/lib/invoiceData";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { STATUS_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
@@ -1159,11 +1159,8 @@ export default function JobDetailPage() {
           // Quotes use the job id as the reference; invoices get a number
           // allocated against the job itself (see allocateInvoiceNumber).
           invNo: invoiceMode === "quote" ? job.id : undefined,
-          clientName: client?.name || "",
-          clientAddr: client?.company || "",
-          propAddr1: property?.label || "",
-          propAddr2: property?.postcode || "",
-          lines: buildInvoiceLines(job),
+          // Includes any name/address/line edits saved from Edit invoice.
+          ...buildInvoicePrefill(job, client, property, invoiceMode),
         }}
       />
 

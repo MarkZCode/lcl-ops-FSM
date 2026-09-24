@@ -29,8 +29,9 @@ const newLine = (desc = "", price = "", qty = 1, type = "charge") => ({
 
 // `prefill` (optional) = { invNo, clientName, clientAddr, propAddr1, propAddr2, lines }
 // `docType` = "invoice" (default) | "quote"
-// `onSave` (optional) = (lines) => void — when passed, the footer button saves
-// the edited line items back to the caller instead of downloading a PDF.
+// `onSave` (optional) = ({ invNo, clientName, clientAddr, propAddr1, propAddr2, lines }) => void
+// — when passed, the footer button saves the edits back to the caller
+// instead of downloading a PDF.
 export default function InvoiceModal({ open, onClose, prefill, docType = "invoice", onSave, jobId }) {
   const isQuote = docType === "quote";
   const { invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } = useStore();
@@ -124,7 +125,7 @@ export default function InvoiceModal({ open, onClose, prefill, docType = "invoic
     }));
 
   const handleSave = () => {
-    onSave(signedLines());
+    onSave({ invNo, clientName, clientAddr, propAddr1, propAddr2, lines: signedLines() });
     onClose();
   };
 

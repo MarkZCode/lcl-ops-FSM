@@ -17,7 +17,7 @@ import { supabase } from "@/lib/supabase";
 import { renderTemplate, buildContext } from "@/lib/email";
 import { JOB_TEMPLATE_PURPOSES } from "@/lib/templates";
 import { fileSrc } from "@/lib/uploads";
-import { buildInvoicePrefill } from "@/lib/invoiceData";
+import { buildInvoicePrefill, overridesKey } from "@/lib/invoiceData";
 import { toWhatsAppNumber } from "@/lib/whatsapp";
 import { toast } from "@/lib/toast";
 
@@ -39,7 +39,7 @@ export default function SendEmailModal({
   property,
   defaultTemplate,
 }) {
-  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, logActivity } = useStore();
+  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob } = useStore();
   const [tplKey, setTplKey] = useState(defaultTemplate || "booking");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -49,7 +49,6 @@ export default function SendEmailModal({
   const [message, setMessage] = useState("");
   const [attach, setAttach] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
-  const [editedLines, setEditedLines] = useState(null);
   const initRef = useRef(null);
 
   // Any email can carry the quote PDF as an attachment (not just the "Quote"
@@ -58,6 +57,20 @@ export default function SendEmailModal({
   // template rewrite in lib/settings.js) — needs docType "invoice" too, or
   // the attach checkbox silently offered a quote PDF instead.
   const docType = (tplKey === "invoice" || tplKey === "job_completed") ? "invoice" : "quote";
+  const edited = !!job?.[overridesKey(docType)];
+
+  // Edits from the "Edit invoice/quote" popup are saved onto the job itself
+  // (not just this popup's state), so a different billing name/address or
+  // changed line items survive closing, re-opening and re-sending.
+  const saveEdits = ({ invNo, ...details }) => {
+    if (!job?.id) return;
+    const patch = { [overridesKey(docType)]: details };
+    if (docType === "invoice" && invNo && String(invNo) !== String(job.invoiceNumber || "")) {
+      patch.invoiceNumber = String(invNo);
+      patch.invoiceNumberAt = new Date().toISOString();
+    }
+    updateJob(job.id, patch);
+  };
   // The certificate email sends the CERTIFICATE — the real file uploaded to
   // the job, not a generated quote or invoice PDF. Anything else would
   // attach the wrong document to the one email whose entire purpose is the
@@ -122,11 +135,6 @@ export default function SendEmailModal({
     setMessage("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, tplKey, job?.id]);
-
-  // A fresh job resets any line-item edits made in the quote editor.
-  useEffect(() => {
-    if (open) setEditedLines(null);
-  }, [open, job?.id]);
 
   const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(
     subject
@@ -224,14 +232,12 @@ export default function SendEmailModal({
         // the payment record all quote the same invoice number.
         const invNo = docType === "invoice" ? allocateInvoiceNumber(job.id) : `Q-${job.id}`;
         const { generateInvoicePDF } = await import("@/lib/generateInvoice");
-        const prefill = buildInvoicePrefill(job, client, property);
         const pdf = generateInvoicePDF(
           {
             docType,
             invNo,
             dateISO: todayISO(),
-            ...prefill,
-            lines: editedLines || prefill.lines,
+            ...buildInvoicePrefill(job, client, property, docType),
             taxOn: false,
           },
           { output: "base64" }
@@ -403,8 +409,8 @@ export default function SendEmailModal({
               <FiPaperclip className="text-brand-600" />
               <span>
                 Attach the <strong>{docLabel}</strong> PDF to this email
-                {docType === "invoice" ? ` (No. ${job?.invoiceNumber || invoiceSeq})` : ""}
-                {editedLines ? " — edited" : ""}
+                {docType === "invoice" ? ` (No. ${peekInvoiceNumber(job?.id)})` : ""}
+                {edited ? " — edited" : ""}
               </span>
             </label>
             <button
@@ -482,11 +488,11 @@ export default function SendEmailModal({
         open={editOpen}
         onClose={() => setEditOpen(false)}
         docType={docType}
-        onSave={setEditedLines}
+        jobId={job?.id}
+        onSave={saveEdits}
         prefill={{
           invNo: docType === "quote" ? job?.id : undefined,
-          ...buildInvoicePrefill(job, client, property),
-          lines: editedLines || buildInvoicePrefill(job, client, property).lines,
+          ...buildInvoicePrefill(job, client, property, docType),
         }}
       />
     </Modal>
