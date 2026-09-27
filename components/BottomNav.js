@@ -46,6 +46,23 @@ export default function BottomNav() {
     <nav
       className="fixed inset-x-0 bottom-0 z-30 lg:hidden"
       style={{
+        // Force this element onto its own GPU compositing layer,
+        // permanently. Confirmed reproducible: the bar was still present
+        // and clickable on the Dashboard even while completely invisible —
+        // it was hit-testing correctly but not being PAINTED, which is a
+        // real, well-documented iOS Safari bug where a fixed element can
+        // silently fail to get composited when something else nearby is
+        // under heavy GPU load (the Dashboard mounts a dozen-plus
+        // simultaneous Framer Motion counter animations on every load; no
+        // other page does this). translateZ(0) is the classic, direct fix —
+        // it forces its own persistent layer, independent of what else is
+        // animating. This bar used to carry will-change:transform for an
+        // unrelated reason (a slide animation, removed along with the
+        // conditional visibility it supported) and losing that side effect
+        // is almost certainly why this specific bug reappeared right after
+        // that pass.
+        transform: "translateZ(0)",
+        willChange: "transform",
         // NO safe-area padding here — none. This app runs installed to the
         // home screen (standalone display), where window.innerHeight (what
         // --app-height in AuthGate.js is built from) already comes back
