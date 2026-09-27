@@ -1325,6 +1325,17 @@ html, body { max-width: 100%; overflow-x: hidden; }
 .page {
   width: 100%;
   padding: 1rem;
+  /* Scopes this page's own stacking/compositing so heavy GPU-animated
+     content inside it (the Dashboard's odometer-style money counters — up
+     to a dozen simultaneous Framer Motion transforms on one mount) can't
+     interfere with the fixed bottom nav, which is a SIBLING of this div,
+     not a descendant. Reported as the nav going missing entirely on the
+     Dashboard specifically (not the gap/blur issues fixed earlier, which
+     were about the nav's own CSS) — this is a real WebKit behavior under
+     GPU/compositor load, not something the nav's own styling can fix.
+     isolation, not contain: paint — the latter clips overflow, which would
+     break any dropdown/tooltip in page content that extends past it. */
+  isolation: isolate;
 }
 @media (min-width: 640px) { .page { padding: 2rem; } }
 .page-wide { max-width: none; }
