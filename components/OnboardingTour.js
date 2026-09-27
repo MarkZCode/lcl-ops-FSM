@@ -35,9 +35,18 @@ function isNavSelector(selector) {
   return selector && (selector.includes("data-tour-nav") || selector.includes('[href="'));
 }
 
+// Opens the mobile drawer for a step that targets a nav link, and — just as
+// importantly — closes it again for a step that doesn't. Without the close
+// side, a tour that opened the drawer for one step left it open (and the
+// bottom tab bar, which hides itself to avoid clashing with an open drawer,
+// stayed hidden) indefinitely, since nothing else in the app ever closes a
+// drawer it didn't itself open.
 function openMobileNavIfNeeded(selector) {
   if (typeof window === "undefined" || window.innerWidth >= 1024) return false;
-  if (!isNavSelector(selector)) return false;
+  if (!isNavSelector(selector)) {
+    window.dispatchEvent(new Event("lcl-close-mobile-nav"));
+    return false;
+  }
   window.dispatchEvent(new Event("lcl-open-mobile-nav"));
   return true;
 }
@@ -89,6 +98,12 @@ export function useSectionTour(sectionKey, steps) {
 function TourOverlay({ steps, onDone }) {
   const [step, setStep] = useState(0);
   const [rect, setRect] = useState(null);
+
+  // Belt and braces: whatever step this tour was on when it's dismissed —
+  // finished, skipped, or closed via the backdrop — closing the drawer here
+  // too covers ending on a nav-highlighting step, which the per-step effect
+  // below (which only runs on the NEXT step change) never gets a chance to.
+  useEffect(() => () => window.dispatchEvent(new Event("lcl-close-mobile-nav")), []);
 
   // Track the highlighted element rect. Use a one-shot read + resize observer
   // instead of a constant RAF loop so we don't burn CPU while the tour is open.
@@ -283,6 +298,9 @@ export default function OnboardingTour({ forceShow, onDone }) {
 function NavAwareTourOverlay({ steps, step, isFirst, isLast, onNext, onPrev, onDone }) {
   const [rect, setRect] = useState(null);
   const current = steps[step];
+
+  // Same safety net as TourOverlay above — see the comment there.
+  useEffect(() => () => window.dispatchEvent(new Event("lcl-close-mobile-nav")), []);
 
   useEffect(() => {
     const update = () => setRect(current?.selector ? getRect(current.selector) : null);

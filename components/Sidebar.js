@@ -189,11 +189,25 @@ export default function Sidebar() {
     } catch {}
   }, []);
 
-  // Open drawer when tour needs mobile nav targets in the DOM.
+  // Open/close the drawer when a tour needs a mobile nav target in the DOM
+  // (or is done needing one). The open side of this existed alone for a
+  // long time with no close event anywhere in the codebase to pair with it
+  // — once any tour step highlighted a nav link, the drawer stayed open
+  // (and the bottom tab bar, which hides itself while the drawer is open so
+  // the two don't visually clash, stayed hidden) for the rest of the
+  // session, on every route, regardless of whether the tour itself had long
+  // since finished or been dismissed. Reported as the bottom nav going
+  // missing entirely on the Dashboard, whose own auto-run first-visit tour
+  // has exactly one such step (spotlighting the Dispatch link).
   useEffect(() => {
     const openDrawer = () => setOpen(true);
+    const closeDrawer = () => setOpen(false);
     window.addEventListener("lcl-open-mobile-nav", openDrawer);
-    return () => window.removeEventListener("lcl-open-mobile-nav", openDrawer);
+    window.addEventListener("lcl-close-mobile-nav", closeDrawer);
+    return () => {
+      window.removeEventListener("lcl-open-mobile-nav", openDrawer);
+      window.removeEventListener("lcl-close-mobile-nav", closeDrawer);
+    };
   }, []);
 
   // Let the bottom tab bar know when the drawer is open so it can hide
