@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -10,33 +9,30 @@ import { visibleNavLinks, visibleUtilityLinks, PRIMARY_HREFS } from "@/lib/nav";
 // sidebar so both navs read as one chrome system. Every tab is a real
 // destination — the full menu lives behind the top-bar hamburger.
 //
-// ALWAYS VISIBLE. Two attempts at hiding it on scroll have both been
-// reverted now. The first hid on scroll-down and only came back on an
-// explicit scroll-up, so a tab tap after scrolling was spent revealing the
-// bar instead of navigating ("have to tap Jobs two or three times"). The
-// second hid while scrolling in either direction and came back 220ms after
-// it stopped — but momentum scrolling on a phone keeps firing scroll events
-// long after the finger has left the glass, so the bar spends most of a
-// flick off-screen and any screenshot or glance mid-scroll shows it sliding
-// away half-drawn (reported: "look at the bottom, why is it not properly
-// showing at all").
+// UNCONDITIONALLY VISIBLE — no state, no listener, nothing that can hide
+// it. This used to translate itself off-screen whenever a global
+// "lcl-mobile-drawer" event said the slide-out side drawer was open, so
+// the two wouldn't visually overlap. That open event is fired from more
+// than one place (including a tour step that spotlights a nav link by
+// force-opening the drawer), and at least one of those call sites never
+// paired it with a corresponding close — so the flag could get stuck on
+// and this bar would stay hidden for the rest of the session, on every
+// route, for no reason visible in its own code. That's the third distinct
+// way "hide sometimes" has broken this bar (after two reverted scroll-hide
+// attempts, described below) — always visible, permanently, is the fix
+// that can't have a similar failure mode, because there's no longer any
+// condition left to get stuck in.
 //
-// A tab bar's whole job is to be in the same place every time you look
-// down. The content behind it already reads as continuous through the
-// translucent blur; that's what the full-screen feel was actually for.
-// Only the slide-out drawer still hides it, and that's a real overlap
-// rather than a scroll gesture.
+// History for the record: the first scroll-hide hid on scroll-down and
+// only returned on an explicit scroll-up, so a tab tap after scrolling was
+// spent revealing the bar instead of navigating. The second hid during
+// scrolling in either direction and returned 220ms after it settled, but
+// momentum scrolling on a phone keeps firing scroll events long after the
+// finger lifts, so the bar spent most of a flick off-screen. A tab bar's
+// whole job is to be in the same place every time you look down.
 export default function BottomNav() {
   const pathname = usePathname();
   const { can, user } = useAuth();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // Hide while the slide-out drawer is open so the two don't visually overlap.
-  useEffect(() => {
-    const onDrawer = (e) => setDrawerOpen(!!e.detail);
-    window.addEventListener("lcl-mobile-drawer", onDrawer);
-    return () => window.removeEventListener("lcl-mobile-drawer", onDrawer);
-  }, []);
 
   const visible = [...visibleNavLinks(can, user?.role), ...visibleUtilityLinks(can, user?.role)];
   const primary = PRIMARY_HREFS(can, user?.role)
@@ -48,9 +44,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className={`fixed inset-x-0 bottom-0 z-30 transition-transform duration-300 ease-out will-change-transform lg:hidden ${
-        drawerOpen ? "translate-y-full" : "translate-y-0"
-      }`}
+      className="fixed inset-x-0 bottom-0 z-30 lg:hidden"
       style={{
         // NO safe-area padding here — none. This app runs installed to the
         // home screen (standalone display), where window.innerHeight (what
