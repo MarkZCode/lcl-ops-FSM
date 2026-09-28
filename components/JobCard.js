@@ -19,6 +19,8 @@ const STATUS_ACCENT = {
   cancelled:   "border-l-rose-400",
 };
 
+import { nextAction } from "@/lib/nextAction";
+
 export default function JobCard({ job, onJobCard }) {
   const { clientById, engineerById, updateJob } = useStore();
   const [editingNote, setEditingNote] = useState(false);
@@ -28,6 +30,13 @@ export default function JobCard({ job, onJobCard }) {
   const engineers = jobEngineerIds(job).map(engineerById);
   const accent = STATUS_ACCENT[job.status] || "border-l-navy-200";
   const tags = jobTags(job);
+
+  // Every card says what the job needs next, so the board reads as a list
+  // of things to do rather than a list of things that exist.
+  const next = nextAction(job, {
+    engineerName: (id) => engineerById(id)?.name || "the engineer",
+    clientEmail: client?.email,
+  });
 
   const upcomingVisit = getUpcomingScheduledVisit(job);
   const displayDate = upcomingVisit?.scheduledAt || job.scheduledAt;
@@ -132,6 +141,17 @@ export default function JobCard({ job, onJobCard }) {
         <span className="text-base font-black text-navy-900">{gbp(job.price)}</span>
       </div>
 
+      {next && (
+        <p
+          className={`mt-2 flex items-center gap-1.5 truncate rounded-md px-2 py-1 text-[11px] font-semibold ${
+            next.severity === "urgent" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"
+          } dark:bg-white/5`}
+          title={next.detail || ""}
+        >
+          <span className="shrink-0">Next:</span>
+          <span className="truncate">{next.title}</span>
+        </p>
+      )}
       {/* Note — reads/writes job.notes directly, so it's the exact same note
           the job detail page shows, editable here without opening the job. */}
       <div className="mt-2 border-t border-navy-100 pt-2 dark:border-white/10">

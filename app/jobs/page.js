@@ -9,6 +9,7 @@ import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { JOB_STATUSES } from "@/lib/constants";
 import { gbp, fmtDateTime, jobTags } from "@/lib/format";
 import { jobEngineerIds } from "@/lib/visits";
+import { nextAction, ACTION_GROUPS } from "@/lib/nextAction";
 import PageHeader from "@/components/PageHeader";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange } from "@/lib/usePeriodRange";
@@ -21,7 +22,7 @@ import Link from "next/link";
 import { useSectionTour } from "@/components/OnboardingTour";
 
 export default function JobsPage() {
-  const { jobs: allJobs, clients } = useStore();
+  const { jobs: allJobs, clients, engineerById } = useStore();
   const myEngId = useMyEngineerId();
   const jobs = useMemo(
     () => (myEngId ? allJobs.filter((j) => jobBelongsToEngineer(j, myEngId)) : allJobs),
@@ -40,7 +41,11 @@ export default function JobsPage() {
   // Quote is the tab that actually needs attention day to day — jobs waiting
   // on a decision or still needing an engineer/date sorted out. Opening on
   // "All" buried that queue behind every scheduled/paid/cancelled job too.
-  const [statusFilter, setStatusFilter] = useState("quote");
+  // Opens on "To do" — every job that needs something from the office,
+  // whatever its status. The Quote tab used to be the default because it was
+  // the closest thing to a to-do list; it missed every unsent invoice,
+  // unconfirmed engineer and finished-but-not-closed job.
+  const [statusFilter, setStatusFilter] = useState("todo");
   // The Dashboard's "Open quotes" card (and anything else linking with
   // ?status=…) was navigating here and being silently ignored — nothing ever
   // read the param back, so the link always landed on whatever the default
@@ -119,12 +124,38 @@ export default function JobsPage() {
   // (the whole reason deriveJobStatus exists); the filter tabs have to agree
   // with the badge on the card, not run a second, looser definition that
   // disagrees with it.
-  const jobMatchesStatus = (job, targetStatus) =>
-    targetStatus === "all" || job.status === targetStatus;
+  // The next step for every job, worked out once. To-do ignores the period
+  // filter on purpose: an unpaid invoice from March is still today's job.
+  const nextByJob = useMemo(() => {
+    const m = new Map();
+    const clientEmail = new Map(clients.map((c) => [c.id, c.email]));
+    for (const j of jobs) {
+      const a = nextAction(j, {
+        engineerName: (id) => engineerById(id)?.name || "the engineer",
+        clientEmail: clientEmail.get(j.clientId),
+      });
+      if (a) m.set(j.id, a);
+    }
+    return m;
+  }, [jobs, clients, engineerById]);
+
+  const todoCounts = useMemo(() => {
+    const c = { todo: nextByJob.size };
+    for (const a of nextByJob.values()) c[a.group] = (c[a.group] || 0) + 1;
+    return c;
+  }, [nextByJob]);
+
+  const isTodo = statusFilter === "todo" || statusFilter.startsWith("todo:");
+
+  const jobMatchesStatus = (job, targetStatus) => {
+    if (targetStatus === "todo") return nextByJob.has(job.id);
+    if (targetStatus.startsWith("todo:")) return nextByJob.get(job.id)?.group === targetStatus.slice(5);
+    return targetStatus === "all" || job.status === targetStatus;
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return inPeriod
+    return (isTodo ? jobs : inPeriod)
       .filter((j) => {
         if (!jobMatchesStatus(j, statusFilter)) return false;
         if (!q) return true;
@@ -144,8 +175,20 @@ export default function JobsPage() {
       // the store happened to hold (in practice job-id order, which is a
       // random 4-digit suffix), so a job raised today could land anywhere in
       // the list — you had to hunt for the one you just created.
-      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  }, [inPeriod, clients, query, statusFilter]);
+      // To do: most urgent first, then oldest first — the job that's been
+      // waiting longest is the one most likely to have been forgotten.
+      // Everything else: newest first.
+      .sort((a, b) => {
+        if (isTodo) {
+          const ua = nextByJob.get(a.id)?.severity === "urgent" ? 0 : 1;
+          const ub = nextByJob.get(b.id)?.severity === "urgent" ? 0 : 1;
+          if (ua !== ub) return ua - ub;
+          return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+        }
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inPeriod, jobs, clients, query, statusFilter, nextByJob]);
 
   // Counts follow the period as well — a "Paid 9" pill that ignored the
   // date filter would contradict the list sitting right under it.
@@ -206,6 +249,29 @@ export default function JobsPage() {
             them: the pill counts are counts WITHIN the chosen period. */}
         <PeriodControls ctl={ctl} withAll className="mb-4" />
 
+        {/* To do — every job grouped by the one thing it needs next. */}
+        <div className="mb-3 rounded-xl border border-navy-100 bg-white p-2.5 dark:bg-white/[0.03]">
+          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-navy-500">To do</p>
+          <div className="scroll-area flex gap-2 overflow-x-auto pb-0.5">
+            <FilterPill
+              active={statusFilter === "todo"}
+              onClick={() => setStatusFilter("todo")}
+              label="Everything"
+              count={todoCounts.todo || 0}
+            />
+            {ACTION_GROUPS.filter((g) => todoCounts[g.key]).map((g) => (
+              <FilterPill
+                key={g.key}
+                active={statusFilter === `todo:${g.key}`}
+                onClick={() => setStatusFilter(`todo:${g.key}`)}
+                label={g.label}
+                count={todoCounts[g.key]}
+                dot={{ rose: "bg-rose-500", amber: "bg-amber-500", blue: "bg-blue-500", purple: "bg-purple-500", green: "bg-brand-500" }[g.tone]}
+              />
+            ))}
+          </div>
+        </div>
+
         {/* Status filter pills */}
         <div className="jobs-status-filter scroll-area mb-5 flex gap-2 overflow-x-auto pb-1">
           <FilterPill
@@ -228,7 +294,7 @@ export default function JobsPage() {
 
         {filtered.length === 0 ? (
           <div className="card p-10 text-center text-sm text-navy-500">
-            No jobs match your filters.
+            {isTodo && !query ? "All caught up — nothing needs doing right now." : "No jobs match your filters."}
           </div>
         ) : view === "funnel" ? (
           <JobFunnelView jobs={filtered} clients={clients} onJobCard={setCardJob} />

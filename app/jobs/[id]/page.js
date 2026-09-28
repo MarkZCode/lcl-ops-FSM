@@ -28,9 +28,9 @@ import { buildInvoicePrefill } from "@/lib/invoiceData";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { STATUS_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
-import { gbp, fmtDate, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable } from "@/lib/format";
+import { gbp, fmtDate, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode } from "@/lib/format";
 import { jobFinancialsSplit } from "@/lib/finance";
-import { dateLine, certLabel, acceptanceProgress } from "@/lib/jobCard";
+import { dateLine, certLabel, acceptanceProgress, setScopeConfirmed, scopeAccepted } from "@/lib/jobCard";
 import { computeCertExpiry } from "@/lib/renewals";
 import { isSplit, getVisits, visitLines, blockersForScheduling } from "@/lib/visits";
 import { supabase } from "@/lib/supabase";
@@ -50,13 +50,15 @@ import AutoEmailConfirm from "@/components/AutoEmailConfirm";
 import VisitsPanel from "@/components/VisitsPanel";
 import CertificationPanel from "@/components/CertificationPanel";
 import CancelJobModal from "@/components/CancelJobModal";
+import CancelServiceModal from "@/components/CancelServiceModal";
 import RescheduleModal from "@/components/RescheduleModal";
+import NextStepCard from "@/components/NextStepCard";
 import { toast } from "@/lib/toast";
 
 export default function JobDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { jobs, clients, updateJob, removeJob, mergeBackToParentJob, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
+  const { jobs, clients, updateJob, removeJob, mergeBackToParentJob, cancelServices, restoreService, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
     useStore();
   const { can, user } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
@@ -66,6 +68,8 @@ export default function JobDetailPage() {
   const [jobCardOpen, setJobCardOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  // Cancelling ONE service (not the job): which lines the dialog opens on.
+  const [cancelLineIds, setCancelLineIds] = useState(null);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [followUpPrefill, setFollowUpPrefill] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
@@ -186,6 +190,64 @@ export default function JobDetailPage() {
     setFollowUpOpen(true);
   };
 
+
+  // What the "Next step" card's button actually does — each suggestion in
+  // lib/nextAction.js carries a `do` key, and this is the one place that
+  // turns it into the real control, so the suggestion and the fix are the
+  // same click.
+  const scrollToId = (id) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const handleNextStep = (what) => {
+    if (!job) return;
+    if (what.startsWith("email:")) {
+      setEmailTemplateOverride(what.slice(6));
+      setEmailOpen(true);
+      return;
+    }
+    switch (what) {
+      case "reply":
+        scrollToId("communication");
+        return;
+      case "reply_handled":
+        updateJob(job.id, { replyHandledAt: new Date().toISOString() });
+        toast("Marked as handled");
+        return;
+      case "confirm":
+        scrollToId(isSplit(job) ? "visits" : "booking");
+        return;
+      case "book":
+        if (isSplit(job)) scrollToId("visits");
+        else if (job.engineerId && job.engineerId !== "unassigned" && !job.scheduledAt) setRescheduleOpen(true);
+        else scrollToId("booking");
+        return;
+      case "complete":
+        if (isSplit(job)) scrollToId("visits");
+        else changeStatus("completed");
+        return;
+      case "not_done":
+        setCancelLineIds(
+          getJobLines(job).filter((l) => !isAddonCode(l.code) && !l.cancelled).map((l) => l.id)
+        );
+        return;
+      case "partial":
+        scrollToId("visits");
+        return;
+      case "invoice":
+        setEmailTemplateOverride("invoice");
+        setEmailOpen(true);
+        return;
+      case "upload":
+        scrollToId("documents");
+        return;
+      case "edit":
+        setEditOpen(true);
+        return;
+      case "status:scheduled":
+        changeStatus("scheduled");
+        return;
+      default:
+    }
+  };
 
   // Cancelling with its reason attached: same status path as every other
   // transition, plus a permanent line in the job's activity thread so the
@@ -314,7 +376,7 @@ export default function JobDetailPage() {
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
           if (invNoUsed) advanceInvoiceSeq(invNoUsed);
-          logActivity(job.id, { type: "email", title: `Auto-notification: ${s}${attachNote}`, detail: subject, to: client.email, meta: { messageId: data.id } });
+          logActivity(job.id, { type: "email", template: tplKey, title: `Auto-notification: ${s}${attachNote}`, detail: subject, to: client.email, meta: { messageId: data.id } });
           toast.success(`Auto-notification sent${attachNote}`);
         } else {
           toast.error(data.error || "Auto-notification failed to send — check Settings → Email.");
@@ -357,15 +419,34 @@ export default function JobDetailPage() {
             })()}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {job.status === "quote" && (
+            {/* Accepting a quote records the CLIENT'S yes. It used to try to
+                jump straight to Scheduled and, if anything wasn't booked yet,
+                refuse and save nothing — so the acceptance itself was lost.
+                Now it's always recorded; the job moves to Scheduled on its own
+                once an engineer and date are confirmed, and Next step says
+                what's missing. */}
+            {job.status === "quote" && !job.acceptedAt && (
               <button
                 className="btn-primary"
-                onClick={() =>
-                  changeStatus("scheduled", { acceptedAt: new Date().toISOString() })
-                }
+                onClick={() => {
+                  const acceptedAt = new Date().toISOString();
+                  const b = blockersForScheduling(job, (eid) => engineerById(eid)?.name || "the engineer");
+                  if (!b.length) {
+                    changeStatus("scheduled", { acceptedAt });
+                    return;
+                  }
+                  updateJob(job.id, { acceptedAt });
+                  logActivity(job.id, { type: "status", title: "Quote accepted by the client", by: user?.name || user?.username || "" });
+                  toast.success(`Quote accepted. Next: ${b[0]}.`, { duration: 7000 });
+                }}
               >
                 <FiCheckCircle /> Accept quote
               </button>
+            )}
+            {job.status === "quote" && job.acceptedAt && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
+                <FiCheckCircle /> Accepted — booking in progress
+              </span>
             )}
             {can("invoices") && (
               <button
@@ -428,6 +509,13 @@ export default function JobDetailPage() {
       <div className="page grid grid-cols-1 gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,900px)_380px]">
         {/* Main */}
         <div className="min-w-0 space-y-6">
+          <NextStepCard
+            job={job}
+            clientEmail={client?.email}
+            engineerName={(eid) => engineerById(eid)?.name || "the engineer"}
+            onDo={handleNextStep}
+          />
+
           {/* Status workflow */}
           <section className="card p-5">
             <h2 className="mb-3 section-label text-sm">
@@ -452,6 +540,21 @@ export default function JobDetailPage() {
                 );
               })}
             </div>
+            {/* Accepted, but a leg has lost its confirmation (an engineer was
+                swapped). The job stays Scheduled rather than falling back to
+                Quote — so say, right here, what still needs a yes. */}
+            {["scheduled", "in_progress"].includes(job.status) && isSplit(job) && (() => {
+              const b = blockersForScheduling(job, (eid) => engineerById(eid)?.name || "the engineer");
+              if (!b.length) return null;
+              return (
+                <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+                  <p className="font-semibold">Needs attention before the day</p>
+                  <ul className="mt-1 list-disc pl-4">
+                    {b.map((x) => <li key={x}>{x}</li>)}
+                  </ul>
+                </div>
+              );
+            })()}
             {job.status === "cancelled" && (job.cancelReasonLabel || job.cancelNote) && (
               <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm">
                 <p className="font-semibold text-rose-800">
@@ -519,7 +622,9 @@ export default function JobDetailPage() {
           )}
 
           {/* Visits — full width in the main column. */}
-          <VisitsPanel job={job} />
+          <div id="visits" className="scroll-mt-24">
+            <VisitsPanel job={job} onCancelLines={(ids) => setCancelLineIds(ids)} />
+          </div>
           <CertificationPanel job={job} />
 
           {/* Services */}
@@ -530,18 +635,30 @@ export default function JobDetailPage() {
             <ul className="divide-y divide-navy-100">
               {getJobLines(job).map((l) => {
                 const qty = l.qty || 1;
+                const editable = !["invoiced", "paid"].includes(job.status) && can("invoices");
+                const isWork = !isAddonCode(l.code);
                 return (
                   <li
                     key={l.id}
-                    className="flex items-center justify-between gap-3 py-2.5 text-sm text-navy-700"
+                    className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2.5 text-sm ${l.cancelled ? "text-navy-400" : "text-navy-700"}`}
                   >
-                    <span className="flex flex-wrap items-center gap-2">
-                      <FiFileText className="text-brand-500" />
-                      {l.name}
+                    <span className="flex min-w-0 flex-wrap items-center gap-2">
+                      <FiFileText className={l.cancelled ? "text-navy-300" : "text-brand-500"} />
+                      <span className={l.cancelled ? "line-through" : ""}>{l.name}</span>
+                      {l.cancelled && (
+                        <span
+                          className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700"
+                          title={l.cancelNote || ""}
+                        >
+                          Not carried out · {l.cancelReasonLabel || "cancelled"} ·{" "}
+                          {l.billing === "charge" ? "charged" : "not charged"}
+                          {l.payEngineer ? " · engineer paid" : ""}
+                        </span>
+                      )}
                       {l.tier && (
                         <span className="text-xs text-navy-400">· {l.tier}</span>
                       )}
-                      {l.waived && (
+                      {l.waived && !l.cancelled && (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
                           discounted
                         </span>
@@ -557,14 +674,40 @@ export default function JobDetailPage() {
                         </span>
                       )}
                     </span>
-                    {l.waived ? (
-                      <span className="flex items-center gap-2">
-                        <span className="text-navy-400 line-through">{gbp(lineGross(l))}</span>
-                        <span className="text-xs font-semibold text-brand-600">£0.00</span>
-                      </span>
-                    ) : (
-                      <span className="font-medium text-navy-800">{gbp(lineTotal(l))}</span>
-                    )}
+                    <span className="ml-auto flex items-center gap-2">
+                      {l.waived ? (
+                        <>
+                          <span className="text-navy-400 line-through">{gbp(lineGross(l))}</span>
+                          <span className="text-xs font-semibold text-brand-600">£0.00</span>
+                        </>
+                      ) : (
+                        <span className="font-medium text-navy-800">{gbp(lineTotal(l))}</span>
+                      )}
+                      {editable && isWork && !l.cancelled && (
+                        <button
+                          type="button"
+                          onClick={() => setCancelLineIds([l.id])}
+                          className="rounded-md border border-navy-200 px-2 py-1 text-[11px] font-semibold text-navy-500 hover:border-rose-300 hover:text-rose-600"
+                          title="This service wasn't carried out — cancel it, or move it to a new job to rebook"
+                        >
+                          Not done…
+                        </button>
+                      )}
+                      {editable && l.cancelled && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const r = restoreService(job.id, l.id, user?.name || user?.username || "");
+                            if (r?.ok) toast.success(`${l.name} restored`);
+                            else toast.error(r?.error || "Couldn't restore it.");
+                          }}
+                          className="rounded-md border border-navy-200 px-2 py-1 text-[11px] font-semibold text-navy-500 hover:border-brand-300 hover:text-brand-600"
+                          title="Undo — put this service back on the job"
+                        >
+                          Restore
+                        </button>
+                      )}
+                    </span>
                   </li>
                 );
               })}
@@ -853,7 +996,9 @@ export default function JobDetailPage() {
           )}
 
           {/* Documents & photos */}
-          <JobAttachments job={job} onSave={updateJob} />
+          <div id="documents" className="scroll-mt-24">
+            <JobAttachments job={job} onSave={updateJob} />
+          </div>
 
           {/* Outcome & follow-up (remedial / replacement) */}
           <JobOutcome job={job} onCreateFollowUp={createFollowUp} />
@@ -945,24 +1090,7 @@ export default function JobDetailPage() {
                   </button>
                 )}
               </div>
-              {(() => {
-                // Acceptance is per engineer now, so the badge has to say how
-                // many are in — "Engineer confirmed" on a three-engineer job
-                // where only one replied was the exact wrong message.
-                const { done, total, all } = acceptanceProgress(job, engineerById);
-                if (done === 0) return null;
-                return (
-                  <p className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    all ? "bg-brand-50 text-brand-700" : "bg-amber-50 text-amber-700"
-                  }`}>
-                    <FiUserCheck />
-                    {all
-                      ? total > 1 ? "All engineers confirmed" : "Engineer confirmed"
-                      : `${done} of ${total} engineers confirmed`}
-                  </p>
-                );
-              })()}
-              <div>
+              <div id="booking" className="scroll-mt-24">
                 <label className="label">Assigned engineer</label>
                 {isSplit(job) ? (
                   <div className="space-y-2 rounded-lg bg-navy-50 p-3 text-xs text-navy-700">
@@ -1012,6 +1140,64 @@ export default function JobDetailPage() {
                   </select>
                 )}
               </div>
+              {/* Engineer confirmation — the SAME record the Visits panel
+                  and the job card write (visit.engineerConfirmedAt on a split
+                  job, the job's own flag otherwise), so marking it here, there
+                  or from the card can never disagree. */}
+              {!["completed", "invoiced", "paid", "cancelled"].includes(job.status) && (() => {
+                const { scopes, done, total } = acceptanceProgress(job, engineerById);
+                if (!scopes.length) return null;
+                return (
+                  <div className="space-y-1.5">
+                    <p className="label">
+                      Engineer confirmation{total > 1 ? ` · ${done} of ${total}` : ""}
+                    </p>
+                    {scopes.map((sc) => {
+                      const hasEng = sc.engineerId && sc.engineerId !== "unassigned";
+                      const v = sc.visitId ? (job.visits || []).find((x) => x.id === sc.visitId) : null;
+                      const hasDate = v ? !!v.scheduledAt : !!job.scheduledAt;
+                      const ok = scopeAccepted(job, sc);
+                      const started = v && ["in_progress", "completed"].includes(v.status);
+                      return (
+                        <div
+                          key={sc.key}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-navy-100 bg-white px-2.5 py-2 text-xs dark:bg-white/[0.03]"
+                        >
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold text-navy-800">
+                              {hasEng ? engineerById(sc.engineerId)?.name || sc.label : "No engineer yet"}
+                            </span>
+                            {sc.sub && <span className="block truncate text-navy-500">{sc.sub}</span>}
+                          </span>
+                          {!hasEng ? (
+                            <span className="shrink-0 text-navy-400">Assign first</span>
+                          ) : !hasDate ? (
+                            <span className="shrink-0 text-navy-400">Needs a date</span>
+                          ) : ok ? (
+                            <button
+                              type="button"
+                              disabled={started}
+                              onClick={() => updateJob(job.id, setScopeConfirmed(job, sc.key, false, engineerById))}
+                              className="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 font-semibold text-brand-700 disabled:cursor-default"
+                              title={started ? "" : "Click to undo"}
+                            >
+                              ✓ Confirmed
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => updateJob(job.id, setScopeConfirmed(job, sc.key, true, engineerById))}
+                              className="shrink-0 rounded-full bg-amber-500 px-2.5 py-1 font-semibold text-white hover:bg-amber-600"
+                            >
+                              Mark confirmed
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {job.certExpiry && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   Certificate expires {fmtDate(job.certExpiry)}
@@ -1070,7 +1256,9 @@ export default function JobDetailPage() {
           </section>
 
           {/* Communication thread */}
-          <ActivityThread job={job} client={client} />
+          <div id="communication" className="scroll-mt-24">
+            <ActivityThread job={job} client={client} />
+          </div>
         </div>
       </div>
 
@@ -1081,6 +1269,23 @@ export default function JobDetailPage() {
         subject={autoEmailPending?.subject}
         onConfirm={() => { autoEmailPending?.sendFn(); setAutoEmailPending(null); }}
         onCancel={() => setAutoEmailPending(null)}
+      />
+      <CancelServiceModal
+        open={!!cancelLineIds}
+        onClose={() => setCancelLineIds(null)}
+        job={job}
+        initialLineIds={cancelLineIds || []}
+        engineerName={(eid) => engineerById(eid)?.name || "the engineer"}
+        onConfirm={(opts) => {
+          const r = cancelServices(job.id, { ...opts, by: user?.name || user?.username || "" });
+          if (!r?.ok) { toast.error(r?.error || "Couldn't update the job."); return; }
+          setCancelLineIds(null);
+          if (r.followUp) {
+            toast.success(`Moved to ${r.followUp.id} to rebook — the rest of ${job.id} can be billed now.`);
+          } else {
+            toast.success("Service cancelled — job updated.");
+          }
+        }}
       />
       <CancelJobModal
         open={cancelOpen}
@@ -1118,7 +1323,9 @@ export default function JobDetailPage() {
           const patch = { scheduledAt, windowPart, windowFrom, windowTo };
           // A job that had slipped back to quote/cancelled is booked again by
           // rescheduling it — otherwise it moves date but stays off the board.
-          if (["quote", "cancelled"].includes(job.status)) patch.status = "scheduled";
+          // A split job's status is derived from its visits by reconcileJob;
+          // forcing "scheduled" here overrode that.
+          if (["quote", "cancelled"].includes(job.status) && !isSplit(job)) patch.status = "scheduled";
           // Every visit on a split job moves with the job. Rescheduling the
           // parent and leaving the visits on the old date would put the job in
           // two places at once on the dispatch board.

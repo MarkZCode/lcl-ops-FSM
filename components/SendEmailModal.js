@@ -8,6 +8,7 @@ import {
   FiCheckCircle,
   FiPaperclip,
   FiEdit2,
+  FiUploadCloud,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import Modal from "./Modal";
@@ -16,7 +17,7 @@ import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { renderTemplate, buildContext } from "@/lib/email";
 import { JOB_TEMPLATE_PURPOSES } from "@/lib/templates";
-import { fileSrc } from "@/lib/uploads";
+import { fileSrc, uploadFile } from "@/lib/uploads";
 import { buildInvoicePrefill, overridesKey } from "@/lib/invoiceData";
 import { toWhatsAppNumber } from "@/lib/whatsapp";
 import { toast } from "@/lib/toast";
@@ -76,10 +77,56 @@ export default function SendEmailModal({
   // attach the wrong document to the one email whose entire purpose is the
   // document.
   const isCertEmail = tplKey === "certificate";
-  const certFiles = isCertEmail
-    ? (job?.attachments || []).filter((f) => /pdf$/i.test(f.name || f.filename || "") || f.contentType === "application/pdf")
-    : [];
+  // Uploads store the MIME type as `type` (see lib/uploads.js) — matching
+  // only on `contentType` meant a genuinely attached certificate was
+  // invisible here unless its filename happened to end in .pdf.
+  const isPdf = (f) =>
+    f?.type === "application/pdf" ||
+    f?.contentType === "application/pdf" ||
+    /\.pdf$/i.test(f?.name || f?.filename || "");
+  const certFiles = isCertEmail ? (job?.attachments || []).filter(isPdf) : [];
   const attachable = Boolean(job) && (!isCertEmail || certFiles.length > 0);
+  // The certificate email with no certificate on the job is the case that
+  // used to show nothing at all — no checkbox, no explanation, no way in.
+  const certMissing = isCertEmail && Boolean(job) && certFiles.length === 0;
+  const [uploading, setUploading] = useState(false);
+  const certInputRef = useRef(null);
+
+  // Upload a certificate straight from this modal and save it onto the job,
+  // exactly where "Documents & photos" puts it — so it is on the job record
+  // for the inspector as well as on this email.
+  const addCertificate = async (fileList) => {
+    const incoming = Array.from(fileList || []).filter(
+      (f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name || "")
+    );
+    if (!incoming.length || !job?.id) return;
+    setUploading(true);
+    try {
+      let next = [...(job.attachments || [])];
+      for (const file of incoming) {
+        if (file.size > 9 * 1024 * 1024) {
+          toast.error(`"${file.name}" is too large (max 9 MB).`);
+          continue;
+        }
+        const up = await uploadFile(file, `jobs/${job.id}`);
+        next = [
+          {
+            id: "att-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            ...up,
+            addedAt: new Date().toISOString(),
+          },
+          ...next,
+        ];
+      }
+      updateJob(job.id, { attachments: next });
+      setAttach(true);
+      toast.success("Certificate attached to the job.");
+    } catch (e) {
+      toast.error("Upload failed — try again from Documents & photos on the job.");
+    } finally {
+      setUploading(false);
+    }
+  };
   const docLabel = isCertEmail
     ? (certFiles.length === 1 ? "certificate" : `${certFiles.length} certificates`)
     : docType === "quote" ? "quote" : "invoice";
@@ -257,6 +304,19 @@ export default function SendEmailModal({
     // "Booking confirmed ... on to be confirmed" is not a confirmation. The
     // auto-send path already refuses this; the manual one didn't, so it
     // shipped a blank date to a real client.
+    // The certificate email exists to deliver the certificate. Sending it
+    // with nothing attached tells the client to "find the certificate
+    // attached" next to an empty paperclip — worse than not sending.
+    if (isCertEmail && (!attachments || !attachments.length)) {
+      setStatus("idle");
+      setMessage(
+        attachFailed
+          ? "The certificate couldn't be read back from storage — re-upload it and try again."
+          : "Upload the certificate PDF first — this email promises an attachment."
+      );
+      return;
+    }
+
     if ((tplKey === "booking" || tplKey === "reminder") && !job?.scheduledAt) {
       setStatus("idle");
       setMessage("Set an appointment date on this job first — this email would go out saying \u201con to be confirmed\u201d.");
@@ -292,12 +352,26 @@ export default function SendEmailModal({
         if (job && logActivity) {
           logActivity(job.id, {
             type: "email",
+            // The template key is what "has the booking confirmation gone
+            // out?" is answered from (lib/nextAction.js) — matching on the
+            // title broke whenever a template was renamed.
+            template: tplKey,
             title: `${templates[tplKey]?.name || "Email"} sent`,
             detail: subject,
             to,
             attachment: attachedFilename || null,
             meta: { messageId: data.id },
           });
+        }
+        // Sending the invoice IS invoicing. A finished job whose invoice had
+        // gone out still sat on Completed until someone remembered to press
+        // "Mark as invoiced" — so it showed up as "to invoice" forever, and
+        // the payment chase never started.
+        if (job && invNoUsed && job.status === "completed") {
+          updateJob(job.id, { status: "invoiced", invoicedAt: new Date().toISOString() });
+        }
+        if (job && isCertEmail && attachedFilename) {
+          updateJob(job.id, { certificateSentAt: new Date().toISOString() });
         }
         if (attachFailed) {
           // Something needs the user's attention (missing attachment) —
@@ -410,18 +484,87 @@ export default function SendEmailModal({
               <span>
                 Attach the <strong>{docLabel}</strong> PDF to this email
                 {docType === "invoice" ? ` (No. ${peekInvoiceNumber(job?.id)})` : ""}
-                {edited ? " — edited" : ""}
+                {edited && !isCertEmail ? " — edited" : ""}
               </span>
             </label>
+            {isCertEmail ? (
+              <button
+                type="button"
+                onClick={() => certInputRef.current?.click()}
+                disabled={uploading}
+                className="flex shrink-0 items-center gap-1 rounded-md border border-brand-300 bg-white px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-60"
+              >
+                <FiUploadCloud className="h-3 w-3" /> {uploading ? "Uploading…" : "Replace / add"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="flex shrink-0 items-center gap-1 rounded-md border border-brand-300 bg-white px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+              >
+                <FiEdit2 className="h-3 w-3" /> Edit
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* The certificate template with no certificate on the job. It used
+            to render nothing at all, which read as "certificates aren't
+            supported" — so upload it from right here. */}
+        {certMissing && (
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              addCertificate(e.dataTransfer.files);
+            }}
+            className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/70 px-3 py-3 text-sm text-navy-700"
+          >
+            <FiPaperclip className="shrink-0 text-amber-600" />
+            <span className="min-w-0 flex-1">
+              <strong>No certificate is on this job yet.</strong> Upload the signed
+              PDF (CP12, EICR…) and it will be attached here and saved to the job.
+            </span>
             <button
               type="button"
-              onClick={() => setEditOpen(true)}
-              className="flex shrink-0 items-center gap-1 rounded-md border border-brand-300 bg-white px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+              onClick={() => certInputRef.current?.click()}
+              disabled={uploading}
+              className="flex shrink-0 items-center gap-1 rounded-md border border-amber-400 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-60"
             >
-              <FiEdit2 className="h-3 w-3" /> Edit
+              <FiUploadCloud className="h-3.5 w-3.5" />
+              {uploading ? "Uploading…" : "Upload certificate"}
             </button>
           </div>
         )}
+
+        {isCertEmail && certFiles.length > 0 && (
+          <ul className="-mt-1 space-y-1 pl-1 text-xs text-navy-500">
+            {certFiles.map((f) => (
+              <li key={f.id || f.name} className="truncate">
+                <a
+                  href={fileSrc(f)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline decoration-dotted underline-offset-2 hover:text-brand-600"
+                >
+                  {f.name || f.filename}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <input
+          ref={certInputRef}
+          type="file"
+          accept="application/pdf"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            addCertificate(e.target.files);
+            e.target.value = "";
+          }}
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

@@ -56,7 +56,12 @@ export async function GET(request) {
     slot = Object.values(SLOTS).find((s) => s.key === forcedSlot);
     if (!slot) return NextResponse.json({ error: "Unknown slot" }, { status: 400 });
   } else {
-    slot = SLOTS[ukHour(now)];
+    // The crons are scheduled in UTC (08/14/18). In British Summer Time
+    // that's 09/15/19 on the UK clock, which matched no slot — so for half
+    // the year every scheduled reminder silently skipped. Accept the slot
+    // hour or the hour after it, which covers both GMT and BST.
+    const h = ukHour(now);
+    slot = SLOTS[h] || SLOTS[h - 1];
     if (!slot) {
       return NextResponse.json({ skipped: true, reason: `Not a reminder slot (currently ${ukHour(now)}:00 UK)` });
     }

@@ -11,15 +11,15 @@ import { ukDateTimeToUtcIso } from "@/lib/ukTime";
 import { toast } from "@/lib/toast";
 import {
   getVisits, isSplit, visitLines, unassignedLines, schedulableLines,
-  deriveJobStatus, visitProgress, readyToInvoice, isVisitBooked,
+  visitProgress, readyToInvoice, isVisitBooked, isVisitLive,
   splitPerService, assignLineToVisit,
-  makeVisit, syncJobFromVisits, VISIT_STATUSES, VISIT_OUTCOMES, isVisitConfirmed,
+  makeVisit, syncJobFromVisits, VISIT_OUTCOMES, isVisitConfirmed,
 } from "@/lib/visits";
 
 // Split a job into separate engineer visits — different people, different
 // days, one client-facing job. Only appears on multi-service jobs, because a
 // single-service job is already one visit and splitting it is meaningless.
-export default function VisitsPanel({ job }) {
+export default function VisitsPanel({ job, onCancelLines }) {
   const { updateJob, engineers, splitOffIncompleteWork } = useStore();
   const [open, setOpen] = useState(false);
 
@@ -37,7 +37,7 @@ export default function VisitsPanel({ job }) {
   // deliberately and there's nothing left to reschedule).
   const partial = (() => {
     if (!split) return null;
-    const live = visits.filter((v) => v.status !== "cancelled");
+    const live = visits.filter((v) => isVisitLive(job, v));
     const done = live.filter((v) => v.status === "completed");
     const notDone = live.filter((v) => v.status !== "completed");
     if (!done.length || !notDone.length) return null;
@@ -56,13 +56,13 @@ export default function VisitsPanel({ job }) {
   if (!split && realLines.length < 2) return null;
 
   const save = (nextVisits, extraPatch = {}) => {
-    const patched = { ...job, visits: nextVisits, ...extraPatch };
-    // Job status follows its visits, but never walks a billing status back.
-    // The job's own date/engineer follow them too, so every other view of
+    // Job status follows its visits — worked out by reconcileJob inside
+    // updateJob, the same rules every other screen goes through. Passing a
+    // status from here made it look like a deliberate manual choice. The
+    // job's own date/engineer follow the visits too, so every other view of
     // this job (list, funnel, calendar, dispatch) agrees with this panel.
     updateJob(job.id, {
       visits: nextVisits,
-      status: deriveJobStatus(patched),
       ...syncJobFromVisits(job, nextVisits),
       ...extraPatch,
     });
@@ -96,11 +96,26 @@ export default function VisitsPanel({ job }) {
       if (v.id !== id) return v;
       const next = { ...v, ...patch };
       if (patch.status === undefined && ["pending", "scheduled"].includes(v.status)) {
-        // Booking a visit no longer marks it Scheduled on its own. Writing an
-        // engineer and a date against a leg is us making an offer; only the
-        // engineer confirming turns it into an appointment, and that's the
-        // Awaiting confirmation / Engineer confirmed control below.
-        next.status = isVisitBooked(next) && next.engineerConfirmedAt ? "scheduled" : "pending";
+        // Booking a visit doesn't mark it Scheduled on its own — an engineer
+        // and a date is an offer until the engineer confirms.
+        //
+        // But MOVING a confirmed visit keeps it confirmed. It used to drop
+        // straight back to pending on any date change (a visit confirmed by
+        // being Scheduled has no engineerConfirmedAt stamp), which dragged
+        // the whole job back to Quote the moment one service was
+        // rescheduled. Only a different ENGINEER needs a fresh yes.
+        const engineerChanged = patch.engineerId !== undefined && (patch.engineerId || "") !== (v.engineerId || "");
+        if (engineerChanged) {
+          next.engineerConfirmedAt = null;
+          next.status = "pending";
+        } else if (!isVisitBooked(next)) {
+          next.status = "pending";
+        } else {
+          next.status = v.status === "scheduled" || next.engineerConfirmedAt ? "scheduled" : "pending";
+          if (next.status === "scheduled" && !next.engineerConfirmedAt) {
+            next.engineerConfirmedAt = new Date().toISOString();
+          }
+        }
       }
       return next;
     });
@@ -273,28 +288,7 @@ export default function VisitsPanel({ job }) {
             <div key={v.id} className="p-4">
               <div className="mb-2.5 flex flex-wrap items-center gap-2">
                 <span className="text-[13px] font-semibold text-navy-900">Visit {i + 1}</span>
-                <span className={`pill ${VISIT_STATUSES.find((s) => s.key === v.status)?.pill || "pill-neutral"}`}>
-                  {VISIT_STATUSES.find((s) => s.key === v.status)?.label || v.status}
-                </span>
-                {/* An engineer and a date on a visit is an OFFER. This is the
-                    record of them saying yes — and the job cannot reach
-                    Scheduled until every leg has it (see deriveJobStatus). */}
-                {isVisitBooked(v) && !["completed", "cancelled"].includes(v.status) && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      patchVisit(v.id, isVisitConfirmed(v)
-                        ? { engineerConfirmedAt: null, status: "pending" }
-                        : { engineerConfirmedAt: new Date().toISOString(), status: "scheduled" })
-                    }
-                    className={`pill ${isVisitConfirmed(v) ? "pill-green" : "pill-amber"} cursor-pointer`}
-                    title={isVisitConfirmed(v)
-                      ? "Engineer has confirmed. Click to undo."
-                      : "Mark that the engineer has confirmed this visit — the job can't be Scheduled until every leg is confirmed."}
-                  >
-                    {isVisitConfirmed(v) ? "Engineer confirmed" : "Awaiting confirmation"}
-                  </button>
-                )}
+                <span className={`pill ${stepOf(v).pill}`}>{stepOf(v).label}</span>
                 <span className="tnum ml-auto text-[13px] text-navy-500">{gbp(value)}</span>
                 <button
                   type="button"
@@ -306,8 +300,40 @@ export default function VisitsPanel({ job }) {
                 </button>
               </div>
 
+              {/* ONE path for every visit: engineer → date → engineer
+                  confirms → done. Replaces a status pill, a separate
+                  confirmation pill AND a status dropdown that could all
+                  disagree. The only next move is the button shown. */}
+              <VisitStepBar
+                v={v}
+                engineerName={engineers.find((e) => e.id === v.engineerId)?.name}
+                onConfirm={(on) =>
+                  patchVisit(v.id, on
+                    ? { engineerConfirmedAt: new Date().toISOString(), status: "scheduled" }
+                    : { engineerConfirmedAt: null, status: "pending" })
+                }
+                onStart={() => patchVisit(v.id, { status: "in_progress" })}
+                onDone={() => patchVisit(v.id, { status: "completed", completedAt: new Date().toISOString() })}
+                onReopen={() => patchVisit(v.id, { status: "scheduled", completedAt: null })}
+                onNotDone={() => {
+                  const ids = visitLines(job, v).filter((l) => !isAddonCode(l.code) && !l.cancelled).map((l) => l.id);
+                  if (ids.length && onCancelLines) onCancelLines(ids);
+                }}
+                outcome={v.outcome}
+                onOutcome={(o) => patchVisit(v.id, { outcome: o || null })}
+              />
+
               {/* Which services this engineer is doing */}
               <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {visitLines(job, v).filter((l) => l.cancelled).map((l) => (
+                  <span
+                    key={l.id}
+                    title={`Cancelled — ${l.cancelReasonLabel || "no reason"}`}
+                    className="rounded-lg border border-rose-200 px-2 py-1 text-[11px] font-medium text-rose-500 line-through"
+                  >
+                    {l.code === "CUSTOM" ? l.name : certLabel(l.code)}
+                  </span>
+                ))}
                 {realLines.map((l) => {
                   const on = (v.lineIds || []).includes(l.id);
                   const elsewhere = !on && visits.some((o) => o.id !== v.id && (o.lineIds || []).includes(l.id));
@@ -331,7 +357,7 @@ export default function VisitsPanel({ job }) {
                 })}
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <select
                   className="input h-9 text-sm"
                   value={v.engineerId || ""}
@@ -354,26 +380,6 @@ export default function VisitsPanel({ job }) {
                     })
                   }
                 />
-                <select
-                  className="input h-9 text-sm"
-                  value={v.status}
-                  onChange={(e) => patchVisit(v.id, { status: e.target.value })}
-                >
-                  {VISIT_STATUSES.map((s) => (
-                    <option key={s.key} value={s.key}>{s.label}</option>
-                  ))}
-                </select>
-                <select
-                  className="input h-9 text-sm"
-                  value={v.outcome || ""}
-                  onChange={(e) => patchVisit(v.id, { outcome: e.target.value || null })}
-                  title="Outcome — a visit can be Completed and still FAIL"
-                >
-                  <option value="">Outcome…</option>
-                  {VISIT_OUTCOMES.map((o) => (
-                    <option key={o.key} value={o.key}>{o.label}</option>
-                  ))}
-                </select>
               </div>
 
               {/* Inspection-only + who certifies.
@@ -494,6 +500,113 @@ export default function VisitsPanel({ job }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Where a visit is on its one path, in words.
+function stepOf(v) {
+  if (v.status === "cancelled") return { key: "cancelled", label: "Not done", pill: "pill-rose" };
+  if (v.status === "completed") return { key: "done", label: "Done", pill: "pill-green" };
+  if (v.status === "in_progress") return { key: "on_site", label: "In progress", pill: "pill-amber" };
+  if (!v.engineerId || v.engineerId === "unassigned") return { key: "engineer", label: "Needs an engineer", pill: "pill-neutral" };
+  if (!v.scheduledAt) return { key: "date", label: "Needs a date", pill: "pill-neutral" };
+  if (isVisitConfirmed(v)) return { key: "confirmed", label: "Confirmed", pill: "pill-blue" };
+  return { key: "awaiting", label: "Awaiting engineer", pill: "pill-amber" };
+}
+
+const STEPS = [
+  { key: "engineer", label: "Engineer" },
+  { key: "date", label: "Date" },
+  { key: "confirm", label: "Confirmed" },
+  { key: "done", label: "Done" },
+];
+
+function VisitStepBar({ v, engineerName, onConfirm, onStart, onDone, onReopen, onNotDone, outcome, onOutcome }) {
+  const step = stepOf(v);
+  if (step.key === "cancelled") return null;
+  const reached = {
+    engineer: !!v.engineerId && v.engineerId !== "unassigned",
+    date: !!v.scheduledAt,
+    confirm: isVisitConfirmed(v),
+    done: v.status === "completed",
+  };
+  const started = v.status === "in_progress";
+  const due = v.scheduledAt && new Date(v.scheduledAt).getTime() <= Date.now() + 12 * 3600_000;
+
+  return (
+    <div className="mb-3 rounded-lg border border-navy-100 bg-navy-50/60 p-2.5 dark:bg-white/[0.03]">
+      <ol className="mb-2 flex items-center gap-1 text-[11px] font-semibold">
+        {STEPS.map((s, i) => (
+          <li key={s.key} className="flex min-w-0 flex-1 items-center gap-1">
+            <span
+              className={`grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] ${
+                reached[s.key] ? "bg-brand-500 text-white" : "border border-navy-300 text-navy-400"
+              }`}
+            >
+              {reached[s.key] ? "✓" : i + 1}
+            </span>
+            <span className={`truncate ${reached[s.key] ? "text-navy-800" : "text-navy-400"}`}>{s.label}</span>
+            {i < STEPS.length - 1 && <span className="mx-1 h-px flex-1 bg-navy-200" />}
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap items-center gap-2">
+        {step.key === "engineer" && <span className="text-xs text-navy-500">Pick an engineer below.</span>}
+        {step.key === "date" && <span className="text-xs text-navy-500">Pick a date below.</span>}
+        {step.key === "awaiting" && (
+          <button type="button" className="btn-primary py-1.5 text-xs" onClick={() => onConfirm(true)}>
+            {engineerName || "Engineer"} has confirmed
+          </button>
+        )}
+        {step.key === "confirmed" && (
+          <>
+            {due ? (
+              <button type="button" className="btn-primary py-1.5 text-xs" onClick={onDone}>Mark done</button>
+            ) : (
+              <span className="text-xs text-navy-500">Booked — {engineerName || "engineer"} confirmed.</span>
+            )}
+            <button type="button" className="text-[11px] font-semibold text-navy-400 hover:text-navy-700" onClick={() => onConfirm(false)}>
+              Undo confirmation
+            </button>
+            {!due && (
+              <button type="button" className="text-[11px] font-semibold text-navy-400 hover:text-navy-700" onClick={onStart}>
+                Started early
+              </button>
+            )}
+          </>
+        )}
+        {started && (
+          <button type="button" className="btn-primary py-1.5 text-xs" onClick={onDone}>Mark done</button>
+        )}
+        {step.key === "done" && (
+          <>
+            <select
+              className="input h-8 w-auto text-xs"
+              value={outcome || ""}
+              onChange={(e) => onOutcome(e.target.value)}
+              title="Outcome — a visit can be done and still FAIL"
+            >
+              <option value="">Outcome…</option>
+              {VISIT_OUTCOMES.map((o) => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+            <button type="button" className="text-[11px] font-semibold text-navy-400 hover:text-navy-700" onClick={onReopen}>
+              Reopen
+            </button>
+          </>
+        )}
+        {step.key !== "done" && (
+          <button
+            type="button"
+            className="ml-auto text-[11px] font-semibold text-navy-400 hover:text-rose-600"
+            onClick={onNotDone}
+          >
+            Not done…
+          </button>
+        )}
       </div>
     </div>
   );

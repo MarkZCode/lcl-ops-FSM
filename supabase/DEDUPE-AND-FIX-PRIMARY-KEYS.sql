@@ -1,3 +1,6 @@
+-- DO NOT RUN — superseded by FIX-DUPLICATES-AND-TASKS-LIVE.sql. This version
+-- orders by `updated_at`, which is empty on the newer duplicates, so it
+-- deletes nothing and then fails adding the key.
 -- ============================================================================
 -- LCL Ops — remove duplicate rows and add the missing primary keys.
 -- Supabase → SQL Editor → New query → paste the whole file → Run.

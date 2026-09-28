@@ -20,6 +20,7 @@
 //
 // Secured by CRON_SECRET, same pattern as the other cron routes.
 import { NextResponse } from "next/server";
+import { sendPush, webPushConfigured } from "@/lib/webPush";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { currentCycleDue, serviceLabel } from "@/lib/prospects";
 
@@ -461,6 +462,42 @@ export async function GET(request) {
     await supabaseAdmin.from("tasks").upsert(created.map((t) => ({ id: t.id, data: t })));
   }
 
+  // Tell each assignee on their phone — ONE summary push per person per run,
+  // never one per task (a push per item is what made notifications feel like
+  // spam before). Tasks made here used to arrive silently; the only push an
+  // automated task ever got was the reminder cron, which itself wasn't firing.
+  let pushed = 0;
+  if (created.length && webPushConfigured) {
+    const byAssignee = new Map();
+    for (const t of created) {
+      if (!t.assigneeId) continue;
+      if (!byAssignee.has(t.assigneeId)) byAssignee.set(t.assigneeId, []);
+      byAssignee.get(t.assigneeId).push(t);
+    }
+    if (byAssignee.size) {
+      const { data: subs } = await supabaseAdmin
+        .from("push_subscriptions")
+        .select("id,endpoint,p256dh,auth,user_id")
+        .in("user_id", [...byAssignee.keys()]);
+      const dead = [];
+      for (const sub of subs || []) {
+        const mine = byAssignee.get(sub.user_id) || [];
+        if (!mine.length) continue;
+        const urgent = mine.filter((t) => t.priority === "urgent").length;
+        const result = await sendPush(sub, {
+          title: mine.length === 1
+            ? (urgent ? "URGENT task assigned to you" : "New task assigned to you")
+            : `${mine.length} new tasks for you${urgent ? ` · ${urgent} urgent` : ""}`,
+          body: mine.length === 1 ? mine[0].title : mine.slice(0, 3).map((t) => t.title).join(" · "),
+          url: "/team",
+        });
+        if (result.ok) pushed++;
+        if (result.gone) dead.push(sub.id);
+      }
+      if (dead.length) await supabaseAdmin.from("push_subscriptions").delete().in("id", dead);
+    }
+  }
+
   // Update round-robin state.
   await supabaseAdmin.from("app_settings").upsert({
     id: STATE_ID,
@@ -475,6 +512,7 @@ export async function GET(request) {
   return NextResponse.json({
     ok: true,
     created: created.length,
+    devicesNotified: pushed,
     autoClosed: autoClosed.length,
     throttled,
     dailyCap: DAILY_CAP_PER_ASSIGNEE,
