@@ -180,6 +180,23 @@ function PushNotificationsSection() {
     getPushSubscription().then((sub) => setState(sub ? "on" : "off")).catch(() => setState("off"));
   }, []);
 
+  // Per-device result of a test push — what the push service said for each.
+  const [test, setTest] = useState(null); // null | "sending" | { devices, note, error }
+  const sendTest = async () => {
+    setTest("sending");
+    try {
+      const { data } = await supabase.auth.getSession();
+      const res = await fetch("/api/push/test", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${data?.session?.access_token || ""}` },
+      });
+      const out = await res.json().catch(() => ({}));
+      setTest(res.ok ? out : { error: out.error || `Failed (${res.status})` });
+    } catch (e) {
+      setTest({ error: e.message || "Couldn't reach the server." });
+    }
+  };
+
   const toggle = async () => {
     setState("working");
     setMsg("");
@@ -237,6 +254,28 @@ function PushNotificationsSection() {
             {state === "on" ? <FiBell className="text-brand-600" /> : <FiBellOff />}
             {state === "working" ? "Working…" : state === "on" ? "Enabled — turn off" : "Enable"}
           </button>
+        </div>
+        <div className="mt-4 border-t border-navy-100 pt-4">
+          <button onClick={sendTest} disabled={test === "sending"} className="btn-outline py-1.5 text-xs disabled:opacity-50">
+            <FiBell /> {test === "sending" ? "Sending…" : "Send test notification"}
+          </button>
+          <span className="ml-2 text-[11px] text-navy-400">Goes to every device you&apos;ve enabled — lock your phone first.</span>
+          {test && test !== "sending" && (
+            <div className="mt-3 space-y-1.5 text-xs">
+              {test.error && <p className="font-semibold text-rose-600">{test.error}</p>}
+              {test.note && <p className="text-navy-600">{test.note}</p>}
+              {(test.devices || []).map((d, i) => (
+                <p key={i} className={d.ok ? "text-brand-700" : "text-rose-600"}>
+                  {d.ok ? "✓" : "✗"} <strong>{d.device}</strong>{" "}
+                  {d.ok
+                    ? "— accepted by the push service. If it didn't appear, check this device's notification settings for LCL Ops."
+                    : d.removed
+                      ? "— this device's subscription had expired and was removed. Turn notifications on again from that device."
+                      : `— rejected: ${d.error}`}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </section>
