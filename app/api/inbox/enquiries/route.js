@@ -25,6 +25,28 @@ const SKIP_MAILBOXES = new Set(["engineers"]);
 let lastRun = 0;
 let lastResult = null;
 
+// Append an inbound email to a job's conversation (idempotent on Message-ID).
+async function attachToJob(jobId, msg) {
+  const { data: row, error } = await supabaseAdmin.from("jobs").select("data").eq("id", jobId).maybeSingle();
+  if (error || !row?.data) return false;
+  const job = row.data;
+  if ((job.activity || []).some((a) => a.meta?.messageId === msg.messageId)) return false;
+  const entry = {
+    id: "act-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    at: msg.date,
+    by: msg.from.address,
+    type: "email",
+    direction: "in",
+    title: `Email from client${msg.mailbox ? ` to ${msg.mailbox}` : ""}`,
+    detail: `Subject: ${msg.subject}\n\n${String(msg.text || "").slice(0, 4000)}`,
+    meta: { messageId: msg.messageId },
+  };
+  const next = { ...job, activity: [...(job.activity || []), entry], updatedAt: new Date().toISOString() };
+  const { error: wErr } = await supabaseAdmin.from("jobs").upsert({ id: jobId, data: next });
+  if (wErr) throw new Error(wErr.message);
+  return true;
+}
+
 async function scan({ sinceDays = 7 } = {}) {
   const ownDomains = [
     process.env.HOSTINGER_DOMAIN || "landlordcompliancelondon.uk",
@@ -44,6 +66,18 @@ async function scan({ sinceDays = 7 } = {}) {
       .filter(Boolean)
   );
   ctx.knownClientWithOpenJob = (addr) => openByEmail.has(String(addr || "").toLowerCase());
+  const jobIds = new Set(jobs.map((j) => j.id));
+  ctx.jobExists = (id) => jobIds.has(id);
+  // The most recent job for a client's email — where a reply from them with
+  // no job number in it belongs.
+  ctx.latestJobForClient = (addr) => {
+    const a = String(addr || "").toLowerCase();
+    const ids = new Set(clients.filter((c) => (c.email || "").toLowerCase() === a).map((c) => c.id));
+    if (!ids.size) return null;
+    const mine = jobs.filter((j) => ids.has(j.clientId));
+    mine.sort((x, y) => new Date(y.updatedAt || y.createdAt || 0) - new Date(x.updatedAt || x.createdAt || 0));
+    return mine[0]?.id || null;
+  };
 
   // Messages already on a job (logged replies, or an enquiry already turned
   // into a quote) are skipped outright.
@@ -61,6 +95,7 @@ async function scan({ sinceDays = 7 } = {}) {
   });
 
   const created = [];
+  const attached = [];
   const skipped = {};
   const seenThisRun = new Set();
   for (const msg of messages) {
@@ -72,6 +107,19 @@ async function scan({ sinceDays = 7 } = {}) {
     }
     seenThisRun.add(msg.messageId);
     const c = classifyEmail(msg, ctx);
+    if (c.attachTo) {
+      // File it on the job it's about, as a message from the client — it
+      // then shows as "Reply to the client" there, instead of vanishing or
+      // turning into a fake quote.
+      try {
+        const ok = await attachToJob(c.attachTo, msg);
+        if (ok) attached.push({ jobId: c.attachTo, from: msg.from.address, subject: msg.subject });
+        else skipped["already on the job"] = (skipped["already on the job"] || 0) + 1;
+      } catch (err) {
+        skipped[`attach error: ${String(err.message || err).slice(0, 60)}`] = 1;
+      }
+      continue;
+    }
     if (!c.isEnquiry) {
       skipped[c.reason] = (skipped[c.reason] || 0) + 1;
       continue;
@@ -102,6 +150,7 @@ async function scan({ sinceDays = 7 } = {}) {
   return {
     ok: true,
     created,
+    attached,
     skipped,
     mailboxes: mailboxes.map((m) => ({ mailbox: m.mailbox || m.identity, ok: m.ok, scanned: m.scanned, error: m.error })),
   };
