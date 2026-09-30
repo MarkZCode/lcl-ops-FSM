@@ -15,6 +15,12 @@
 // login screen and the splash. Both draw the mark on a white tile/disc of
 // their own, so those pin the strokes dark rather than inheriting.
 export default function LogoMark({ className = "", title = "LCL Ops", variant = "auto" }) {
+  // On a white tile (login, splash, offline, client share page) show the
+  // company's actual logo rather than this simplified line drawing.
+  if (variant === "light") {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src="/lcl-logo.png" alt={title} className={`${className} object-contain`} />;
+  }
   const stroke = variant === "auto" ? "currentColor" : "#12121a";
   return (
     <svg

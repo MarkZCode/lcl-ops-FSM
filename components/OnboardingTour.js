@@ -7,28 +7,42 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { FiArrowRight, FiArrowLeft, FiX } from "react-icons/fi";
+import { useAuth } from "@/lib/auth";
 
-// Tour key is per-user so a new user always gets the tour, returning users never do.
-function getTourKey() {
-  try {
-    // Try to get user ID from Supabase session stored in localStorage
-    const keys = Object.keys(localStorage).find(k => k.includes("supabase") && k.includes("auth"));
-    if (keys) {
-      const raw = JSON.parse(localStorage.getItem(keys) || "{}");
-      const uid = raw?.user?.id;
-      if (uid) return `lcl-toured-v1-${uid}`;
-    }
-  } catch {}
-  return "lcl-toured-v1"; // fallback
+// Has this person already seen a tour?
+//
+// This used to live ONLY in this browser's localStorage, looked up by a key
+// name ("supabase…auth") that current Supabase versions no longer use — so in
+// practice it was one shared, per-device flag. Any fresh storage (another
+// browser, a reinstalled Home Screen app, a cache wipe, Safari deleting site
+// data after a week) showed the whole guide again to people who'd used the
+// app for months. Now it's recorded on the ACCOUNT (user_metadata.toured) and
+// follows the person everywhere; localStorage is only a fast local copy.
+// And tours are for NEW people: an account older than NEW_USER_DAYS never
+// sees one automatically. (Help → "Start tour" still works for anyone.)
+const NEW_USER_DAYS = 14;
+const LOCAL_KEY = "lcl-toured-v2";
+
+function localToured() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || "[]"); } catch { return []; }
 }
-function getTouredSections() {
-  try { return JSON.parse(localStorage.getItem(getTourKey()) || "[]"); } catch { return []; }
+
+function isToured(user, key) {
+  if (!user) return true; // never tour before we know who it is
+  if (user.createdAt && Date.now() - new Date(user.createdAt).getTime() > NEW_USER_DAYS * 86400_000) return true;
+  return (user.toured || []).includes(key) || localToured().includes(key);
 }
-function markToured(key) {
+
+function markToured(user, key) {
   try {
-    const existing = getTouredSections();
-    if (!existing.includes(key)) localStorage.setItem(getTourKey(), JSON.stringify([...existing, key]));
+    const local = localToured();
+    if (!local.includes(key)) localStorage.setItem(LOCAL_KEY, JSON.stringify([...local, key]));
   } catch {}
+  const onAccount = user?.toured || [];
+  if (onAccount.includes(key)) return;
+  import("@/lib/supabase")
+    .then(({ supabase }) => supabase?.auth.updateUser({ data: { toured: [...new Set([...onAccount, key])] } }))
+    .catch(() => {});
 }
 
 function isNavSelector(selector) {
@@ -72,19 +86,19 @@ const PAD = 10;
 
 export function SectionTour({ sectionKey, steps }) {
   const [active, setActive] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     const t = setTimeout(() => {
-      const toured = getTouredSections();
-      if (!toured.includes(sectionKey)) setActive(true);
+      if (!isToured(user, sectionKey)) setActive(true);
     }, 800);
     return () => clearTimeout(t);
-  }, [sectionKey]);
+  }, [sectionKey, user]);
 
   const dismiss = useCallback(() => {
     setActive(false);
-    markToured(sectionKey);
-  }, [sectionKey]);
+    markToured(user, sectionKey);
+  }, [sectionKey, user]);
 
   if (!active) return null;
   return <TourOverlay steps={steps} onDone={dismiss} />;
@@ -251,12 +265,12 @@ export default function OnboardingTour({ forceShow, onDone }) {
   const [active, setActive] = useState(forceShow ? true : false);
   const [step, setStep] = useState(0);
   const router = useRouter();
+  const { user } = useAuth();
 
   useEffect(() => {
     if (forceShow) { setActive(true); setStep(0); return; }
-    const toured = getTouredSections();
-    if (!toured.includes("app-tour")) { setActive(true); setStep(0); }
-  }, [forceShow]);
+    if (!isToured(user, "app-tour")) { setActive(true); setStep(0); }
+  }, [forceShow, user]);
 
   const navigateAndAdvance = useCallback((nextStep) => {
     const s = APP_TOUR_STEPS[nextStep];
@@ -272,9 +286,9 @@ export default function OnboardingTour({ forceShow, onDone }) {
   const handleDone = useCallback(() => {
     setActive(false);
     setStep(0);
-    markToured("app-tour");
+    markToured(user, "app-tour");
     onDone?.();
-  }, [onDone]);
+  }, [onDone, user]);
 
   if (!active) return null;
 
