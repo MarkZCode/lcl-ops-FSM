@@ -42,6 +42,7 @@ export async function POST(request) {
     });
     if (r.gone) dead.push(sub.id);
     devices.push({
+      status: r.statusCode || null,
       device: deviceName(sub.user_agent || ""),
       since: sub.created_at,
       ok: !!r.ok,
@@ -50,5 +51,7 @@ export async function POST(request) {
     });
   }
   if (dead.length) await supabaseAdmin.from("push_subscriptions").delete().in("id", dead);
+  // Device type + outcome only — no endpoints or keys in the log.
+  console.log("[push-test]", JSON.stringify(devices.map((d) => ({ device: d.device, ok: d.ok, status: d.status, error: d.error }))));
   return NextResponse.json({ ok: true, devices });
 }
