@@ -33,6 +33,11 @@ export default function PWARegister() {
       navigator.serviceWorker.register("/sw.js").then((reg) => {
         registration = reg;
         checkForUpdate();
+        // Keep this device's push address current on the server (see
+        // syncPushSubscription) — a few seconds in, once login has settled.
+        setTimeout(() => {
+          import("@/lib/push").then((m) => m.syncPushSubscription()).catch(() => {});
+        }, 5000);
       }).catch(() => {});
     };
     window.addEventListener("load", onLoad);
