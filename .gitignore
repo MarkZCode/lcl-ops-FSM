@@ -13,15 +13,3 @@ npm-debug.log*
 /scraper/screenshots/
 /scraper/output/
 /scraper/__pycache__/
-
-# iOS app (Capacitor) — the Xcode PROJECT is committed so it can be opened
-# on any machine, but everything below is local build/user state that
-# regenerates automatically and only causes merge noise if committed.
-/ios/App/build/
-/ios/App/Pods/
-/ios/App/App.xcworkspace/xcuserdata/
-/ios/App/App.xcodeproj/xcuserdata/
-/ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
-/ios/DerivedData/
-*.xcuserstate
-/assets/icon-raw.png
