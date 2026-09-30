@@ -11,7 +11,7 @@
 // devices at once) makes one quote, not two.
 import { NextResponse } from "next/server";
 import { supabaseAdmin, requireUser } from "@/lib/supabaseAdmin";
-import { configuredMailboxes, fetchRecentInbound } from "@/lib/hostingerInbox";
+import { configuredMailboxes, fetchRecentInbound, fetchRecentSent } from "@/lib/hostingerInbox";
 import { classifyEmail, isInternalSender } from "@/lib/emailEnquiry";
 import { createQuoteFromEnquiry, loadRows } from "@/lib/enquiryIntake";
 
@@ -40,6 +40,35 @@ async function attachToJob(jobId, msg) {
     title: `Email from client${msg.mailbox ? ` to ${msg.mailbox}` : ""}`,
     detail: `Subject: ${msg.subject}\n\n${String(msg.text || "").slice(0, 4000)}`,
     meta: { messageId: msg.messageId },
+  };
+  const next = { ...job, activity: [...(job.activity || []), entry], updatedAt: new Date().toISOString() };
+  const { error: wErr } = await supabaseAdmin.from("jobs").upsert({ id: jobId, data: next });
+  if (wErr) throw new Error(wErr.message);
+  return true;
+}
+
+// An email the office sent (from webmail) onto a job's conversation.
+async function attachOutbound(jobId, m) {
+  const { data: row, error } = await supabaseAdmin.from("jobs").select("data").eq("id", jobId).maybeSingle();
+  if (error || !row?.data) return false;
+  const job = row.data;
+  if ((job.activity || []).some((a) => a.meta?.messageId === m.messageId)) return false;
+  // The app files a copy of everything IT sends into Sent too — those are
+  // already on the job (same subject, within minutes). Don't log them twice.
+  const t = new Date(m.date).getTime();
+  const already = (job.activity || []).some(
+    (a) => a.direction !== "in" && a.detail && String(a.detail).includes(m.subject) && Math.abs(new Date(a.at).getTime() - t) < 15 * 60 * 1000
+  );
+  if (already) return false;
+  const entry = {
+    id: "act-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+    at: m.date,
+    by: m.mailbox,
+    type: "email",
+    direction: "out",
+    title: `Email sent from ${m.mailbox}`,
+    detail: `Subject: ${m.subject}`,
+    meta: { messageId: m.messageId, via: "webmail" },
   };
   const next = { ...job, activity: [...(job.activity || []), entry], updatedAt: new Date().toISOString() };
   const { error: wErr } = await supabaseAdmin.from("jobs").upsert({ id: jobId, data: next });
@@ -147,10 +176,30 @@ async function scan({ sinceDays = 7 } = {}) {
     }
   }
 
+  // Replies the office sent from webmail: file each on the client's job as
+  // an outbound email, so "Reply to the client" clears when it's answered.
+  const replied = [];
+  try {
+    const clientByEmail = new Map(clients.filter((c) => c.email).map((c) => [c.email.toLowerCase(), c]));
+    const { messages: sent } = await fetchRecentSent({ identities, sinceDays });
+    for (const m of sent) {
+      if (seenIds.has(m.messageId)) continue;
+      const refs = (m.subject.match(/\bJOB-\d{4}\b/gi) || []).map((r) => r.toUpperCase()).filter((r) => jobIds.has(r));
+      const toClient = m.to.find((a) => clientByEmail.has(a));
+      const jobId = refs[0] || (toClient ? ctx.latestJobForClient(toClient) : null);
+      if (!jobId) continue;
+      const ok = await attachOutbound(jobId, m);
+      if (ok) replied.push({ jobId, subject: m.subject });
+    }
+  } catch (err) {
+    skipped[`sent-folder error: ${String(err.message || err).slice(0, 60)}`] = 1;
+  }
+
   return {
     ok: true,
     created,
     attached,
+    replied,
     skipped,
     mailboxes: mailboxes.map((m) => ({ mailbox: m.mailbox || m.identity, ok: m.ok, scanned: m.scanned, error: m.error })),
   };
