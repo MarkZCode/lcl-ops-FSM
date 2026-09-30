@@ -27,7 +27,8 @@ import { invoiceConfig } from "@/lib/invoiceConfig";
 import { buildInvoicePrefill } from "@/lib/invoiceData";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { STATUS_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
+import { STAGE_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
+import { jobStage, isCertified, quoteStage, QUOTE_STAGES } from "@/lib/stages";
 import { gbp, fmtDate, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode } from "@/lib/format";
 import { jobFinancialsSplit } from "@/lib/finance";
 import { dateLine, certLabel, acceptanceProgress, setScopeConfirmed, scopeAccepted } from "@/lib/jobCard";
@@ -70,6 +71,9 @@ export default function JobDetailPage() {
   const [cancelOpen, setCancelOpen] = useState(false);
   // Cancelling ONE service (not the job): which lines the dialog opens on.
   const [cancelLineIds, setCancelLineIds] = useState(null);
+  // "Client will get back" — the date they said they'd come back by.
+  const [holdOpen, setHoldOpen] = useState(false);
+  const [holdDate, setHoldDate] = useState("");
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [followUpPrefill, setFollowUpPrefill] = useState(null);
   const [shareCopied, setShareCopied] = useState(false);
@@ -245,8 +249,73 @@ export default function JobDetailPage() {
       case "status:scheduled":
         changeStatus("scheduled");
         return;
+      case "status:paid":
+        changeStatus("paid", { paidAt: new Date().toISOString() });
+        logActivity(job.id, { type: "payment", title: `Marked as paid · ${gbp(job.price)}` });
+        return;
+      case "status:quote":
+        changeStatus("quote");
+        return;
+      case "accept":
+        acceptQuote();
+        return;
+      case "quote_sent":
+        markQuoteSent();
+        return;
+      case "quote_hold":
+        setHoldOpen(true);
+        return;
+      case "certify":
+        certify();
+        return;
       default:
     }
+  };
+
+  // ── Quote levels & the end of the flow ──
+  // One-tap records for what happened outside the app, so the flow follows
+  // the job instead of lagging behind it.
+  const who = () => user?.name || user?.username || "";
+  const acceptQuote = () => {
+    if (!job) return;
+    const acceptedAt = new Date().toISOString();
+    const b = blockersForScheduling(job, (eid) => engineerById(eid)?.name || "the engineer");
+    logActivity(job.id, { type: "status", title: "Quote accepted by the client", by: who() });
+    if (!b.length) { changeStatus("scheduled", { acceptedAt }); return; }
+    updateJob(job.id, { acceptedAt, quoteHoldUntil: null });
+    toast.success(`Quote accepted. Next: ${b[0]}.`, { duration: 7000 });
+  };
+  const markQuoteSent = () => {
+    if (!job) return;
+    updateJob(job.id, { quoteSentAt: new Date().toISOString() });
+    logActivity(job.id, { type: "status", title: "Quote sent outside the app (WhatsApp / phone)", by: who() });
+    toast.success("Marked as sent — it'll prompt a follow-up in 2 days.");
+  };
+  const saveHold = () => {
+    if (!job || !holdDate) return;
+    updateJob(job.id, { quoteHoldUntil: holdDate });
+    logActivity(job.id, { type: "status", title: `Client will get back by ${new Date(holdDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`, by: who() });
+    setHoldOpen(false);
+    toast.success("Parked — no chasing until then.");
+  };
+  // Certified = paid + the certificate issued. The end of the flow.
+  const hasCertPdf = (job?.attachments || []).some(
+    (f) => f?.type === "application/pdf" || /\.pdf$/i.test(f?.name || "")
+  );
+  const certify = () => {
+    if (!job) return;
+    if (job.status !== "paid") {
+      toast.error("A job is certified once it's paid — mark it paid first.");
+      return;
+    }
+    if (!hasCertPdf) {
+      toast.error("Upload the certificate PDF to the job first (Documents & photos).");
+      document.getElementById("documents")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    updateJob(job.id, { certifiedAt: new Date().toISOString() });
+    logActivity(job.id, { type: "status", title: "Certified — job complete", by: who() });
+    toast.success(`${job.id} certified — that's the end of the flow.`);
   };
 
   // Cancelling with its reason attached: same status path as every other
@@ -376,6 +445,10 @@ export default function JobDetailPage() {
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
           if (invNoUsed) advanceInvoiceSeq(invNoUsed);
+          // The invoice went out with this email — so the job IS invoiced.
+          if (invNoUsed && Number(nextJob.price) > 0) {
+            updateJob(job.id, { status: "invoiced", invoicedAt: new Date().toISOString() });
+          }
           logActivity(job.id, { type: "email", template: tplKey, title: `Auto-notification: ${s}${attachNote}`, detail: subject, to: client.email, meta: { messageId: data.id } });
           toast.success(`Auto-notification sent${attachNote}`);
         } else {
@@ -398,7 +471,7 @@ export default function JobDetailPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-navy-900">{job.id}</h1>
-            <StatusBadge status={job.status} />
+            <StatusBadge status={jobStage(job)} />
             {/* Age. A quote sitting untouched for three weeks is a chase, not
                 a pipeline entry — but nothing on this page said how old it
                 was. Turns amber past a week, red past two, and only nags on
@@ -426,20 +499,7 @@ export default function JobDetailPage() {
                 once an engineer and date are confirmed, and Next step says
                 what's missing. */}
             {job.status === "quote" && !job.acceptedAt && (
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  const acceptedAt = new Date().toISOString();
-                  const b = blockersForScheduling(job, (eid) => engineerById(eid)?.name || "the engineer");
-                  if (!b.length) {
-                    changeStatus("scheduled", { acceptedAt });
-                    return;
-                  }
-                  updateJob(job.id, { acceptedAt });
-                  logActivity(job.id, { type: "status", title: "Quote accepted by the client", by: user?.name || user?.username || "" });
-                  toast.success(`Quote accepted. Next: ${b[0]}.`, { duration: 7000 });
-                }}
-              >
+              <button className="btn-primary" onClick={acceptQuote}>
                 <FiCheckCircle /> Accept quote
               </button>
             )}
@@ -509,6 +569,48 @@ export default function JobDetailPage() {
       <div className="page grid grid-cols-1 gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,900px)_380px]">
         {/* Main */}
         <div className="min-w-0 space-y-6">
+          {/* Quote levels — where the quote actually is, and one-tap records
+              for what happened on WhatsApp or the phone. */}
+          {job.status === "quote" && (() => {
+            const stage = quoteStage(job);
+            const idx = QUOTE_STAGES.findIndex((q) => q.key === stage);
+            return (
+              <section className="card p-4">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {QUOTE_STAGES.map((q, i) => (
+                    <span
+                      key={q.key}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                        q.key === stage
+                          ? "bg-navy-800 text-white"
+                          : i < idx && q.key !== "on_hold"
+                            ? "bg-brand-50 text-brand-700"
+                            : "bg-navy-50 text-navy-400"
+                      }`}
+                    >
+                      {q.label}
+                    </span>
+                  ))}
+                </div>
+                {job.quoteHoldUntil && stage === "on_hold" && (
+                  <p className="mt-2 text-xs text-navy-500">
+                    Client will get back by {new Date(job.quoteHoldUntil).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} — no chasing until then.
+                  </p>
+                )}
+                {stage !== "accepted" && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {stage === "new" && (
+                      <button className="btn-outline py-1.5 text-xs" onClick={markQuoteSent}>Sent on WhatsApp / phone</button>
+                    )}
+                    <button className="btn-outline py-1.5 text-xs" onClick={() => setHoldOpen(true)}>Client will get back…</button>
+                    <button className="btn-outline py-1.5 text-xs" onClick={acceptQuote}>Client accepted</button>
+                    <button className="btn-outline py-1.5 text-xs text-rose-600" onClick={() => setCancelOpen(true)}>Client declined</button>
+                  </div>
+                )}
+              </section>
+            );
+          })()}
+
           <NextStepCard
             job={job}
             clientEmail={client?.email}
@@ -522,13 +624,13 @@ export default function JobDetailPage() {
               Update status
             </h2>
             <div className="flex flex-wrap gap-2">
-              {STATUS_ORDER.map((s) => {
+              {STAGE_ORDER.map((s) => {
                 const meta = statusMeta(s);
-                const active = job.status === s;
+                const active = jobStage(job) === s;
                 return (
                   <button
                     key={s}
-                    onClick={() => changeStatus(s)}
+                    onClick={() => (s === "certified" ? certify() : changeStatus(s))}
                     className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
                       active
                         ? "border-navy-800 bg-navy-800 text-white"
@@ -1270,6 +1372,34 @@ export default function JobDetailPage() {
         onConfirm={() => { autoEmailPending?.sendFn(); setAutoEmailPending(null); }}
         onCancel={() => setAutoEmailPending(null)}
       />
+      <Modal
+        open={holdOpen}
+        onClose={() => setHoldOpen(false)}
+        title="Client will get back to you"
+        footer={
+          <>
+            <button className="btn-outline" onClick={() => setHoldOpen(false)}>Cancel</button>
+            <button className="btn-primary" onClick={saveHold} disabled={!holdDate}>Park until then</button>
+          </>
+        }
+      >
+        <p className="mb-3 text-sm text-navy-600">
+          When did they say they&apos;d come back? Next step stays quiet until then, and asks you to follow up the day after.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {[3, 7, 14, 30].map((d) => {
+            const v = new Date(Date.now() + d * 86400000).toISOString().slice(0, 10);
+            return (
+              <button key={d} type="button" onClick={() => setHoldDate(v)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${holdDate === v ? "border-navy-800 bg-navy-800 text-white" : "border-navy-200 text-navy-600"}`}>
+                {d === 7 ? "1 week" : d === 14 ? "2 weeks" : d === 30 ? "1 month" : `${d} days`}
+              </button>
+            );
+          })}
+          <input type="date" className="input h-9 w-auto text-sm" value={holdDate} onChange={(e) => setHoldDate(e.target.value)} />
+        </div>
+      </Modal>
+
       <CancelServiceModal
         open={!!cancelLineIds}
         onClose={() => setCancelLineIds(null)}

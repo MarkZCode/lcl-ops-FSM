@@ -11,6 +11,7 @@ import { fmtTime, gbp, jobTags } from "@/lib/format";
 import { detectConflicts, isFromOutreach } from "@/lib/dispatch";
 import { visitEntries } from "@/lib/visits";
 import StatusBadge from "./StatusBadge";
+import { jobStage } from "@/lib/stages";
 import JobCardModal from "./JobCardModal";
 
 // ServiceM8-style dispatch board: one column per engineer (+ Unassigned).
@@ -134,7 +135,7 @@ export default function DispatchBoard({ day }) {
               {/* self-start, or the badge stretches to the full row height and
                   renders as a coloured block rather than a pill. */}
               <span className="shrink-0 self-start">
-                <StatusBadge status={job.status} size="sm" />
+                <StatusBadge status={jobStage(job)} size="sm" />
               </span>
             </Link>
           );
@@ -231,7 +232,7 @@ export default function DispatchBoard({ day }) {
                           >
                             <FiClipboard className="h-3 w-3" />
                           </button>
-                          <StatusBadge status={job.status} size="sm" />
+                          <StatusBadge status={jobStage(job)} size="sm" />
                         </span>
                       </div>
                       <Link

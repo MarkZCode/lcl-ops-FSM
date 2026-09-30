@@ -197,6 +197,34 @@ export default function SendEmailModal({
     return `https://wa.me/${num}?text=${encodeURIComponent(body)}`;
   })();
 
+  // What was sent moves the job forward — the office runs a lot of this over
+  // WhatsApp and email, and the app should follow what actually happened
+  // instead of waiting for someone to also click the matching status:
+  //   quote → quote sent · follow-up → chased · booking confirmation → the
+  //   client has accepted · job completed / invoice → Invoiced · payment
+  //   received → Paid · certificate sent (attached) → Certified once paid.
+  // (A job "Williams" was worked, invoiced and paid while still sitting on
+  // Quote because none of these moved it.)
+  const advanceOnSend = ({ certificateAttached = false } = {}) => {
+    if (!job) return;
+    const iso = new Date().toISOString();
+    const RANK = { quote: 0, scheduled: 1, in_progress: 2, completed: 3, invoiced: 4, paid: 5 };
+    const r = RANK[job.status];
+    const patch = {};
+    if (tplKey === "quote" && job.status === "quote") patch.quoteSentAt = iso;
+    if (tplKey === "followup" && job.status === "quote") patch.quoteChasedAt = iso;
+    if (tplKey === "booking" && !job.acceptedAt) patch.acceptedAt = iso;
+    if ((tplKey === "invoice" || tplKey === "job_completed") && r != null && r < 4 && Number(job.price) > 0) {
+      patch.status = "invoiced";
+    }
+    if (tplKey === "receipt" && r != null && r < 5) patch.status = "paid";
+    if (tplKey === "certificate" && certificateAttached) {
+      patch.certificateSentAt = iso;
+      if (job.status === "paid" || patch.status === "paid") patch.certifiedAt = iso;
+    }
+    if (Object.keys(patch).length) updateJob(job.id, patch);
+  };
+
   // WhatsApp: try the Business API (auto-send); fall back to click-to-send.
   const handleWhatsApp = async () => {
     const num = toWhatsAppNumber(phone);
@@ -217,12 +245,14 @@ export default function SendEmailModal({
         setMessage("WhatsApp message sent.");
         if (job && logActivity) {
           logActivity(job.id, {
-            type: "email",
-            title: "WhatsApp sent",
+            type: "whatsapp",
+            template: tplKey,
+            title: `${templates[tplKey]?.name || "Message"} sent on WhatsApp`,
             detail: body.slice(0, 300),
             to: phone,
           });
         }
+        advanceOnSend();
         return;
       }
       if (!out.notConfigured) {
@@ -237,7 +267,21 @@ export default function SendEmailModal({
     } catch {
       setStatus("idle");
     }
-    if (waHref) window.open(waHref, "_blank", "noopener");
+    if (waHref) {
+      window.open(waHref, "_blank", "noopener");
+      // Click-to-send: WhatsApp opened with the message written. Logged as
+      // sent — that's what it's opened for — so Next step stops asking.
+      if (job && logActivity) {
+        logActivity(job.id, {
+          type: "whatsapp",
+          template: tplKey,
+          title: `${templates[tplKey]?.name || "Message"} sent on WhatsApp`,
+          detail: body.slice(0, 300),
+          to: phone,
+        });
+      }
+      advanceOnSend();
+    }
   };
 
   const handleSend = async () => {
@@ -367,12 +411,7 @@ export default function SendEmailModal({
         // gone out still sat on Completed until someone remembered to press
         // "Mark as invoiced" — so it showed up as "to invoice" forever, and
         // the payment chase never started.
-        if (job && invNoUsed && job.status === "completed") {
-          updateJob(job.id, { status: "invoiced", invoicedAt: new Date().toISOString() });
-        }
-        if (job && isCertEmail && attachedFilename) {
-          updateJob(job.id, { certificateSentAt: new Date().toISOString() });
-        }
+        advanceOnSend({ certificateAttached: isCertEmail && !!attachedFilename });
         if (attachFailed) {
           // Something needs the user's attention (missing attachment) —
           // keep the modal open so the message is actually seen.

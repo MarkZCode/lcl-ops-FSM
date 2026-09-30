@@ -23,6 +23,12 @@ const BUTTON_LABEL = {
   upload: "Upload certificate",
   edit: "Edit job",
   "status:scheduled": "Mark scheduled",
+  "status:paid": "Mark paid",
+  "status:quote": "No — back to quote",
+  accept: "Yes, accepted",
+  quote_sent: "Mark it sent",
+  quote_hold: "Will get back…",
+  certify: "Mark certified",
 };
 
 export default function NextStepCard({ job, clientEmail, engineerName, onDo }) {
@@ -60,6 +66,11 @@ export default function NextStepCard({ job, clientEmail, engineerName, onDo }) {
           {first.do === "complete" && (
             <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => onDo("not_done", first)}>
               Something wasn&rsquo;t done…
+            </button>
+          )}
+          {first.alt && (
+            <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => onDo(first.alt, first)}>
+              {BUTTON_LABEL[first.alt] || "Other"}
             </button>
           )}
           <button type="button" className="btn-primary py-1.5 text-xs" onClick={() => onDo(first.do, first)}>

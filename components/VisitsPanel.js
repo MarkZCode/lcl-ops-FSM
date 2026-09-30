@@ -164,13 +164,22 @@ export default function VisitsPanel({ job, onCancelLines }) {
   // Clicking a service MOVES it onto this visit and off any other. A service
   // is done once, by one person, on one day — allowing it on two visits at
   // once double-counted the job's value and made the panel unreadable.
+  // A service belongs to exactly ONE visit, always. Tapping a service moves
+  // it onto this visit; tapping the one it's already on does nothing (it
+  // used to take it off, leaving the service on no visit at all — JOB-3916
+  // lost its FRA and EICR that way). A visit emptied by moving its last
+  // service elsewhere is removed, instead of lingering as a blank leg.
   const toggleLine = (visitId, lineId) => {
     const on = visits.find((v) => v.id === visitId)?.lineIds?.includes(lineId);
-    save(
-      on
-        ? visits.map((v) => (v.id === visitId ? { ...v, lineIds: v.lineIds.filter((x) => x !== lineId) } : v))
-        : assignLineToVisit(visits, lineId, visitId)
-    );
+    if (on) {
+      toast("To move it, tap it on another visit. To take it off the job, use Not done… in Services.");
+      return;
+    }
+    const moved = assignLineToVisit(visits, lineId, visitId);
+    const emptied = moved.filter((v) => v.id !== visitId && !(v.lineIds || []).length && (visits.find((o) => o.id === v.id)?.lineIds || []).length);
+    // Keeps a one-visit split rather than collapsing it: collapsing would
+    // throw away that visit's confirmation and progress.
+    save(moved.filter((v) => !emptied.includes(v)));
   };
 
   if (!split) {

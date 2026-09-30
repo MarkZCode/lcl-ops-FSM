@@ -6,7 +6,8 @@ import { FiPlus, FiSearch, FiGrid, FiList, FiClipboard, FiBriefcase, FiColumns }
 import JobFunnelView from "@/components/JobFunnelView";
 import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
-import { JOB_STATUSES } from "@/lib/constants";
+import { JOB_STAGES } from "@/lib/constants";
+import { quoteStage, QUOTE_STAGES } from "@/lib/stages";
 import { gbp, fmtDateTime, jobTags } from "@/lib/format";
 import { jobEngineerIds } from "@/lib/visits";
 import { nextAction, ACTION_GROUPS } from "@/lib/nextAction";
@@ -16,6 +17,7 @@ import { usePeriodRange } from "@/lib/usePeriodRange";
 import { jobInRange } from "@/lib/stats";
 import JobCard from "@/components/JobCard";
 import StatusBadge from "@/components/StatusBadge";
+import { jobStage } from "@/lib/stages";
 import JobModal from "@/components/JobModal";
 import JobCardModal from "@/components/JobCardModal";
 import Link from "next/link";
@@ -150,7 +152,9 @@ export default function JobsPage() {
   const jobMatchesStatus = (job, targetStatus) => {
     if (targetStatus === "todo") return nextByJob.has(job.id);
     if (targetStatus.startsWith("todo:")) return nextByJob.get(job.id)?.group === targetStatus.slice(5);
-    return targetStatus === "all" || job.status === targetStatus;
+    if (targetStatus.startsWith("quote:")) return job.status === "quote" && quoteStage(job) === targetStatus.slice(6);
+    // Tabs are STAGES: "Paid" is paid-but-not-yet-certified, "Certified" the rest.
+    return targetStatus === "all" || jobStage(job) === targetStatus;
   };
 
   const filtered = useMemo(() => {
@@ -194,7 +198,7 @@ export default function JobsPage() {
   // date filter would contradict the list sitting right under it.
   const counts = useMemo(() => {
     const c = { all: inPeriod.length };
-    JOB_STATUSES.forEach((s) => {
+    JOB_STAGES.forEach((s) => {
       c[s.key] = inPeriod.filter((j) => jobMatchesStatus(j, s.key)).length;
     });
     return c;
@@ -280,7 +284,7 @@ export default function JobsPage() {
             label="All"
             count={counts.all}
           />
-          {JOB_STATUSES.map((s) => (
+          {JOB_STAGES.map((s) => (
             <FilterPill
               key={s.key}
               active={statusFilter === s.key}
@@ -291,6 +295,21 @@ export default function JobsPage() {
             />
           ))}
         </div>
+
+        {/* Quote levels — a new enquiry, a quote waiting on the client and one
+            they've promised to come back to are different piles of work. */}
+        {(statusFilter === "quote" || statusFilter.startsWith("quote:")) && (
+          <div className="-mt-3 mb-5 flex flex-wrap gap-2">
+            <FilterPill active={statusFilter === "quote"} onClick={() => setStatusFilter("quote")} label="All quotes" count={counts.quote || 0} />
+            {QUOTE_STAGES.map((q) => {
+              const n = inPeriod.filter((j) => j.status === "quote" && quoteStage(j) === q.key).length;
+              if (!n) return null;
+              return (
+                <FilterPill key={q.key} active={statusFilter === `quote:${q.key}`} onClick={() => setStatusFilter(`quote:${q.key}`)} label={q.label} count={n} />
+              );
+            })}
+          </div>
+        )}
 
         {filtered.length === 0 ? (
           <div className="card p-10 text-center text-sm text-navy-500">
@@ -417,7 +436,7 @@ function ListView({ jobs, clients, onJobCard }) {
                     {fmtDateTime(job.scheduledAt)}
                   </td>
                   <td className="px-4 py-2.5">
-                    <StatusBadge status={job.status} size="sm" />
+                    <StatusBadge status={jobStage(job)} size="sm" />
                   </td>
                   <td className="tnum px-4 py-2.5 text-right font-semibold text-navy-900">
                     {gbp(job.price)}

@@ -11,6 +11,7 @@ import { useStore } from "@/lib/store";
 import { fmtTime, gbp, jobTags } from "@/lib/format";
 import { detectConflicts } from "@/lib/dispatch";
 import StatusBadge from "./StatusBadge";
+import { jobStage } from "@/lib/stages";
 
 export default function EngineerScheduleView() {
   const { jobs, clients, engineers } = useStore();
@@ -94,7 +95,7 @@ export default function EngineerScheduleView() {
                           </p>
                         </div>
                         {job.price > 0 && <span className="shrink-0 text-xs font-bold text-navy-700 dark:text-slate-200">{gbp(job.price)}</span>}
-                        <StatusBadge status={job.status} size="sm" />
+                        <StatusBadge status={jobStage(job)} size="sm" />
                         <FiArrowRight className="h-3 w-3 shrink-0 text-navy-300 dark:text-slate-600" />
                       </Link>
                     );

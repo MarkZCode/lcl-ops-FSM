@@ -21,6 +21,7 @@ import { getRenewals, renewalTone } from "@/lib/renewals";
 import { RENEWAL_MONTHS } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
+import { jobStage } from "@/lib/stages";
 import ClientModal from "@/components/ClientModal";
 import JobModal from "@/components/JobModal";
 import Modal from "@/components/Modal";
@@ -257,7 +258,7 @@ export default function ClientDetailPage() {
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
-                      <StatusBadge status={job.status} size="sm" />
+                      <StatusBadge status={jobStage(job)} size="sm" />
                       <span className="text-sm font-semibold text-navy-900">{gbp(job.price)}</span>
                     </div>
                   </Link>

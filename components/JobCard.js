@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { fmtDateTime, gbp, jobTags } from "@/lib/format";
 import { jobEngineerIds, getUpcomingScheduledVisit } from "@/lib/visits";
 import StatusBadge from "./StatusBadge";
+import { jobStage } from "@/lib/stages";
 
 // Left-border accent colour per job status
 const STATUS_ACCENT = {
@@ -85,7 +86,7 @@ export default function JobCard({ job, onJobCard }) {
               <FiClipboard className="h-3.5 w-3.5" />
             </button>
           )}
-          <StatusBadge status={job.status} size="sm" />
+          <StatusBadge status={jobStage(job)} size="sm" />
           {upcomingVisit && ["paid", "invoiced", "completed"].includes(job.status) && (
             <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700">
               Visit Scheduled
