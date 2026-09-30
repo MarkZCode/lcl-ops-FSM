@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Modal from "./Modal";
+import EngineerDocuments from "./EngineerDocuments";
 import { useStore } from "@/lib/store";
 import { ENGINEER_TYPES, ENGINEER_PAY_TYPES, DEFAULT_ENGINEER_CUT, DEFAULT_GAS_BASE_RATE, DEFAULT_GAS_EXTRA_RATE, DEFAULT_SERVICE_RATES } from "@/lib/constants";
 
@@ -35,6 +36,7 @@ const empty = {
   bankSortCode: "",
   bankAccountNumber: "",
   notes: "",
+  documents: [],
 };
 
 export default function EngineerModal({ open, onClose, engineer, prefill, onSaved }) {
@@ -78,6 +80,7 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
             gasBaseRate: seed.gasBaseRate != null ? seed.gasBaseRate : DEFAULT_GAS_BASE_RATE,
             gasExtraRate: seed.gasExtraRate != null ? seed.gasExtraRate : DEFAULT_GAS_EXTRA_RATE,
             serviceRates: seed.serviceRates || {},
+            documents: Array.isArray(seed.documents) ? seed.documents : [],
             inspectionRates: seed.inspectionRates || {},
             bankName: seed.bankName || "",
             bankAccountName: seed.bankAccountName || "",
@@ -578,6 +581,13 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
             </div>
           </div>
         </div>
+
+        <EngineerDocuments
+          engineer={{ ...form, id: engineer?.id }}
+          documents={form.documents || []}
+          folderId={engineer?.id}
+          onChange={(documents) => set({ documents })}
+        />
 
         <div>
           <label className="label">Notes</label>

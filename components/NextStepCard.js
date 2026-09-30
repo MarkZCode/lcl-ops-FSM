@@ -29,10 +29,15 @@ const BUTTON_LABEL = {
   quote_sent: "Mark it sent",
   quote_hold: "Will get back…",
   certify: "Mark certified",
+  reschedule: "Reschedule",
+  decline: "Close as declined",
+  reply_handled: "Already handled",
+  engineer: "Open engineers",
+  "email:reminder": "Send reminder",
 };
 
-export default function NextStepCard({ job, clientEmail, engineerName, onDo }) {
-  const actions = nextActions(job, { engineerName, clientEmail });
+export default function NextStepCard({ job, clientEmail, clientPhone, engineerName, engineerExists, engineerById, onDo }) {
+  const actions = nextActions(job, { engineerName, clientEmail, clientPhone, engineerExists, engineerById });
   if (["paid", "cancelled"].includes(job.status) && !actions.length) return null;
 
   if (!actions.length) {
@@ -58,11 +63,6 @@ export default function NextStepCard({ job, clientEmail, engineerName, onDo }) {
           {first.detail && <p className="mt-0.5 text-xs text-navy-600">{first.detail}</p>}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {first.do === "reply" && (
-            <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => onDo("reply_handled", first)}>
-              Already handled
-            </button>
-          )}
           {first.do === "complete" && (
             <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => onDo("not_done", first)}>
               Something wasn&rsquo;t done…

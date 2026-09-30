@@ -1,5 +1,6 @@
 "use client";
 
+import { engineerDocIssues, hasRates } from "@/lib/engineerDocs";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -402,6 +403,22 @@ function PaymentsTab() {
                       {(r.e.name || "?").slice(0, 2).toUpperCase()}
                     </span>
                     <span className="font-medium text-navy-900 dark:text-slate-100">{r.e.name}</span>
+                    {/* Paperwork and pay set-up at a glance — open the engineer to fix. */}
+                    {(() => {
+                      const issues = engineerDocIssues(r.e);
+                      const bad = issues.filter((i) => i.kind !== "expiring");
+                      return (
+                        <>
+                          {!hasRates(r.e) && <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">No rates</span>}
+                          {bad.length > 0 && (
+                            <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700" title={bad.map((i) => `${i.label}: ${i.kind}`).join("\n")}>
+                              {bad.length} doc{bad.length > 1 ? "s" : ""} {bad.some((i) => i.kind === "expired") ? "expired/missing" : "missing"}
+                            </span>
+                          )}
+                          {!bad.length && issues.length > 0 && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Doc expiring</span>}
+                        </>
+                      );
+                    })()}
                   </div>
                 </td>
                 <td className="px-4 py-3 text-navy-700 dark:text-slate-300">{r.monthJobs}</td>

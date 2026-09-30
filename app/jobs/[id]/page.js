@@ -268,6 +268,15 @@ export default function JobDetailPage() {
       case "certify":
         certify();
         return;
+      case "reschedule":
+        setRescheduleOpen(true);
+        return;
+      case "engineer":
+        router.push("/engineers");
+        return;
+      case "decline":
+        setCancelOpen(true);
+        return;
       default:
     }
   };
@@ -613,8 +622,11 @@ export default function JobDetailPage() {
 
           <NextStepCard
             job={job}
-            clientEmail={client?.email}
+            clientEmail={client?.email || ""}
+            clientPhone={client?.phone || ""}
             engineerName={(eid) => engineerById(eid)?.name || "the engineer"}
+            engineerExists={(eid) => engineers.some((e) => e.id === eid)}
+            engineerById={(eid) => engineers.find((e) => e.id === eid)}
             onDo={handleNextStep}
           />
 

@@ -130,11 +130,14 @@ export default function JobsPage() {
   // filter on purpose: an unpaid invoice from March is still today's job.
   const nextByJob = useMemo(() => {
     const m = new Map();
-    const clientEmail = new Map(clients.map((c) => [c.id, c.email]));
+    const byId = new Map(clients.map((c) => [c.id, c]));
     for (const j of jobs) {
+      const c = byId.get(j.clientId);
       const a = nextAction(j, {
         engineerName: (id) => engineerById(id)?.name || "the engineer",
-        clientEmail: clientEmail.get(j.clientId),
+        clientEmail: c?.email || "",
+        clientPhone: c?.phone || "",
+        engineerById: (id) => engineerById(id),
       });
       if (a) m.set(j.id, a);
     }

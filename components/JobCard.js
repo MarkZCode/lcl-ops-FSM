@@ -36,7 +36,9 @@ export default function JobCard({ job, onJobCard }) {
   // of things to do rather than a list of things that exist.
   const next = nextAction(job, {
     engineerName: (id) => engineerById(id)?.name || "the engineer",
-    clientEmail: client?.email,
+    clientEmail: client?.email || "",
+    clientPhone: client?.phone || "",
+    engineerById: (id) => engineerById(id),
   });
 
   const upcomingVisit = getUpcomingScheduledVisit(job);
@@ -143,15 +145,20 @@ export default function JobCard({ job, onJobCard }) {
       </div>
 
       {next && (
-        <p
-          className={`mt-2 flex items-center gap-1.5 truncate rounded-md px-2 py-1 text-[11px] font-semibold ${
+        // The reason sits under the step, on the card — a bare "Chase the
+        // quote" with no "because…" reads as made up.
+        <div
+          className={`mt-2 rounded-md px-2 py-1.5 text-[11px] ${
             next.severity === "urgent" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"
           } dark:bg-white/5`}
           title={next.detail || ""}
         >
-          <span className="shrink-0">Next:</span>
-          <span className="truncate">{next.title}</span>
-        </p>
+          <p className="flex items-center gap-1.5 truncate font-semibold">
+            <span className="shrink-0">Next:</span>
+            <span className="truncate">{next.title}</span>
+          </p>
+          {next.detail && <p className="mt-0.5 line-clamp-2 opacity-80">{next.detail}</p>}
+        </div>
       )}
       {/* Note — reads/writes job.notes directly, so it's the exact same note
           the job detail page shows, editable here without opening the job. */}

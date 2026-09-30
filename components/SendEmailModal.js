@@ -191,11 +191,27 @@ export default function SendEmailModal({
       : ""
   }`;
 
-  const waHref = (() => {
-    const num = toWhatsAppNumber(phone);
-    if (!num) return null;
-    return `https://wa.me/${num}?text=${encodeURIComponent(body)}`;
-  })();
+  // WhatsApp links. These are plain <a> links, opened by the click itself:
+  // the old button awaited a server call first and only then called
+  // window.open, which browsers block once the click has "expired", so
+  // nothing opened at all.
+  //   phone    → wa.me (opens the WhatsApp / Business app)
+  //   computer → WhatsApp Web (works in any browser, and opens in the
+  //              installed WhatsApp web app) or the desktop app
+  const waNum = toWhatsAppNumber(phone);
+  const waText = encodeURIComponent(body);
+  const waLinks = waNum
+    ? {
+        mobile: `https://wa.me/${waNum}?text=${waText}`,
+        web: `https://web.whatsapp.com/send?phone=${waNum}&text=${waText}`,
+        app: `whatsapp://send?phone=${waNum}&text=${waText}`,
+      }
+    : null;
+  const waHref = waLinks?.mobile || null;
+  const isPhone = typeof navigator !== "undefined" && /iphone|ipad|android|mobile/i.test(navigator.userAgent);
+  const [waPref, setWaPref] = useState(() => {
+    try { return localStorage.getItem("lcl-wa-pref") || "web"; } catch { return "web"; }
+  });
 
   // What was sent moves the job forward — the office runs a lot of this over
   // WhatsApp and email, and the app should follow what actually happened
@@ -225,63 +241,23 @@ export default function SendEmailModal({
     if (Object.keys(patch).length) updateJob(job.id, patch);
   };
 
-  // WhatsApp: try the Business API (auto-send); fall back to click-to-send.
-  const handleWhatsApp = async () => {
-    const num = toWhatsAppNumber(phone);
-    if (!num) return;
-    setStatus("sending");
-    setMessage("");
-    try {
-      const { data } = await supabase.auth.getSession();
-      const token = data?.session?.access_token || "";
-      const res = await fetch("/api/send-whatsapp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ to: num, text: body }),
+  // Called as the WhatsApp link opens (it navigates by itself — nothing here
+  // may block it). Logs the message on the job and moves the flow on.
+  const onWhatsAppOpened = (which) => {
+    if (which && which !== "mobile") {
+      try { localStorage.setItem("lcl-wa-pref", which); } catch {}
+      setWaPref(which);
+    }
+    if (job && logActivity) {
+      logActivity(job.id, {
+        type: "whatsapp",
+        template: tplKey,
+        title: `${templates[tplKey]?.name || "Message"} sent on WhatsApp`,
+        detail: body.slice(0, 300),
+        to: phone,
       });
-      const out = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setStatus("sent");
-        setMessage("WhatsApp message sent.");
-        if (job && logActivity) {
-          logActivity(job.id, {
-            type: "whatsapp",
-            template: tplKey,
-            title: `${templates[tplKey]?.name || "Message"} sent on WhatsApp`,
-            detail: body.slice(0, 300),
-            to: phone,
-          });
-        }
-        advanceOnSend();
-        return;
-      }
-      if (!out.notConfigured) {
-        // configured but Meta rejected (e.g. needs a template) — show + fall back
-        setStatus("idle");
-        setMessage(
-          (out.error || "WhatsApp couldn't auto-send") + " — opening WhatsApp instead."
-        );
-      } else {
-        setStatus("idle");
-      }
-    } catch {
-      setStatus("idle");
     }
-    if (waHref) {
-      window.open(waHref, "_blank", "noopener");
-      // Click-to-send: WhatsApp opened with the message written. Logged as
-      // sent — that's what it's opened for — so Next step stops asking.
-      if (job && logActivity) {
-        logActivity(job.id, {
-          type: "whatsapp",
-          template: tplKey,
-          title: `${templates[tplKey]?.name || "Message"} sent on WhatsApp`,
-          detail: body.slice(0, 300),
-          to: phone,
-        });
-      }
-      advanceOnSend();
-    }
+    advanceOnSend();
   };
 
   const handleSend = async () => {
@@ -460,13 +436,40 @@ export default function SendEmailModal({
           <button className="btn-outline" onClick={onClose}>
             Close
           </button>
-          {waHref && (
-            <button
+          {waLinks && isPhone && (
+            <a
               className="btn bg-[#25D366] text-white hover:bg-[#1ebe5b]"
-              onClick={handleWhatsApp}
+              href={waLinks.mobile}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => onWhatsAppOpened("mobile")}
             >
               <FaWhatsapp /> WhatsApp
-            </button>
+            </a>
+          )}
+          {waLinks && !isPhone && (
+            <span className="inline-flex overflow-hidden rounded-full">
+              <a
+                className="btn rounded-none bg-[#25D366] text-white hover:bg-[#1ebe5b]"
+                href={waPref === "app" ? waLinks.app : waLinks.web}
+                target={waPref === "app" ? undefined : "_blank"}
+                rel="noopener noreferrer"
+                onClick={() => onWhatsAppOpened(waPref)}
+                title={waPref === "app" ? "Opens the WhatsApp desktop app" : "Opens WhatsApp Web (or your installed WhatsApp web app)"}
+              >
+                <FaWhatsapp /> {waPref === "app" ? "WhatsApp app" : "WhatsApp Web"}
+              </a>
+              <a
+                className="btn rounded-none border-l border-white/30 bg-[#1ebe5b] px-3 text-xs text-white hover:bg-[#19a950]"
+                href={waPref === "app" ? waLinks.web : waLinks.app}
+                target={waPref === "app" ? "_blank" : undefined}
+                rel="noopener noreferrer"
+                onClick={() => onWhatsAppOpened(waPref === "app" ? "web" : "app")}
+                title={waPref === "app" ? "Use WhatsApp Web instead" : "Use the WhatsApp desktop app instead"}
+              >
+                {waPref === "app" ? "Web" : "App"}
+              </a>
+            </span>
           )}
           <a className="btn-outline" href={mailto}>
             <FiExternalLink /> Mail app
