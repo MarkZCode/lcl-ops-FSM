@@ -3,7 +3,7 @@
 // Next.js JS/CSS chunks are NOT cached here — Vercel CDN + content-hash
 // filenames handle that. Caching chunks caused stale-chunk loops after
 // redeployments (old cached files served forever).
-const CACHE_VERSION = "lcl-ops-v110";
+const CACHE_VERSION = "lcl-ops-v111";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline";
 
@@ -77,16 +77,41 @@ self.addEventListener("push", (event) => {
     if (event.data) payload = { ...payload, ...event.data.json() };
   } catch {}
 
-  event.waitUntil(
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: "/icon-192.png",
-      badge: "/icon-192.png",
-      tag: "lcl-ops-digest", // collapses repeat digests into one notification
-      renotify: true,
-      data: { url: payload.url || "/" },
-    })
-  );
+  event.waitUntil((async () => {
+    // Show it, then report back what happened — whether the push reached
+    // this device at all, whether showNotification worked, and whether the
+    // notification actually exists afterwards. "Accepted by Apple/Google"
+    // and "nothing on screen" was otherwise impossible to tell apart.
+    let shown = "ok";
+    let visible = null;
+    try {
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png",
+        // A unique tag per push: one shared tag made every new push REPLACE
+        // the previous one, and some browsers skip re-alerting on a replace.
+        tag: `lcl-${Date.now()}`,
+        data: { url: payload.url || "/" },
+      });
+      visible = (await self.registration.getNotifications()).length;
+    } catch (err) {
+      shown = String((err && err.message) || err).slice(0, 160);
+    }
+    try {
+      await fetch("/api/push/ack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shown,
+          visible,
+          permission: (self.Notification && self.Notification.permission) || "unknown",
+          ua: (self.navigator && self.navigator.userAgent) || "",
+          sw: CACHE_VERSION,
+        }),
+      });
+    } catch {}
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {
