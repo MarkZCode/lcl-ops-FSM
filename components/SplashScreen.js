@@ -40,7 +40,8 @@ export default function SplashScreen({ label }) {
       />
       <div className="relative flex w-full max-w-md flex-col items-center text-center">
         <span
-          className={`grid h-[76px] w-[76px] place-items-center rounded-[22px] bg-white shadow-[0_10px_40px_rgba(0,0,0,0.35)] transition-all duration-700 ease-out ${
+          style={{ background: "#ffffff" }}
+          className={`grid h-[76px] w-[76px] place-items-center rounded-[22px] shadow-[0_10px_40px_rgba(0,0,0,0.35)] transition-all duration-700 ease-out ${
             mounted ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-90 opacity-0"
           }`}
         >

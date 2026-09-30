@@ -78,10 +78,16 @@ export default function LoginScreen() {
 
   const field =
     "w-full rounded-[12px] border border-transparent bg-[#f5f5f7] py-3 pl-10 pr-4 text-[15px] text-[#1d1d1f] " +
-    "placeholder:text-[#a1a1a6] outline-none transition focus:border-[#0d860a]/40 focus:bg-white focus:ring-4 focus:ring-[#0d860a]/10";
+    "placeholder:text-[#a1a1a6] outline-none transition focus:border-[#0d860a]/40 focus:bg-[#ffffff] focus:ring-4 focus:ring-[#0d860a]/10";
 
   return (
-    <div className="legacy-chrome flex min-h-[var(--app-height,100dvh)] w-full flex-col bg-white lg:flex-row">
+    <div
+      className="legacy-chrome flex min-h-[var(--app-height,100dvh)] w-full flex-col lg:flex-row"
+      // Inline, not bg-white: the app's dark-mode layer repaints .bg-white
+      // dark, which turned this panel black under dark text. The sign-in
+      // screen is always light.
+      style={{ background: "#ffffff", colorScheme: "light" }}
+    >
       {/* ── Brand panel ──
           order-2 on mobile: this panel's heading + description alone are
           tall enough to push the sign-in fields below the fold on a phone,
@@ -103,7 +109,7 @@ export default function LoginScreen() {
         />
 
         <div className="relative z-10 flex items-center gap-3.5">
-          <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[14px] bg-white shadow-[0_6px_20px_rgba(0,0,0,0.25)]">
+          <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[14px] shadow-[0_6px_20px_rgba(0,0,0,0.25)]" style={{ background: "#ffffff" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/lcl-logo.png" alt="Landlord Compliance London" className="h-10 w-10 object-contain" />
           </span>
@@ -161,7 +167,8 @@ export default function LoginScreen() {
                 type="button"
                 onClick={handleGoogle}
                 disabled={busy || googleBusy}
-                className="mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-[#d2d2d7] bg-white py-3 text-[15px] font-medium text-[#1d1d1f] transition hover:bg-[#f5f5f7] disabled:opacity-60"
+                style={{ background: "#ffffff" }}
+                className="mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-[#d2d2d7] py-3 text-[15px] font-medium text-[#1d1d1f] transition hover:bg-[#f5f5f7] disabled:opacity-60"
               >
                 <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />

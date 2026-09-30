@@ -21,7 +21,7 @@ function NoAccess({ email }) {
   const { logout } = useAuth();
   return (
     <div className="grid min-h-[var(--app-height,100dvh)] place-items-center bg-[#f5f5f7] px-6">
-      <div className="w-full max-w-sm rounded-[22px] bg-white p-8 text-center shadow-[0_2px_24px_rgba(0,0,0,0.06)]">
+      <div style={{ background: "#ffffff", colorScheme: "light" }} className="w-full max-w-sm rounded-[22px] p-8 text-center shadow-[0_2px_24px_rgba(0,0,0,0.06)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/lcl-logo.png" alt="Landlord Compliance London" className="mx-auto h-16 w-16 object-contain" />
         <h1 className="mt-5 text-[19px] font-semibold tracking-tight text-[#1d1d1f]">Account not set up yet</h1>
@@ -169,7 +169,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v114</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v115</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed
