@@ -63,13 +63,18 @@ export default function BottomNav() {
         // that pass.
         transform: "translateZ(0)",
         willChange: "transform",
-        // NO safe-area padding here — none. This app runs installed to the
-        // home screen (standalone display), where window.innerHeight (what
-        // --app-height in AuthGate.js is built from) already comes back
-        // SHORTER than the physical screen — iOS has already carved the
-        // home-indicator strip out of it. Adding env(safe-area-inset-bottom)
-        // again on top of that reserved the same strip a second time.
-        paddingBottom: 0,
+        // Back to the ORIGINAL value this bar shipped with (env(safe-area-
+        // inset-bottom), full, not zero) — checked against git history after
+        // being told this genuinely worked correctly before. Padding is
+        // INSIDE this element's own box, so the background already reaches
+        // the true bottom edge at any padding value; the padding only
+        // decides how far the tap targets sit above the home indicator,
+        // which is what every well-built iOS app reserves this exact amount
+        // of room for. Zero was wrong — it was based on a theory (that
+        // window.innerHeight already excludes the safe area in standalone
+        // mode) that never should have overridden a value already proven
+        // correct in production before anything here was touched.
+        paddingBottom: "env(safe-area-inset-bottom)",
         // Solid, not translucent. This used backdrop-blur-md over a
         // color-mix(...,transparent) background for a "content reads as one
         // continuous surface" effect — but backdrop-filter on a fixed,

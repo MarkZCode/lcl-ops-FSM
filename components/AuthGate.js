@@ -15,7 +15,27 @@ import SyncErrorBanner from "./SyncErrorBanner";
 import ErrorBoundary from "./ErrorBoundary";
 import { ConfirmProvider } from "./ConfirmProvider";
 import OnboardingTour from "./OnboardingTour";
-import SplashScreen from "./SplashScreen";
+import SplashScreen, { INTRO_MS } from "./SplashScreen";
+
+function NoAccess({ email }) {
+  const { logout } = useAuth();
+  return (
+    <div className="grid min-h-[var(--app-height,100dvh)] place-items-center bg-[#f5f5f7] px-6">
+      <div className="w-full max-w-sm rounded-[22px] bg-white p-8 text-center shadow-[0_2px_24px_rgba(0,0,0,0.06)]">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/lcl-logo.png" alt="Landlord Compliance London" className="mx-auto h-16 w-16 object-contain" />
+        <h1 className="mt-5 text-[19px] font-semibold tracking-tight text-[#1d1d1f]">Account not set up yet</h1>
+        <p className="mt-2 text-[14px] leading-relaxed text-[#6e6e73]">
+          You&apos;re signed in as <strong className="text-[#1d1d1f]">{email}</strong>, but this account
+          hasn&apos;t been given access to LCL Ops. Ask your administrator to set it up.
+        </p>
+        <button onClick={logout} className="mt-6 w-full rounded-full bg-[#1d1d1f] py-3 text-[15px] font-medium text-white">
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // Wraps the whole app. Shows the login screen until a user signs in. The data
 // store is mounted ONLY when signed in, so its Supabase queries always carry a
@@ -25,6 +45,23 @@ export default function AuthGate({ children }) {
   const [showTour, setShowTour] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+
+  // Straight after signing in, play the loading screen through (INTRO_MS)
+  // instead of letting it flash for a frame — the login check is so fast
+  // that's all it ever got. Only after a sign-in: an ordinary reload still
+  // shows the app as soon as it's ready.
+  const [holdSplash, setHoldSplash] = useState(false);
+  useEffect(() => {
+    let welcome = false;
+    try { welcome = sessionStorage.getItem("lcl-welcome") === "1"; } catch {}
+    if (!welcome) return;
+    setHoldSplash(true);
+    const t = setTimeout(() => {
+      setHoldSplash(false);
+      try { sessionStorage.removeItem("lcl-welcome"); } catch {}
+    }, INTRO_MS);
+    return () => clearTimeout(t);
+  }, []);
 
   // Check if Help page requested a tour (persists across navigation)
   useEffect(() => {
@@ -49,7 +86,7 @@ export default function AuthGate({ children }) {
     if (!allowed) router.replace("/portal");
   }, [user, pathname, router]);
 
-  if (!ready) {
+  if (!ready || (holdSplash && user)) {
     return (
       <ErrorBoundary>
         <SplashScreen />
@@ -61,6 +98,17 @@ export default function AuthGate({ children }) {
     return (
       <ErrorBoundary>
         <LoginScreen />
+      </ErrorBoundary>
+    );
+  }
+
+  // Signed in, but nobody has given this account a role — e.g. someone who
+  // used "Continue with Google" with an address that isn't a staff account.
+  // They see nothing of the business until an admin sets them up.
+  if (!user.role) {
+    return (
+      <ErrorBoundary>
+        <NoAccess email={user.email} />
       </ErrorBoundary>
     );
   }
@@ -91,12 +139,13 @@ export default function AuthGate({ children }) {
           <TopBar />
           <div className="flex min-h-0 w-full flex-1 flex-col overflow-x-hidden lg:flex-row">
             <Sidebar />
-            {/* Mobile bottom padding = just the tab-bar's own height (4rem).
-                No added env(safe-area-inset-bottom) here any more — see the
-                comment in BottomNav.js on why that was reserving the home
-                indicator strip a second time, on top of the one already
-                baked out of window.innerHeight in this standalone install. */}
-            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-16 lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
+            {/* Mobile bottom padding = tab-bar height (4rem) + notch safe-area,
+                so the footer is never hidden behind the bottom nav. Restored
+                to the original value (this was briefly changed to a plain
+                pb-16 on a theory that the safe area was being reserved
+                twice — it wasn't; the bottom nav's own padding is what
+                actually needed restoring, see BottomNav.js). */}
+            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(4rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
             <div className="flex min-h-full flex-col">
               <main className="flex-1 min-w-0">{children}</main>
               <footer className="bar-navy border-t border-white/[0.06] px-5 py-3 sm:px-8">
@@ -120,7 +169,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v103</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v113</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed
