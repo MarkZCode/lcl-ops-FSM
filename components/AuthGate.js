@@ -9,6 +9,7 @@ import LoginScreen from "./LoginScreen";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
+import ViewportProbe from "./ViewportProbe";
 import VersionWatcher from "./VersionWatcher";
 import Toaster from "./Toaster";
 import SyncErrorBanner from "./SyncErrorBanner";
@@ -169,7 +170,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v117</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v118</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed
@@ -193,6 +194,7 @@ export default function AuthGate({ children }) {
           </div>
         </div>
         <BottomNav />
+        <ViewportProbe />
         <VersionWatcher />
         {/* WelcomeToast disabled for now — was popping up notifications on
             every app open. <WelcomeToast /> */}
