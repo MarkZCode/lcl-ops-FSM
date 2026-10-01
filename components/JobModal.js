@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { FiUserPlus, FiPlus, FiTrash2, FiAlertTriangle, FiEdit2 } from "react-icons/fi";
+import PostcodeInput from "./PostcodeInput";
 import Modal from "./Modal";
 import ClientModal from "./ClientModal";
 import ConfirmDialog from "./ConfirmDialog";
@@ -705,11 +706,11 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                       onChange={(e) => setNewProperty((p) => ({ ...p, label: e.target.value }))}
                       autoFocus
                     />
-                    <input
+                    <PostcodeInput
                       className="input h-9 text-sm"
                       placeholder="Postcode (fine on its own at quote stage)"
                       value={newProperty.postcode}
-                      onChange={(e) => setNewProperty((p) => ({ ...p, postcode: e.target.value }))}
+                      onChange={(v) => setNewProperty((p) => ({ ...p, postcode: v }))}
                     />
                   </div>
                 )}
@@ -771,13 +772,10 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                     setNewClient((c) => ({ ...c, email: e.target.value }))
                   }
                 />
-                <input
-                  className="input"
+                <PostcodeInput
                   placeholder="Property postcode"
                   value={newClient.postcode}
-                  onChange={(e) =>
-                    setNewClient((c) => ({ ...c, postcode: e.target.value }))
-                  }
+                  onChange={(v) => setNewClient((c) => ({ ...c, postcode: v }))}
                 />
               </div>
               <input

@@ -60,6 +60,7 @@ import { quoteChecks } from "@/lib/quoteChecks";
 import BookingAssist from "@/components/BookingAssist";
 import PaymentLedger from "@/components/PaymentLedger";
 import ClientQuickActions from "@/components/ClientQuickActions";
+import CongestionAuto from "@/components/CongestionAuto";
 import { greetingNow, firstName, senderFor } from "@/lib/email";
 import { FaWhatsapp } from "react-icons/fa";
 
@@ -655,6 +656,7 @@ export default function JobDetailPage() {
             );
           })()}
 
+          <CongestionAuto job={job} property={property} />
           <NextStepCard
             job={job}
             clientEmail={client?.email || ""}

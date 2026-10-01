@@ -3,10 +3,9 @@
 // Deposits, part payments and credit notes on a job, and the balance left.
 // Sits in the Payment panel above the Mark-as buttons.
 import { useState } from "react";
-import { FiPlus, FiTrash2, FiFileMinus, FiLink } from "react-icons/fi";
+import { FiPlus, FiTrash2, FiFileMinus } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
 import { gbp, fmtDate, jobPayable } from "@/lib/format";
 import { jobBalance, jobReceived, jobCredited } from "@/lib/payments";
 import { buildInvoicePrefill } from "@/lib/invoiceData";
@@ -23,7 +22,6 @@ export default function PaymentLedger({ job, client, property, onPaidInFull }) {
   const [date, setDate] = useState(today());
   const [method, setMethod] = useState(METHODS[0]);
   const [note, setNote] = useState("");
-  const [linkBusy, setLinkBusy] = useState(false);
   const who = user?.name || user?.username || "";
 
   const payments = job.payments || [];
@@ -65,30 +63,6 @@ export default function PaymentLedger({ job, client, property, onPaidInFull }) {
   const remove = (kind, id) => {
     if (!window.confirm("Remove this record?")) return;
     updateJob(job.id, kind === "pay" ? { payments: payments.filter((p) => p.id !== id) } : { creditNotes: credits.filter((c) => c.id !== id) });
-  };
-
-  // Card payment link (Stripe). Only works once STRIPE_SECRET_KEY is set on
-  // the server; until then the server says so and nothing is created.
-  const payLink = async () => {
-    setLinkBusy(true);
-    try {
-      const { data } = await supabase.auth.getSession();
-      const r = await fetch("/api/pay-link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data?.session?.access_token || ""}` },
-        body: JSON.stringify({ jobId: job.id, amount: balance }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (d.notConfigured) { toast("Card payments aren't set up yet — it needs a Stripe account connected."); return; }
-      if (!r.ok || !d.url) throw new Error(d.error || "Couldn't create the link.");
-      await navigator.clipboard.writeText(d.url).catch(() => {});
-      updateJob(job.id, { payLinkUrl: d.url, payLinkAt: new Date().toISOString() });
-      toast.success("Payment link copied — paste it to the client.");
-    } catch (e) {
-      toast.error(String(e.message || e));
-    } finally {
-      setLinkBusy(false);
-    }
   };
 
   return (
@@ -142,9 +116,6 @@ export default function PaymentLedger({ job, client, property, onPaidInFull }) {
         <div className="mt-2 flex flex-wrap gap-3 border-t border-navy-100 pt-2">
           <button type="button" className="inline-flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-700" onClick={() => open("pay")}><FiPlus /> Part payment</button>
           <button type="button" className="inline-flex items-center gap-1 font-semibold text-navy-600 hover:text-navy-800" onClick={() => open("credit")}><FiFileMinus /> Credit note</button>
-          {balance > 0 && (
-            <button type="button" disabled={linkBusy} className="inline-flex items-center gap-1 font-semibold text-navy-600 hover:text-navy-800" onClick={payLink}><FiLink /> {linkBusy ? "Creating…" : "Card payment link"}</button>
-          )}
         </div>
       )}
     </div>

@@ -299,7 +299,7 @@ function PushNotificationsSection() {
         </div>
         <div className="mt-4 border-t border-navy-100 pt-4">
           <p className="text-sm font-semibold text-navy-900">Backup</p>
-          <p className="mt-1 text-xs text-navy-500">Download every job, client and engineer as one file, to keep a copy outside the app. Contains client details — store it somewhere safe.</p>
+          <p className="mt-1 text-xs text-navy-500">A copy is emailed to the accounts mailbox automatically every Monday. You can also download one now: every job, client and engineer as one file. Contains client details — store it somewhere safe.</p>
           <button onClick={downloadBackup} className="btn-outline mt-2 py-1.5 text-xs">Download backup</button>
         </div>
         <div className="mt-4 border-t border-navy-100 pt-4">

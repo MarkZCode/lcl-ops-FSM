@@ -5,6 +5,7 @@ import { FiPlus, FiTrash2 } from "react-icons/fi";
 import Modal from "./Modal";
 import { useStore } from "@/lib/store";
 import { CONTACT_METHODS } from "@/lib/clients";
+import PostcodeInput from "./PostcodeInput";
 import { formatPostcode } from "@/lib/enquiry";
 
 const emptyForm = {
@@ -224,11 +225,10 @@ export default function ClientModal({ open, onClose, client }) {
                   value={p.label}
                   onChange={(e) => updateProperty(p.id, "label", e.target.value)}
                 />
-                <input
-                  className="input"
-                  placeholder="Postcode"
-                  value={p.postcode}
-                  onChange={(e) => updateProperty(p.id, "postcode", e.target.value)}
+                <PostcodeInput
+                  value={p.postcode || ""}
+                  onChange={(v) => updateProperty(p.id, "postcode", v)}
+                  onPick={(v) => checkPostcode(p.id, v)}
                   onBlur={(e) => checkPostcode(p.id, e.target.value)}
                   title={p.postcodeOk === false ? "That postcode wasn't found — check it" : undefined}
                   style={p.postcodeOk === false ? { borderColor: "#e11d48" } : undefined}
