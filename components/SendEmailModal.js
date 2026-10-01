@@ -211,7 +211,9 @@ export default function SendEmailModal({
   const waLinks = waNum
     ? {
         mobile: `https://wa.me/${waNum}?text=${waText}`,
-        web: `https://web.whatsapp.com/send?phone=${waNum}&text=${waText}`,
+        // Through /wa.html so an installed WhatsApp Web window can't
+        // swallow the link and open without the chat (see public/wa.html).
+        web: `/wa.html#p=${waNum}&t=${waText}`,
         app: `whatsapp://send?phone=${waNum}&text=${waText}`,
       }
     : null;

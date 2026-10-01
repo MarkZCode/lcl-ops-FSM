@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- Hop page for opening one person's WhatsApp chat from the FSM.
+     When WhatsApp Web is installed as its own app window, Chrome hands any
+     NEW tab aimed at web.whatsapp.com to that window, which just comes to
+     the front and ignores which chat was asked for. A tab that is already
+     open and then moves itself there is left alone — so the FSM opens this
+     page, and this page goes to the chat. The number travels after the #,
+     so it never reaches the server. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Opening WhatsApp…</title>
+<style>body{font:15px system-ui,sans-serif;color:#14213D;display:grid;place-items:center;height:100vh;margin:0}</style>
+</head>
+<body>
+<p id="m">Opening the chat…</p>
+<script>
+  var h = new URLSearchParams(location.hash.slice(1));
+  var phone = (h.get("p") || "").replace(/\D/g, "");
+  var text = h.get("t") || "";
+  if (phone) {
+    location.replace("https://web.whatsapp.com/send?phone=" + phone + (text ? "&text=" + encodeURIComponent(text) : ""));
+  } else {
+    document.getElementById("m").textContent = "No phone number to open.";
+  }
+</script>
+</body>
+</html>

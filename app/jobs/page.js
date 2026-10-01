@@ -40,21 +40,29 @@ export default function JobsPage() {
     const q = searchParams?.get("q");
     if (q) setQuery(q);
   }, [searchParams]);
-  // Quote is the tab that actually needs attention day to day — jobs waiting
-  // on a decision or still needing an engineer/date sorted out. Opening on
-  // "All" buried that queue behind every scheduled/paid/cancelled job too.
-  // Opens on "To do" — every job that needs something from the office,
-  // whatever its status. The Quote tab used to be the default because it was
-  // the closest thing to a to-do list; it missed every unsent invoice,
-  // unconfirmed engineer and finished-but-not-closed job.
-  const [statusFilter, setStatusFilter] = useState("todo");
+  // Opens on Quote → All quotes. It briefly opened on the To do "Everything"
+  // list instead, and — worse — went back there every time you opened a job
+  // and came back, throwing away whichever filter you'd picked. The To do
+  // pills are still one click away; they're just not forced on you.
+  // Whatever you pick is remembered for the session, so Back from a job
+  // lands on the same list you left.
+  const [statusFilter, setStatusFilterState] = useState("quote");
+  const setStatusFilter = (v) => {
+    setStatusFilterState(v);
+    try { sessionStorage.setItem("lcl-jobs-filter", v); } catch {}
+  };
   // The Dashboard's "Open quotes" card (and anything else linking with
   // ?status=…) was navigating here and being silently ignored — nothing ever
   // read the param back, so the link always landed on whatever the default
   // tab happened to be regardless of which status it promised.
   useEffect(() => {
     const s = searchParams?.get("status");
-    if (s) setStatusFilter(s);
+    if (s) { setStatusFilter(s); return; }
+    try {
+      const saved = sessionStorage.getItem("lcl-jobs-filter");
+      if (saved) setStatusFilterState(saved);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const [view, setView] = useState("board");
 
