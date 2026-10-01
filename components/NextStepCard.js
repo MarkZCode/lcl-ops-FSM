@@ -39,7 +39,7 @@ const BUTTON_LABEL = {
   "email:reminder": "Send reminder",
 };
 
-export default function NextStepCard({ job, clientEmail, clientPhone, engineerName, engineerExists, engineerById, onDo }) {
+export default function NextStepCard({ job, clientEmail, clientPhone, engineerName, engineerExists, engineerById, onDo, checks = [] }) {
   const actions = nextActions(job, { engineerName, clientEmail, clientPhone, engineerExists, engineerById });
   if (["paid", "cancelled"].includes(job.status) && !actions.length) return null;
 
@@ -81,6 +81,17 @@ export default function NextStepCard({ job, clientEmail, clientPhone, engineerNa
           </button>
         </div>
       </div>
+      {first.key === "check_quote" && checks.length > 0 && (
+        <ul className="space-y-1.5 border-t border-navy-100 px-4 py-3 text-xs">
+          <li className="font-semibold uppercase tracking-wide text-navy-500">Look at these before it goes out</li>
+          {checks.map((c) => (
+            <li key={c.key} className="flex items-start gap-2 text-navy-700">
+              <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${c.tone === "warn" ? "bg-rose-500" : "bg-amber-500"}`} />
+              <span>{c.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {rest.length > 0 && (
         <ul className="divide-y divide-navy-100 border-t border-navy-100">
           {rest.map((a) => (

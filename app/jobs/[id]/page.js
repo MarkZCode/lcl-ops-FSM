@@ -56,6 +56,7 @@ import RescheduleModal from "@/components/RescheduleModal";
 import NextStepCard from "@/components/NextStepCard";
 import { toast } from "@/lib/toast";
 import { openWhatsAppChat } from "@/lib/whatsapp";
+import { quoteChecks } from "@/lib/quoteChecks";
 import { greetingNow, firstName, senderFor } from "@/lib/email";
 import { FaWhatsapp } from "react-icons/fa";
 
@@ -656,6 +657,7 @@ export default function JobDetailPage() {
             engineerExists={(eid) => engineers.some((e) => e.id === eid)}
             engineerById={(eid) => engineers.find((e) => e.id === eid)}
             onDo={handleNextStep}
+            checks={job.status === "quote" ? quoteChecks(job, { property, jobs }) : []}
           />
 
           {/* Status workflow */}
@@ -1232,6 +1234,11 @@ export default function JobDetailPage() {
                   </button>
                 )}
               </div>
+              {!job.scheduledAt && (job.preferredDate || job.preferredSlot) && (
+                <p className="rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs text-brand-800">
+                  Client asked for: <strong>{[job.preferredDate && (/^\d{4}-\d{2}-\d{2}/.test(job.preferredDate) ? fmtDate(job.preferredDate) : job.preferredDate), job.preferredSlot].filter(Boolean).join(" · ")}</strong>
+                </p>
+              )}
               <div id="booking" className="scroll-mt-24">
                 <label className="label">Assigned engineer</label>
                 {isSplit(job) ? (

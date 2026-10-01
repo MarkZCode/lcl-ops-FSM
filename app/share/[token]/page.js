@@ -17,6 +17,23 @@ export default function SharePage() {
   const { token } = useParams();
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState("");
+
+  const accept = async () => {
+    setAccepting(true);
+    setAcceptError("");
+    try {
+      const r = await fetch(`/api/share/${encodeURIComponent(token)}`, { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Something went wrong — please call us.");
+      setJob((j) => ({ ...j, acceptedAt: d.acceptedAt, canAccept: false }));
+    } catch (e) {
+      setAcceptError(String(e.message || e));
+    } finally {
+      setAccepting(false);
+    }
+  };
 
   // Fetched through a server route that returns ONLY the fields below. The
   // browser used to query Supabase directly with the anon key, which both
@@ -102,6 +119,22 @@ export default function SharePage() {
             <span className="text-base font-bold text-navy-900">{gbp(job.price)}</span>
           </div>
         </div>
+
+        {/* Accept the quote */}
+        {job.canAccept && (
+          <div className="card p-5">
+            <p className="text-sm text-navy-700">Happy with this quote? Accept it here and we&rsquo;ll be in touch to agree a date.</p>
+            <button type="button" className="btn-primary mt-3 w-full justify-center" onClick={accept} disabled={accepting}>
+              {accepting ? "Recording…" : "Accept quote"}
+            </button>
+            {acceptError && <p className="mt-2 text-xs font-semibold text-rose-600">{acceptError}</p>}
+          </div>
+        )}
+        {job.status === "quote" && job.acceptedAt && (
+          <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
+            <strong>Quote accepted</strong> on {fmtDate(job.acceptedAt)}. We&rsquo;ll contact you to book your appointment.
+          </div>
+        )}
 
         {/* Cert expiry */}
         {job.certExpiry && (

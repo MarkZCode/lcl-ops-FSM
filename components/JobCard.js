@@ -21,6 +21,7 @@ const STATUS_ACCENT = {
 };
 
 import { nextAction } from "@/lib/nextAction";
+import { enquiryWaitMs, waitLabel } from "@/lib/quoteChecks";
 
 export default function JobCard({ job, onJobCard }) {
   const { clientById, engineerById, updateJob } = useStore();
@@ -41,6 +42,7 @@ export default function JobCard({ job, onJobCard }) {
     engineerById: (id) => engineerById(id),
   });
 
+  const waitMs = enquiryWaitMs(job);
   const upcomingVisit = getUpcomingScheduledVisit(job);
   const displayDate = upcomingVisit?.scheduledAt || job.scheduledAt;
 
@@ -87,6 +89,14 @@ export default function JobCard({ job, onJobCard }) {
             >
               <FiClipboard className="h-3.5 w-3.5" />
             </button>
+          )}
+          {waitMs != null && (
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${waitMs > 3600_000 ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}
+              title="New enquiry — time waiting for a first reply"
+            >
+              Waiting {waitLabel(waitMs)}
+            </span>
           )}
           <StatusBadge status={jobStage(job)} size="sm" />
           {upcomingVisit && ["paid", "invoiced", "completed"].includes(job.status) && (

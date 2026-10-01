@@ -15,6 +15,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getJobLines, lineTotal } from "@/lib/format";
+import { pushToAll } from "@/lib/pushAll";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export async function GET(_request, { params }) {
   const token = params?.token;
@@ -45,6 +47,10 @@ export async function GET(_request, { params }) {
     status: job.status,
     price: job.price,
     certExpiry: job.certExpiry || null,
+    // The client can accept a quote from this page until it's accepted,
+    // booked or closed.
+    acceptedAt: job.acceptedAt || null,
+    canAccept: job.status === "quote" && !job.acceptedAt,
     lines: getJobLines(job).map((l) => ({
       name: l.code === "CUSTOM" ? l.name : l.name,
       code: l.code,
@@ -57,4 +63,44 @@ export async function GET(_request, { params }) {
   return NextResponse.json(safe, {
     headers: { "Cache-Control": "no-store" },
   });
+}
+
+// The client pressing "Accept quote" on their link. Records the acceptance on
+// the job exactly as the office's own "Yes, accepted" does — the date, a line
+// in the conversation — and tells every device, so booking can start without
+// anyone having to notice an email. It never books or schedules by itself.
+export async function POST(_request, { params }) {
+  const token = params?.token;
+  if (!token || String(token).length < 12) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  if (!supabaseAdmin) return NextResponse.json({ error: "Not configured" }, { status: 503 });
+  const limited = rateLimitOr429("share-accept", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
+  const { data, error } = await supabaseAdmin
+    .from("jobs").select("id,data").eq("data->>shareToken", token).maybeSingle();
+  if (error || !data?.data) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const job = data.data;
+  if (job.acceptedAt) return NextResponse.json({ ok: true, acceptedAt: job.acceptedAt, already: true });
+  if (job.status !== "quote") return NextResponse.json({ error: "This quote can no longer be accepted online." }, { status: 409 });
+
+  const now = new Date().toISOString();
+  const next = {
+    ...job,
+    acceptedAt: now,
+    acceptedVia: "online",
+    quoteHoldUntil: null,
+    updatedAt: now,
+    activity: [
+      ...(job.activity || []),
+      { id: "act-" + Date.now().toString(36), at: now, by: "client", type: "status", title: "Quote accepted online by the client" },
+    ],
+  };
+  const { error: wErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: next });
+  if (wErr) return NextResponse.json({ error: "Couldn't record that — please call us." }, { status: 502 });
+
+  await pushToAll({ title: "Quote accepted online", body: `${job.id} — the client accepted. Book it in.`, url: `/jobs/${job.id}` });
+  return NextResponse.json({ ok: true, acceptedAt: now });
 }

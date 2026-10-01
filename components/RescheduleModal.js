@@ -44,7 +44,11 @@ export default function RescheduleModal({ open, onClose, job, onConfirm }) {
   useEffect(() => {
     if (!open || !job) return;
     const iso = job.scheduledAt ? new Date(job.scheduledAt) : null;
-    setDate(iso ? iso.toISOString().slice(0, 10) : "");
+    // Not booked yet → start from the day the client asked for on the
+    // website form, if it's a real date and still ahead of us.
+    const wanted = !iso && /^\d{4}-\d{2}-\d{2}/.test(job.preferredDate || "") && job.preferredDate.slice(0, 10) >= new Date().toISOString().slice(0, 10)
+      ? job.preferredDate.slice(0, 10) : "";
+    setDate(iso ? iso.toISOString().slice(0, 10) : wanted);
     setPart(job.windowPart || "");
     setFrom(job.windowFrom || "");
     setTo(job.windowTo || "");

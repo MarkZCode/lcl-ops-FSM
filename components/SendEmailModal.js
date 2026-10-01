@@ -44,7 +44,7 @@ export default function SendEmailModal({
   defaultTemplate,
   urgency = false,
 }) {
-  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob } = useStore();
+  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob, generateShareToken } = useStore();
   const [tplKey, setTplKey] = useState(defaultTemplate || "booking");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -183,7 +183,13 @@ export default function SendEmailModal({
     // a fresh website/email enquiry, between the message and the sign-off.
     // It's ordinary text in the box — edit or delete it before sending.
     const nudge = urgency && tplKey === "quote" ? `\n\n${URGENCY_LINE}` : "";
-    setBody(renderTemplate(tpl.body, ctx) + nudge + sig);
+    // A quote carries the link where the client can accept it in one tap.
+    let acceptLine = "";
+    if (tplKey === "quote" && job?.id && job.status === "quote" && !job.acceptedAt && typeof window !== "undefined") {
+      const token = job.shareToken || generateShareToken(job.id);
+      if (token) acceptLine = `\n\nYou can view and accept your quote online here: ${window.location.origin}/share/${token}`;
+    }
+    setBody(renderTemplate(tpl.body, ctx) + acceptLine + nudge + sig);
     setTo(client?.email || "");
     setPhone(client?.phone || "");
     setStatus("idle");
