@@ -14,6 +14,7 @@ import {
   getPeriodRange, shiftRef, computeStats, buildSeries, expensesForRange,
   computeEngineerPay, computePipeline, computeCashflow, trendVs, jobInRange,
 } from "@/lib/stats";
+import ReportInsights from "@/components/ReportInsights";
 import { parkingSummary, congestionSummary } from "@/lib/finance";
 import { serviceShort } from "@/lib/format";
 import { isWithinInterval, parseISO, getDay } from "date-fns";
@@ -42,6 +43,7 @@ const REPORT_TABS = [
   { k: "trends", l: "Trends" },
   { k: "pay", l: "Engineer pay" },
   { k: "pipeline", l: "Pipeline" },
+  { k: "insights", l: "Insights" },
 ];
 
 const EXPENSE_CATEGORIES = ["Staffing", "Technology", "Marketing", "Operations", "Legal", "Vehicles", "Insurance", "Bank Transfer Fees", "Other"];
@@ -279,9 +281,10 @@ function ReportsInner() {
         )}
 
         {view === "pipeline" && <PipelineView pipeline={pipeline} />}
+        {view === "insights" && <ReportInsights jobs={pipelineJobs} engineerById={(id) => engineers.find((e) => e.id === id)} label={range.label} />}
 
         {/* Shared period controls — apply to every financial tab except Pipeline */}
-        {view !== "pipeline" && <>
+        {view !== "pipeline" && view !== "insights" && <>
           {showSundayPayReminder && !expensesOnly && (
             <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div>

@@ -209,6 +209,22 @@ function PushNotificationsSection() {
     if (!r.ok) { setPushOff(pushOff); setMsg(r.error || "Couldn't save that."); }
   };
 
+  // Everything the business runs on, in one JSON file on this computer.
+  const { jobs: allJobs, clients: allClients, engineers: allEngineers } = useStore();
+  const downloadBackup = () => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob(
+      [JSON.stringify({ exportedAt: new Date().toISOString(), jobs: allJobs, clients: allClients, engineers: allEngineers }, null, 1)],
+      { type: "application/json" }
+    );
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `lcl-ops-backup-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    try { localStorage.setItem("lcl-last-backup", stamp); } catch {}
+  };
+
   const toggle = async () => {
     setState("working");
     setMsg("");
@@ -280,6 +296,11 @@ function PushNotificationsSection() {
               </li>
             ))}
           </ul>
+        </div>
+        <div className="mt-4 border-t border-navy-100 pt-4">
+          <p className="text-sm font-semibold text-navy-900">Backup</p>
+          <p className="mt-1 text-xs text-navy-500">Download every job, client and engineer as one file, to keep a copy outside the app. Contains client details — store it somewhere safe.</p>
+          <button onClick={downloadBackup} className="btn-outline mt-2 py-1.5 text-xs">Download backup</button>
         </div>
         <div className="mt-4 border-t border-navy-100 pt-4">
           <button onClick={sendTest} disabled={test === "sending"} className="btn-outline py-1.5 text-xs disabled:opacity-50">

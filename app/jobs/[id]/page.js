@@ -29,7 +29,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { STAGE_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
 import { jobStage, isCertified, quoteStage, QUOTE_STAGES } from "@/lib/stages";
-import { gbp, fmtDate, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode } from "@/lib/format";
+import { gbp, fmtDate, fmtDateTime, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode } from "@/lib/format";
 import { jobFinancialsSplit } from "@/lib/finance";
 import { dateLine, certLabel, acceptanceProgress, setScopeConfirmed, scopeAccepted } from "@/lib/jobCard";
 import { computeCertExpiry } from "@/lib/renewals";
@@ -1456,6 +1456,26 @@ export default function JobDetailPage() {
           <div id="communication" className="scroll-mt-24">
             <ActivityThread job={job} client={client} />
           </div>
+
+          {/* Change history — who changed the price, date, engineer or status */}
+          {(job.changeLog || []).length > 0 && (
+            <details className="card p-5">
+              <summary className="cursor-pointer section-label text-sm">Change history ({job.changeLog.length})</summary>
+              <ul className="mt-3 space-y-2 text-xs">
+                {[...job.changeLog].reverse().slice(0, 60).map((c, i) => {
+                  const label = { price: "Price", discount: "Discount", status: "Status", engineerId: "Engineer", scheduledAt: "Appointment" }[c.field] || c.field;
+                  const show = (v) => (c.field === "engineerId" ? (v === "unassigned" ? "unassigned" : engineerById(v)?.name || v) : c.field === "status" ? statusMeta(v)?.label || v : v);
+                  return (
+                    <li key={i} className="border-b border-navy-100 pb-2 last:border-0">
+                      <span className="font-semibold text-navy-800">{label}</span>{" "}
+                      <span className="text-navy-600">{show(c.from)} → {show(c.to)}</span>
+                      <span className="block text-navy-400">{fmtDateTime(c.at)}{c.by ? ` · ${c.by}` : ""}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          )}
         </div>
       </div>
 
