@@ -58,6 +58,7 @@ import { toast } from "@/lib/toast";
 import { openWhatsAppChat } from "@/lib/whatsapp";
 import { quoteChecks } from "@/lib/quoteChecks";
 import BookingAssist from "@/components/BookingAssist";
+import PaymentLedger from "@/components/PaymentLedger";
 import { greetingNow, firstName, senderFor } from "@/lib/email";
 import { FaWhatsapp } from "react-icons/fa";
 
@@ -1087,6 +1088,16 @@ export default function JobDetailPage() {
                 <span className="font-medium text-navy-800">{job.id}</span>
               </div>
             </div>
+
+            <PaymentLedger
+              job={job}
+              client={client}
+              property={property}
+              onPaidInFull={() => {
+                changeStatus("paid", { paidAt: new Date().toISOString() });
+                logActivity(job.id, { type: "payment", title: `Paid in full · ${gbp(job.price)}` });
+              }}
+            />
 
             {/* Mark-as actions */}
             <div className="mt-3 flex flex-wrap gap-2">

@@ -15,6 +15,7 @@ import PageHeader from "@/components/PageHeader";
 import PeriodControls from "@/components/PeriodControls";
 import { usePeriodRange } from "@/lib/usePeriodRange";
 import { jobInRange } from "@/lib/stats";
+import BankMatch from "@/components/BankMatch";
 import JobCard from "@/components/JobCard";
 import StatusBadge from "@/components/StatusBadge";
 import { jobStage } from "@/lib/stages";
@@ -321,6 +322,8 @@ export default function JobsPage() {
             })}
           </div>
         )}
+
+        {statusFilter === "invoiced" && <BankMatch />}
 
         {filtered.length === 0 ? (
           <div className="card p-10 text-center text-sm text-navy-500">

@@ -47,6 +47,10 @@
     {
       "path": "/api/inbox/enquiries",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/payment-chasers",
+      "schedule": "0 9 * * *"
     }
   ]
 }

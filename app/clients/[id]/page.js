@@ -19,6 +19,8 @@ import { useStore } from "@/lib/store";
 import { gbp, fmtDateTime, serviceShort, fmtDate } from "@/lib/format";
 import { getRenewals, renewalTone } from "@/lib/renewals";
 import { clientTimeline } from "@/lib/clients";
+import { jobBalance, jobReceived } from "@/lib/payments";
+import { jobPayable } from "@/lib/format";
 import { RENEWAL_MONTHS } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
@@ -90,6 +92,26 @@ export default function ClientDetailPage() {
     URL.revokeObjectURL(a.href);
   };
 
+  // Everything this client currently owes, as one PDF.
+  const owing = clientJobs.filter((j) => j.status === "invoiced" && jobBalance(j) > 0);
+  const downloadStatement = async () => {
+    const { generateStatementPDF } = await import("@/lib/generateStatement");
+    generateStatementPDF({
+      clientName: client.billingName || client.name,
+      clientAddr: client.billingAddress || client.company || "",
+      rows: owing
+        .sort((a, b) => new Date(a.invoicedAt || 0) - new Date(b.invoicedAt || 0))
+        .map((j) => ({
+          ref: j.invoiceNumber ? `INV ${j.invoiceNumber}` : j.id,
+          date: j.invoicedAt ? fmtDate(j.invoicedAt) : "",
+          description: `${(j.services || []).map(serviceShort).join(", ")}${client.properties.find((p) => p.id === j.propertyId)?.postcode ? ` — ${client.properties.find((p) => p.id === j.propertyId).postcode}` : ""}`,
+          total: jobPayable(j),
+          paid: jobReceived(j),
+          balance: jobBalance(j),
+        })),
+    });
+  };
+
   if (!client) {
     return (
       <div className="p-8">
@@ -128,6 +150,11 @@ export default function ClientDetailPage() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {owing.length > 0 && (
+              <button className="btn-outline" onClick={downloadStatement} title="One PDF of every unpaid invoice">
+                Statement · {gbp(owing.reduce((a, j) => a + jobBalance(j), 0))} owed
+              </button>
+            )}
             <button className="btn-outline" onClick={() => setEditOpen(true)}>
               <FiEdit2 /> Edit
             </button>
