@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { FiPlus, FiTrash2 } from "react-icons/fi";
 import Modal from "./Modal";
 import { useStore } from "@/lib/store";
+import { CONTACT_METHODS } from "@/lib/clients";
+import { formatPostcode } from "@/lib/enquiry";
 
 const emptyForm = {
   name: "",
@@ -13,6 +15,11 @@ const emptyForm = {
   type: "Landlord",
   notes: "",
   properties: [],
+  preferredContact: "",
+  discountPercent: "",
+  billingName: "",
+  billingEmail: "",
+  billingAddress: "",
 };
 
 const TYPES = ["Landlord", "Managing agent", "Commercial", "Housing association"];
@@ -41,6 +48,11 @@ export default function ClientModal({ open, onClose, client }) {
         type: client.type || "Landlord",
         notes: client.notes || "",
         properties: client.properties ? [...client.properties] : [],
+        preferredContact: client.preferredContact || "",
+        discountPercent: client.discountPercent != null && client.discountPercent !== "" ? String(client.discountPercent) : "",
+        billingName: client.billingName || "",
+        billingEmail: client.billingEmail || "",
+        billingAddress: client.billingAddress || "",
       });
     } else {
       setForm(emptyForm);
@@ -66,6 +78,22 @@ export default function ClientModal({ open, onClose, client }) {
       ),
     }));
 
+  // Tidy the postcode ("sw1a1aa" → "SW1A 1AA"), check it really exists and
+  // fill in the borough. A mistyped postcode is how an engineer ends up at
+  // the wrong door. (postcodes.io — the postcode only is sent.)
+  const checkPostcode = async (id, raw) => {
+    const pc = formatPostcode(raw);
+    if (!pc || pc.replace(/\s/g, "").length < 5) return;
+    updateProperty(id, "postcode", pc);
+    try {
+      const r = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`);
+      if (r.status === 404) { updateProperty(id, "postcodeOk", false); return; }
+      const d = await r.json();
+      updateProperty(id, "postcodeOk", true);
+      if (d?.result?.admin_district) updateProperty(id, "area", d.result.admin_district);
+    } catch {}
+  };
+
   const removeProperty = (id) =>
     setForm((f) => ({
       ...f,
@@ -78,6 +106,7 @@ export default function ClientModal({ open, onClose, client }) {
     if (!canSave) return;
     const payload = {
       ...form,
+      discountPercent: Math.max(0, Math.min(100, Number(form.discountPercent) || 0)) || "",
       // Keep a property if it has EITHER an address or a postcode. Filtering
       // on the label alone silently deleted postcode-only rows on save —
       // which at quote stage is often all the client has given us. Only a
@@ -140,6 +169,32 @@ export default function ClientModal({ open, onClose, client }) {
           </select>
         </div>
 
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Prefers to be contacted by</label>
+            <select className="input" value={form.preferredContact} onChange={set("preferredContact")}>
+              <option value="">No preference</option>
+              {CONTACT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Portfolio discount %</label>
+            <input className="input" type="number" min="0" max="100" step="0.5" value={form.discountPercent} onChange={set("discountPercent")} placeholder="0" />
+          </div>
+        </div>
+
+        {/* Who pays — an agent often books for a landlord, and the invoice
+            has to be made out to whoever is actually paying it. */}
+        <details className="rounded-lg border border-navy-100 p-3" open={Boolean(form.billingName || form.billingEmail || form.billingAddress)}>
+          <summary className="cursor-pointer text-sm font-semibold text-navy-700">Invoices go to someone else</summary>
+          <p className="mt-1 text-xs text-navy-500">Leave blank if this client pays their own invoices.</p>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <input className="input" placeholder="Name on the invoice" value={form.billingName} onChange={set("billingName")} />
+            <input className="input" placeholder="Email for invoices" value={form.billingEmail} onChange={set("billingEmail")} />
+            <input className="input sm:col-span-2" placeholder="Billing address" value={form.billingAddress} onChange={set("billingAddress")} />
+          </div>
+        </details>
+
         {/* Properties */}
         <div>
           <div className="mb-2 flex items-center justify-between">
@@ -174,6 +229,9 @@ export default function ClientModal({ open, onClose, client }) {
                   placeholder="Postcode"
                   value={p.postcode}
                   onChange={(e) => updateProperty(p.id, "postcode", e.target.value)}
+                  onBlur={(e) => checkPostcode(p.id, e.target.value)}
+                  title={p.postcodeOk === false ? "That postcode wasn't found — check it" : undefined}
+                  style={p.postcodeOk === false ? { borderColor: "#e11d48" } : undefined}
                 />
                 <button
                   type="button"

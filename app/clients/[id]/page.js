@@ -18,6 +18,7 @@ import {
 import { useStore } from "@/lib/store";
 import { gbp, fmtDateTime, serviceShort, fmtDate } from "@/lib/format";
 import { getRenewals, renewalTone } from "@/lib/renewals";
+import { clientTimeline } from "@/lib/clients";
 import { RENEWAL_MONTHS } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 import StatusBadge from "@/components/StatusBadge";
@@ -37,7 +38,7 @@ export default function ClientDetailPage() {
 
   const client = clients.find((c) => c.id === id);
 
-  const [view, setView] = useState("jobs"); // "jobs" | "portfolio"
+  const [view, setView] = useState("jobs"); // "jobs" | "portfolio" | "timeline"
 
   const clientJobs = useMemo(() => {
     if (!client) return [];
@@ -62,6 +63,32 @@ export default function ClientDetailPage() {
       return { prop, certMap };
     });
   }, [client, clientJobs]);
+
+  const timeline = useMemo(() => (view === "timeline" ? clientTimeline(clientJobs) : []), [view, clientJobs]);
+
+  // The certificate grid as a spreadsheet — one row per property and
+  // certificate, for a landlord or agent who wants it for their own records.
+  const exportPortfolio = () => {
+    const codes = ["GAS", "EICR", "EPC", "FRA", "ALARM", "EMLIGHT"];
+    const rows = [["Property", "Postcode", "Certificate", "Status", "Expires", "Job"]];
+    for (const { prop, certMap } of portfolio) {
+      for (const code of codes) {
+        const j = certMap[code];
+        const days = j?.certExpiry ? Math.ceil((new Date(j.certExpiry) - new Date()) / 86400000) : null;
+        rows.push([
+          prop.label || "", prop.postcode || "", serviceShort(code),
+          !j ? "No certificate on file" : days == null ? "On file" : days < 0 ? "Expired" : days <= 60 ? "Expiring" : "Valid",
+          j?.certExpiry ? fmtDate(j.certExpiry) : "", j?.id || "",
+        ]);
+      }
+    }
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = `${client.name.replace(/[^a-z0-9]+/gi, "_")}_certificates.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   if (!client) {
     return (
@@ -134,9 +161,14 @@ export default function ClientDetailPage() {
               >
                 <FiMail className="text-navy-400" /> {client.email || "—"}
               </a>
-              <p className="inline-flex rounded-full bg-navy-100 px-2 py-0.5 text-xs font-semibold text-navy-600">
-                {client.type}
+              <p className="flex flex-wrap gap-1.5">
+                <span className="inline-flex rounded-full bg-navy-100 px-2 py-0.5 text-xs font-semibold text-navy-600">{client.type}</span>
+                {client.preferredContact && <span className="inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">Prefers {client.preferredContact}</span>}
+                {Number(client.discountPercent) > 0 && <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{client.discountPercent}% portfolio discount</span>}
               </p>
+              {(client.billingName || client.billingEmail) && (
+                <p className="text-xs text-navy-500">Invoices to: <strong className="text-navy-700">{[client.billingName, client.billingEmail].filter(Boolean).join(" · ")}</strong></p>
+              )}
             </div>
             {client.notes && (
               <p className="mt-3 border-t border-navy-100 pt-3 text-sm text-navy-600">
@@ -186,18 +218,42 @@ export default function ClientDetailPage() {
         <div className="lg:col-span-2">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex rounded-lg border border-navy-200 bg-white p-0.5">
-              {["jobs","portfolio"].map((v) => (
+              {["jobs","portfolio","timeline"].map((v) => (
                 <button key={v} onClick={() => setView(v)}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition ${view===v?"bg-navy-800 text-white":"text-navy-500 hover:bg-navy-50"}`}
                 >{v}</button>
               ))}
             </div>
-            <button className="btn-outline" onClick={() => setJobOpen(true)}>
-              <FiPlus /> New job
-            </button>
+            <span className="flex gap-2">
+              {view === "portfolio" && portfolio.length > 0 && (
+                <button className="btn-outline" onClick={exportPortfolio}>Export</button>
+              )}
+              <button className="btn-outline" onClick={() => setJobOpen(true)}>
+                <FiPlus /> New job
+              </button>
+            </span>
           </div>
 
-          {view === "portfolio" ? (
+          {view === "timeline" ? (
+            timeline.length === 0 ? (
+              <div className="card p-10 text-center text-sm text-navy-500">Nothing recorded for this client yet.</div>
+            ) : (
+              <ol className="card divide-y divide-navy-100">
+                {timeline.slice(0, 300).map((e) => (
+                  <li key={e.id} className="flex gap-3 p-3 text-sm">
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${e.direction === "in" ? "bg-blue-500" : e.type === "payment" ? "bg-emerald-500" : e.type === "file" ? "bg-purple-500" : "bg-navy-300"}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-navy-900">{e.title || (e.direction === "in" ? "Message from client" : "Note")}</p>
+                      {e.detail && <p className="mt-0.5 line-clamp-3 whitespace-pre-line text-xs text-navy-600">{e.detail}</p>}
+                      <p className="mt-0.5 text-[11px] text-navy-400">
+                        {fmtDateTime(e.at)} · <Link href={`/jobs/${e.jobId}`} className="font-semibold text-brand-600 hover:underline">{e.jobId}</Link>{e.by ? ` · ${e.by}` : ""}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )
+          ) : view === "portfolio" ? (
             portfolio.length === 0 ? (
               <div className="card p-10 text-center text-sm text-navy-500">No properties on file.</div>
             ) : (

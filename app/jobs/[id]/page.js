@@ -658,7 +658,7 @@ export default function JobDetailPage() {
             engineerExists={(eid) => engineers.some((e) => e.id === eid)}
             engineerById={(eid) => engineers.find((e) => e.id === eid)}
             onDo={handleNextStep}
-            checks={job.status === "quote" ? quoteChecks(job, { property, jobs }) : []}
+            checks={job.status === "quote" ? quoteChecks(job, { property, jobs, client }) : []}
           />
 
           {/* Status workflow */}
@@ -1372,6 +1372,12 @@ export default function JobDetailPage() {
                 </Link>
                 {client.company && (
                   <p className="text-navy-500">{client.company}</p>
+                )}
+                {(client.preferredContact || client.billingName) && (
+                  <p className="flex flex-wrap gap-1.5">
+                    {client.preferredContact && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700">Prefers {client.preferredContact}</span>}
+                    {client.billingName && <span className="rounded-full bg-navy-100 px-2 py-0.5 text-[11px] font-semibold text-navy-600">Invoices to {client.billingName}</span>}
+                  </p>
                 )}
                 {client.phone && (
                   <div className="flex items-center gap-2">

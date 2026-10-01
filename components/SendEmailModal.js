@@ -190,7 +190,8 @@ export default function SendEmailModal({
       if (token) acceptLine = `\n\nYou can view and accept your quote online here: ${window.location.origin}/share/${token}`;
     }
     setBody(renderTemplate(tpl.body, ctx) + acceptLine + nudge + sig);
-    setTo(client?.email || "");
+    // Invoices go to the billing email when the client has one.
+    setTo((["invoice", "job_completed"].includes(tplKey) && client?.billingEmail) || client?.email || "");
     setPhone(client?.phone || "");
     setStatus("idle");
     setMessage("");

@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { FiPlus, FiSearch, FiHome, FiPhone, FiMail, FiUsers, FiChevronRight } from "react-icons/fi";
 import { useStore } from "@/lib/store";
+import { duplicateGroups, mergedClient } from "@/lib/clients";
+import { toast } from "@/lib/toast";
 import PageHeader from "@/components/PageHeader";
 import ClientModal from "@/components/ClientModal";
 import { useSectionTour } from "@/components/OnboardingTour";
@@ -29,7 +31,22 @@ const typeColors = {
 };
 
 export default function ClientsPage() {
-  const { clients, jobs } = useStore();
+  const { clients, jobs, updateClient, updateJob, removeClientOnly } = useStore();
+  const dupes = useMemo(() => duplicateGroups(clients), [clients]);
+  const [dupesOpen, setDupesOpen] = useState(false);
+
+  // Fold `dup` into `keep`: its jobs move across (keeping their property),
+  // its details fill any blanks, and only then is the empty duplicate
+  // removed. No job is deleted.
+  const merge = (keep, dup) => {
+    if (!window.confirm(`Merge "${dup.name}" into "${keep.name}"? Their jobs and properties move across and the duplicate record is removed.`)) return;
+    const { patch, propertyIdMap } = mergedClient(keep, dup);
+    updateClient(keep.id, patch);
+    const moving = jobs.filter((j) => j.clientId === dup.id);
+    moving.forEach((j) => updateJob(j.id, { clientId: keep.id, ...(propertyIdMap[j.propertyId] ? { propertyId: propertyIdMap[j.propertyId] } : {}) }));
+    removeClientOnly(dup.id);
+    toast.success(`Merged — ${moving.length} job${moving.length === 1 ? "" : "s"} moved to ${keep.name}.`);
+  };
   const [modalOpen, setModalOpen] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -83,6 +100,34 @@ export default function ClientsPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+
+        {dupes.length > 0 && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:bg-amber-500/10">
+            <button type="button" className="flex w-full items-center justify-between font-semibold text-amber-900 dark:text-amber-200" onClick={() => setDupesOpen((o) => !o)}>
+              <span>{dupes.length} possible duplicate client{dupes.length === 1 ? "" : "s"} — same phone or email</span>
+              <span className="text-xs">{dupesOpen ? "Hide" : "Review"}</span>
+            </button>
+            {dupesOpen && (
+              <ul className="mt-3 space-y-3">
+                {dupes.map((g) => (
+                  <li key={g[0].id} className="rounded-lg bg-white p-3 dark:bg-white/[0.04]">
+                    <p className="text-xs text-navy-500">Keeping the oldest record:</p>
+                    <p className="font-semibold text-navy-900">{g[0].name} <span className="font-normal text-navy-500">· {g[0].phone || "no phone"} · {g[0].email || "no email"} · {jobCount(g[0].id)} jobs</span></p>
+                    {g.slice(1).map((d) => (
+                      <div key={d.id} className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-navy-100 pt-2">
+                        <span className="text-navy-700">{d.name} <span className="text-navy-500">· {d.phone || "no phone"} · {d.email || "no email"} · {jobCount(d.id)} jobs</span></span>
+                        <span className="flex gap-2">
+                          <button type="button" className="btn-outline py-1 text-xs" onClick={() => merge(g[0], d)}>Merge into {g[0].name.split(" ")[0]}</button>
+                          <button type="button" className="btn-outline py-1 text-xs" onClick={() => merge(d, g[0])}>Keep this one instead</button>
+                        </span>
+                      </div>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {filtered.length === 0 ? (
           <div className="card p-10 text-center text-sm text-navy-500">No clients match your search.</div>
