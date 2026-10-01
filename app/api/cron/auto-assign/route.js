@@ -23,6 +23,7 @@ import { NextResponse } from "next/server";
 import { sendPush, webPushConfigured } from "@/lib/webPush";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { currentCycleDue, serviceLabel } from "@/lib/prospects";
+import { runTaskSync } from "@/lib/taskSync";
 
 const STATE_ID = "auto_assign_state";
 const DUE_WITHIN_DAYS = 14;
@@ -326,117 +327,12 @@ export async function GET(request) {
   }
 
   // ── 2. Stale unread client replies (>24h since inbound) ────────────────
-  const replyCutoff = now.getTime() - REPLY_STALE_HOURS * 3600_000;
-  for (const row of jobsRes.data || []) {
-    const job = row.data;
-    if (!job) continue;
-    const lastIn = (job.activity || [])
-      .filter((a) => a.direction === "in")
-      .sort((a, b) => new Date(b.at) - new Date(a.at))[0];
-    if (!lastIn) continue;
-    if (new Date(lastIn.at).getTime() > replyCutoff) continue;
-    // Was it since answered? Any outbound activity after the reply cancels the task.
-    const answeredAfter = (job.activity || []).some(
-      (a) => a.direction !== "in" && new Date(a.at).getTime() > new Date(lastIn.at).getTime()
-    );
-    if (answeredAfter) continue;
-    if (openLinkedKeys.has(`job:${row.id}`)) continue;
-    const client = clientsById.get(job.clientId);
-    const owner = lastAgentForJob.get(row.id) || pickAgent();
-    makeTask({
-      title: `Reply from ${client?.name || "client"} on ${job.id} — respond`,
-      notes: (lastIn.detail || "").slice(0, 240),
-      assigneeId: owner.id,
-      assigneeName: owner.name,
-      dueDate: ukDateStr(now),
-      priority: "urgent",
-      cadence: "aggressive",
-      linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
-      source: "reply",
-      reason: lastAgentForJob.has(row.id) ? "You were last on this job — reply routed back to you." : "Auto-assigned via round-robin.",
-    });
-  }
+  // Job tasks (reply to the client, chase the quote, assign or confirm an
+  // engineer, mark done, invoice, chase payment, send the certificate) are
+  // no longer written here. They come from lib/taskEngine.js, which reads
+  // every job with the same rules as the job page's "Next step" — see
+  // runTaskSync at the end of this run.
 
-  // ── 3. Stale quotes (>3 days no activity) → admin ──────────────────────
-  const quoteStaleCutoff = now.getTime() - QUOTE_STALE_DAYS * 86400_000;
-  if (adminId) {
-    for (const row of jobsRes.data || []) {
-      const job = row.data;
-      if (!job || job.status !== "quote") continue;
-      if (openLinkedKeys.has(`job:${row.id}`)) continue;
-      const lastActivity = (job.activity || [])
-        .map((a) => new Date(a.at).getTime())
-        .filter((t) => !isNaN(t))
-        .sort((a, b) => b - a)[0] || new Date(job.createdAt || 0).getTime();
-      if (!lastActivity || lastActivity > quoteStaleCutoff) continue;
-      const client = clientsById.get(job.clientId);
-      const daysSince = Math.floor((now.getTime() - lastActivity) / 86400_000);
-      makeTask({
-        title: `Follow up quote ${job.id}${client?.name ? ` · ${client.name}` : ""}`,
-        notes: `Quote sat ${daysSince}d with no activity`,
-        assigneeId: adminId,
-        assigneeName: adminName,
-        dueDate: ukDateStr(now),
-        priority: daysSince > 7 ? "urgent" : "normal",
-        cadence: daysSince > 7 ? "aggressive" : "daily",
-        linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
-        source: "quote_followup",
-        reason: "Auto-escalated to admin — no activity on this quote for over 3 days.",
-      });
-    }
-
-    // ── 4. Booked / in-progress jobs with no engineer ────────────────────
-    for (const row of jobsRes.data || []) {
-      const job = row.data;
-      if (!job) continue;
-      if (!["scheduled", "in_progress"].includes(job.status)) continue;
-      if (job.engineerId && job.engineerId !== "unassigned") continue;
-      if (openLinkedKeys.has(`job:${row.id}`)) continue;
-      const client = clientsById.get(job.clientId);
-      makeTask({
-        title: `Assign engineer to ${job.id}`,
-        notes: `${job.status === "scheduled" ? "Scheduled" : "In progress"} · no engineer set`,
-        assigneeId: adminId,
-        assigneeName: adminName,
-        dueDate: ukDateStr(now),
-        priority: "urgent",
-        cadence: "aggressive",
-        linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
-        source: "job_unassigned",
-        reason: "Auto-escalated — no engineer assigned to an active job.",
-      });
-    }
-
-    // ── 4b. Jobs within 3 days that have an engineer but no confirmation ──
-    // An assigned engineer who never actually confirmed is exactly how a
-    // job silently falls through — chase this well before the day-of
-    // reminder cron even fires.
-    for (const row of jobsRes.data || []) {
-      const job = row.data;
-      if (!job || !job.scheduledAt) continue;
-      if (!["scheduled", "in_progress"].includes(job.status)) continue;
-      if (!job.engineerId || job.engineerId === "unassigned") continue;
-      if (job.engineerConfirmed) continue;
-      const daysUntil = Math.ceil((new Date(job.scheduledAt) - now) / 86400_000);
-      if (daysUntil > 3) continue; // not yet urgent — leave it for a later run
-      if (openLinkedKeys.has(`job:${row.id}`)) continue;
-      const client = clientsById.get(job.clientId);
-      makeTask({
-        title: `Chase confirmation — ${job.id}${client?.name ? ` · ${client.name}` : ""}`,
-        notes: `${daysUntil < 0 ? `${Math.abs(daysUntil)}d overdue` : daysUntil === 0 ? "Scheduled today" : `${daysUntil}d until scheduled`} · engineer never confirmed`,
-        assigneeId: adminId,
-        assigneeName: adminName,
-        dueDate: ukDateStr(now),
-        priority: "urgent",
-        cadence: "aggressive",
-        linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
-        source: "job_unconfirmed",
-        reason: "Auto-escalated — engineer assigned but never marked confirmed.",
-      });
-    }
-  }
-
-  // ── 5. Monthly campaign send tasks on the 1st of the month ─────────────
   const dayOfMonth = ukDayOfMonth(now);
   const monthKey = ukMonthKey(now);
   const alreadyDoneThisMonth = state.monthlyDoneFor === monthKey;
@@ -509,8 +405,12 @@ export async function GET(request) {
     },
   });
 
+  // Job tasks: the morning backstop for the live sync.
+  const jobTasks = await runTaskSync({ force: true });
+
   return NextResponse.json({
     ok: true,
+    jobTasks,
     created: created.length,
     devicesNotified: pushed,
     autoClosed: autoClosed.length,

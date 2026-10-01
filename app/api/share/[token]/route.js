@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getJobLines, lineTotal } from "@/lib/format";
 import { pushToAll } from "@/lib/pushAll";
+import { runTaskSync } from "@/lib/taskSync";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export async function GET(_request, { params }) {
@@ -112,6 +113,7 @@ export async function POST(request, { params }) {
     const { error: mErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: moved });
     if (mErr) return NextResponse.json({ error: "Couldn't send that — please call us." }, { status: 502 });
     await pushToAll({ title: "Client wants to reschedule", body: `${job.id} — would prefer ${nice}`, url: `/jobs/${job.id}` }, { kind: "reschedule" });
+    await runTaskSync({ force: true });
     return NextResponse.json({ ok: true, changeRequestedAt: at });
   }
 
@@ -134,5 +136,6 @@ export async function POST(request, { params }) {
   if (wErr) return NextResponse.json({ error: "Couldn't record that — please call us." }, { status: 502 });
 
   await pushToAll({ title: "Quote accepted online", body: `${job.id} — the client accepted. Book it in.`, url: `/jobs/${job.id}` }, { kind: "quote_accepted" });
+  await runTaskSync({ force: true });
   return NextResponse.json({ ok: true, acceptedAt: now });
 }

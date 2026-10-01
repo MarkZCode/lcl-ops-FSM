@@ -21,6 +21,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { runTaskSync } from "@/lib/taskSync";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { normalizeEnquiry, enquiryKey } from "@/lib/enquiry";
 import { createQuoteFromEnquiry } from "@/lib/enquiryIntake";
@@ -72,6 +73,8 @@ export async function POST(req) {
   try {
     const r = await createQuoteFromEnquiry(e, { key: enquiryKey(e) });
     if (r.duplicate) return NextResponse.json({ ok: true, duplicate: true, jobId: r.job.id });
+    // The enquiry is a quote now — give "check the quote" to someone at once.
+    await runTaskSync({ force: true });
     return NextResponse.json({
       ok: true,
       jobId: r.job.id,

@@ -202,6 +202,15 @@ function PushNotificationsSection() {
   // Which kinds of office push this person wants — saved on their account.
   const { user, updateOwnProfile } = useAuth();
   const [pushOff, setPushOff] = useState(user?.pushOff || []);
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+  const [awayUntil, setAwayUntil] = useState(user?.awayUntil || "");
+  const isAway = !!awayUntil && awayUntil >= todayStr;
+  const saveAway = async (until) => {
+    const before = awayUntil;
+    setAwayUntil(until);
+    const r = await updateOwnProfile({ away_until: until });
+    if (!r.ok) { setAwayUntil(before); setMsg(r.error || "Couldn't save that."); }
+  };
   const togglePushKind = async (key) => {
     const next = pushOff.includes(key) ? pushOff.filter((k) => k !== key) : [...pushOff, key];
     setPushOff(next);
@@ -296,6 +305,24 @@ function PushNotificationsSection() {
               </li>
             ))}
           </ul>
+        </div>
+        <div className="mt-4 border-t border-navy-100 pt-4">
+          <p className="text-sm font-semibold text-navy-900">Away</p>
+          <p className="mt-1 text-xs text-navy-500">While you&apos;re away no new tasks are given to you — they go to whoever is in. Tasks you already hold move on by themselves if they aren&apos;t picked up.</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            {isAway ? (
+              <>
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800">Away until {new Date(`${awayUntil}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</span>
+                <button className="btn-outline py-1.5 text-xs" onClick={() => saveAway("")}>I&apos;m back</button>
+              </>
+            ) : (
+              <>
+                <button className="btn-outline py-1.5 text-xs" onClick={() => saveAway(todayStr)}>Away today</button>
+                <span className="text-navy-500">or until</span>
+                <input type="date" className="input h-8 w-auto py-0 text-xs" min={todayStr} onChange={(e) => e.target.value && saveAway(e.target.value)} aria-label="Away until" />
+              </>
+            )}
+          </div>
         </div>
         <div className="mt-4 border-t border-navy-100 pt-4">
           <p className="text-sm font-semibold text-navy-900">Backup</p>

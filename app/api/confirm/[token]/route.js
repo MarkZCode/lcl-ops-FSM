@@ -11,6 +11,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { confirmationScopes, scopeAccepted, setScopeConfirmed, dateLine } from "@/lib/jobCard";
 import { reconcileJob } from "@/lib/visits";
 import { pushToAll } from "@/lib/pushAll";
+import { runTaskSync } from "@/lib/taskSync";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -86,5 +87,6 @@ export async function POST(req, { params }) {
   const { error } = await supabaseAdmin.from("jobs").upsert({ id: row.id, data: next });
   if (error) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
   await pushToAll({ title: "Engineer confirmed", body: `${name} confirmed ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` }, { kind: "engineer_confirmed" });
+  await runTaskSync({ force: true });
   return NextResponse.json({ ok: true });
 }

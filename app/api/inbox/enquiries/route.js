@@ -14,6 +14,7 @@ import { supabaseAdmin, requireUser } from "@/lib/supabaseAdmin";
 import { configuredMailboxes, fetchRecentInbound, fetchRecentSent } from "@/lib/hostingerInbox";
 import { classifyEmail, isInternalSender } from "@/lib/emailEnquiry";
 import { createQuoteFromEnquiry, loadRows } from "@/lib/enquiryIntake";
+import { runTaskSync } from "@/lib/taskSync";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -214,6 +215,11 @@ async function run(sinceDays) {
   lastRun = Date.now();
   try {
     lastResult = await scan({ sinceDays });
+    // New enquiries, client emails and replies all change what jobs need —
+    // hand the work out now rather than at the next sweep.
+    if (lastResult?.created?.length || lastResult?.attached?.length || lastResult?.replied?.length) {
+      await runTaskSync({ force: true });
+    }
     return NextResponse.json(lastResult);
   } catch (err) {
     lastRun = 0;
