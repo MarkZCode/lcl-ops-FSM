@@ -37,6 +37,8 @@ const empty = {
   bankAccountNumber: "",
   notes: "",
   documents: [],
+  // Days off / holidays: [{ id, from, to, note }] — see lib/booking.js.
+  unavailable: [],
 };
 
 export default function EngineerModal({ open, onClose, engineer, prefill, onSaved }) {
@@ -87,6 +89,7 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
             bankSortCode: seed.bankSortCode || "",
             bankAccountNumber: seed.bankAccountNumber || "",
             notes: seed.notes || "",
+            unavailable: Array.isArray(seed.unavailable) ? seed.unavailable : [],
           }
         : empty
     );
@@ -588,6 +591,35 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
           folderId={engineer?.id}
           onChange={(documents) => set({ documents })}
         />
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="label mb-0">Days off</label>
+            <button
+              type="button"
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+              onClick={() => set({ unavailable: [...(form.unavailable || []), { id: "off-" + Date.now().toString(36), from: "", to: "", note: "" }] })}
+            >
+              + Add dates
+            </button>
+          </div>
+          {(form.unavailable || []).length === 0 && (
+            <p className="text-xs text-navy-400">None. Add holidays or days off and the app will warn before booking them.</p>
+          )}
+          <div className="space-y-2">
+            {(form.unavailable || []).map((u) => {
+              const patch = (p) => set({ unavailable: form.unavailable.map((x) => (x.id === u.id ? { ...x, ...p } : x)) });
+              return (
+                <div key={u.id} className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr,1fr,1.4fr,auto]">
+                  <input type="date" className="input" value={u.from} onChange={(e) => patch({ from: e.target.value, to: u.to && u.to >= e.target.value ? u.to : e.target.value })} aria-label="Off from" />
+                  <input type="date" className="input" value={u.to} min={u.from} onChange={(e) => patch({ to: e.target.value })} aria-label="Off until" />
+                  <input className="input" placeholder="Reason (optional)" value={u.note} onChange={(e) => patch({ note: e.target.value })} />
+                  <button type="button" className="rounded-lg border border-navy-200 px-2 text-xs font-semibold text-rose-500 hover:bg-rose-50" onClick={() => set({ unavailable: form.unavailable.filter((x) => x.id !== u.id) })}>Remove</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         <div>
           <label className="label">Notes</label>

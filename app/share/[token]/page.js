@@ -19,6 +19,31 @@ export default function SharePage() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState("");
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveDate, setMoveDate] = useState("");
+  const [moveNote, setMoveNote] = useState("");
+  const [moveBusy, setMoveBusy] = useState(false);
+  const [moveError, setMoveError] = useState("");
+
+  const requestMove = async () => {
+    setMoveBusy(true);
+    setMoveError("");
+    try {
+      const r = await fetch(`/api/share/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reschedule", date: moveDate, note: moveNote }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Something went wrong — please call us.");
+      setJob((j) => ({ ...j, changeRequestedAt: d.changeRequestedAt }));
+      setMoveOpen(false);
+    } catch (e) {
+      setMoveError(String(e.message || e));
+    } finally {
+      setMoveBusy(false);
+    }
+  };
 
   const accept = async () => {
     setAccepting(true);
@@ -133,6 +158,31 @@ export default function SharePage() {
         {job.status === "quote" && job.acceptedAt && (
           <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
             <strong>Quote accepted</strong> on {fmtDate(job.acceptedAt)}. We&rsquo;ll contact you to book your appointment.
+          </div>
+        )}
+
+        {/* Appointment + ask to move it */}
+        {job.scheduledAt && ["scheduled", "in_progress"].includes(job.status) && (
+          <div className="card p-5 text-sm">
+            <p className="text-navy-500">Your appointment</p>
+            <p className="mt-0.5 text-base font-bold text-navy-900">
+              {new Date(job.scheduledAt).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/London" })}
+            </p>
+            {job.changeRequestedAt ? (
+              <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-brand-800">We&rsquo;ve got your request to move it and will be in touch to confirm a new time.</p>
+            ) : job.canRequestChange && !moveOpen ? (
+              <button type="button" className="btn-outline mt-3" onClick={() => setMoveOpen(true)}>Need a different date?</button>
+            ) : job.canRequestChange ? (
+              <div className="mt-3 space-y-2">
+                <input type="date" className="input" value={moveDate} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setMoveDate(e.target.value)} aria-label="Preferred date" />
+                <textarea className="input resize-none" rows={2} placeholder="Anything we should know (optional)" value={moveNote} onChange={(e) => setMoveNote(e.target.value)} />
+                <div className="flex gap-2">
+                  <button type="button" className="btn-primary" disabled={!moveDate || moveBusy} onClick={requestMove}>{moveBusy ? "Sending…" : "Send request"}</button>
+                  <button type="button" className="btn-outline" onClick={() => setMoveOpen(false)}>Cancel</button>
+                </div>
+                {moveError && <p className="text-xs font-semibold text-rose-600">{moveError}</p>}
+              </div>
+            ) : null}
           </div>
         )}
 

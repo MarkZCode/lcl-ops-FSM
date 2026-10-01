@@ -183,6 +183,12 @@ export default function ClientModal({ open, onClose, client }) {
                 >
                   <FiTrash2 />
                 </button>
+                <input
+                  className="input sm:col-span-3"
+                  placeholder="Access notes — keys, door code, parking, who lets you in"
+                  value={p.accessNotes || ""}
+                  onChange={(e) => updateProperty(p.id, "accessNotes", e.target.value)}
+                />
               </div>
             ))}
           </div>

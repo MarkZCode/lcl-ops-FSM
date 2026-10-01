@@ -51,6 +51,10 @@ export async function GET(_request, { params }) {
     // booked or closed.
     acceptedAt: job.acceptedAt || null,
     canAccept: job.status === "quote" && !job.acceptedAt,
+    // Their own appointment, and whether they can still ask to move it.
+    scheduledAt: job.scheduledAt || null,
+    canRequestChange: job.status === "scheduled" && !!job.scheduledAt,
+    changeRequestedAt: job.changeRequestedAt || null,
     lines: getJobLines(job).map((l) => ({
       name: l.code === "CUSTOM" ? l.name : l.name,
       code: l.code,
@@ -69,7 +73,7 @@ export async function GET(_request, { params }) {
 // the job exactly as the office's own "Yes, accepted" does — the date, a line
 // in the conversation — and tells every device, so booking can start without
 // anyone having to notice an email. It never books or schedules by itself.
-export async function POST(_request, { params }) {
+export async function POST(request, { params }) {
   const token = params?.token;
   if (!token || String(token).length < 12) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -83,6 +87,34 @@ export async function POST(_request, { params }) {
   if (error || !data?.data) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const job = data.data;
+  let body = {};
+  try { body = await request.json(); } catch {}
+
+  // "Can we move my appointment?" — recorded as a message from the client on
+  // the job, which makes "Reply to the client" the job's next step. Nothing
+  // is moved automatically: the office agrees the new slot.
+  if (body?.action === "reschedule") {
+    if (job.status !== "scheduled") return NextResponse.json({ error: "This appointment can't be changed online — please call us." }, { status: 409 });
+    const wanted = String(body.date || "").slice(0, 10);
+    const note = String(body.note || "").slice(0, 500);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(wanted)) return NextResponse.json({ error: "Pick the date you'd prefer." }, { status: 400 });
+    const at = new Date().toISOString();
+    const nice = new Date(`${wanted}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+    const moved = {
+      ...job,
+      changeRequestedAt: at,
+      updatedAt: at,
+      activity: [
+        ...(job.activity || []),
+        { id: "act-" + Date.now().toString(36), at, by: "client", type: "note", direction: "in", title: "Client asked to move the appointment", detail: `Would prefer ${nice}.${note ? `\n\n${note}` : ""}` },
+      ],
+    };
+    const { error: mErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: moved });
+    if (mErr) return NextResponse.json({ error: "Couldn't send that — please call us." }, { status: 502 });
+    await pushToAll({ title: "Client wants to reschedule", body: `${job.id} — would prefer ${nice}`, url: `/jobs/${job.id}` });
+    return NextResponse.json({ ok: true, changeRequestedAt: at });
+  }
+
   if (job.acceptedAt) return NextResponse.json({ ok: true, acceptedAt: job.acceptedAt, already: true });
   if (job.status !== "quote") return NextResponse.json({ error: "This quote can no longer be accepted online." }, { status: 409 });
 

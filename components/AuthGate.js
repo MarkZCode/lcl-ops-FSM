@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { StoreProvider } from "@/lib/store";
@@ -86,6 +86,14 @@ export default function AuthGate({ children }) {
       pathname === "/help";
     if (!allowed) router.replace("/portal");
   }, [user, pathname, router]);
+
+  // Pages meant for people WITHOUT a login — a client's quote/status link,
+  // an engineer's confirm link, an unsubscribe link. They sat behind the
+  // login screen like everything else, so a client opening their link saw a
+  // staff sign-in form. They render bare: no shell, no store, no session.
+  if (/^\/(share|confirm)\//.test(pathname || "") || pathname === "/unsubscribe") {
+    return <ErrorBoundary><Suspense fallback={null}>{children}</Suspense></ErrorBoundary>;
+  }
 
   if (!ready || (holdSplash && user)) {
     return (

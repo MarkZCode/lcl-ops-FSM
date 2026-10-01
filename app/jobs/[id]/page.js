@@ -57,6 +57,7 @@ import NextStepCard from "@/components/NextStepCard";
 import { toast } from "@/lib/toast";
 import { openWhatsAppChat } from "@/lib/whatsapp";
 import { quoteChecks } from "@/lib/quoteChecks";
+import BookingAssist from "@/components/BookingAssist";
 import { greetingNow, firstName, senderFor } from "@/lib/email";
 import { FaWhatsapp } from "react-icons/fa";
 
@@ -1239,6 +1240,7 @@ export default function JobDetailPage() {
                   Client asked for: <strong>{[job.preferredDate && (/^\d{4}-\d{2}-\d{2}/.test(job.preferredDate) ? fmtDate(job.preferredDate) : job.preferredDate), job.preferredSlot].filter(Boolean).join(" · ")}</strong>
                 </p>
               )}
+              <BookingAssist job={job} client={client} property={property} onReschedule={() => setRescheduleOpen(true)} />
               <div id="booking" className="scroll-mt-24">
                 <label className="label">Assigned engineer</label>
                 {isSplit(job) ? (

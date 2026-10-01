@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { FiClock, FiMapPin, FiClipboard, FiArrowRight, FiAlertTriangle, FiTarget } from "react-icons/fi";
+import { FiClock, FiMapPin, FiClipboard, FiArrowRight, FiAlertTriangle, FiTarget, FiNavigation } from "react-icons/fi";
+import { routeOrder, engineerUnavailable } from "@/lib/booking";
+import { toast } from "@/lib/toast";
 import { isSameDay, parseISO, format } from "date-fns";
 import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
@@ -23,6 +25,40 @@ export default function DispatchBoard({ day }) {
   const [dragId, setDragId] = useState(null);
   const [overCol, setOverCol] = useState(null);
   const [cardJob, setCardJob] = useState(null);
+  // { [engineerId]: { [cardId]: stopNumber } } — the suggested visiting order
+  // for a column, worked out from the postcodes on request.
+  const [routes, setRoutes] = useState({});
+  const [routing, setRouting] = useState("");
+
+  // Looks the day's postcodes up (postcodes.io — postcodes only, nothing
+  // about the client) and numbers the cards nearest-first from the earliest
+  // booking. A suggestion to read, not a reorder: times stay as booked.
+  const suggestRoute = async (engId, colJobs) => {
+    const withPc = colJobs
+      .map((j) => {
+        const c = clients.find((x) => x.id === j.clientId);
+        return { id: j.id, postcode: c?.properties.find((p) => p.id === j.propertyId)?.postcode };
+      })
+      .filter((x) => x.postcode);
+    if (withPc.length < 2) { toast("Needs at least two jobs with postcodes."); return; }
+    setRouting(engId);
+    try {
+      const r = await fetch("https://api.postcodes.io/postcodes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postcodes: withPc.map((x) => x.postcode) }),
+      });
+      const d = await r.json();
+      const pts = withPc.map((x, i) => ({ id: x.id, lat: d.result?.[i]?.result?.latitude, lng: d.result?.[i]?.result?.longitude }));
+      const order = routeOrder(pts);
+      if (order.length < 2) throw new Error("no coordinates");
+      setRoutes((prev) => ({ ...prev, [engId]: Object.fromEntries(order.map((id, i) => [id, i + 1])) }));
+    } catch {
+      toast.error("Couldn't look those postcodes up — check they're complete.");
+    } finally {
+      setRouting("");
+    }
+  };
 
   // One card PER VISIT, not per job. A gas+EICR job split across two
   // engineers on two days has to appear twice — under each engineer, on each
@@ -178,10 +214,28 @@ export default function DispatchBoard({ day }) {
                     {eng.name}
                   </span>
                 </span>
-                <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-navy-500">
-                  {colJobs.length}
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {eng.id !== "unassigned" && colJobs.length >= 2 && (
+                    <button
+                      type="button"
+                      onClick={() => suggestRoute(eng.id, colJobs)}
+                      disabled={routing === eng.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-navy-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-navy-600 hover:border-brand-300 hover:text-brand-600"
+                      title="Number these jobs in a sensible visiting order by postcode"
+                    >
+                      <FiNavigation className="h-3 w-3" /> {routing === eng.id ? "…" : "Route"}
+                    </button>
+                  )}
+                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-navy-500">
+                    {colJobs.length}
+                  </span>
                 </span>
               </div>
+              {eng.id !== "unassigned" && engineerUnavailable(eng, day) && (
+                <p className="border-b border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
+                  Off this day{engineerUnavailable(eng, day).note ? ` — ${engineerUnavailable(eng, day).note}` : ""}
+                </p>
+              )}
 
               {/* Cards */}
               <div className="flex-1 space-y-2 p-2">
@@ -215,6 +269,11 @@ export default function DispatchBoard({ day }) {
                         <span className="flex items-center gap-1 text-[11px] font-semibold text-navy-600">
                           <FiClock className="h-3 w-3" />
                           {fmtTime(job.scheduledAt)}
+                          {routes[eng.id]?.[job.id] && (
+                            <span className="rounded-full bg-brand-100 px-1.5 text-[10px] font-bold text-brand-700" title="Suggested visiting order">
+                              Stop {routes[eng.id][job.id]}
+                            </span>
+                          )}
                           {isFromOutreach(job) && (
                             <FiTarget className="h-3 w-3 text-brand-500" title="Booked from outreach" />
                           )}
