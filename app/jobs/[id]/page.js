@@ -59,6 +59,7 @@ import { openWhatsAppChat } from "@/lib/whatsapp";
 import { quoteChecks } from "@/lib/quoteChecks";
 import BookingAssist from "@/components/BookingAssist";
 import PaymentLedger from "@/components/PaymentLedger";
+import ClientQuickActions from "@/components/ClientQuickActions";
 import { greetingNow, firstName, senderFor } from "@/lib/email";
 import { FaWhatsapp } from "react-icons/fa";
 
@@ -269,6 +270,9 @@ export default function JobDetailPage() {
         return;
       case "quote_sent":
         markQuoteSent();
+        return;
+      case "review_skip":
+        updateJob(job.id, { reviewSkipped: true });
         return;
       case "quote_checked":
         updateJob(job.id, { quoteCheckedAt: new Date().toISOString(), quoteCheckedBy: who() });
@@ -1417,6 +1421,7 @@ export default function JobDetailPage() {
                 >
                   <FiMail className="text-navy-400" /> {client.email}
                 </a>
+                <ClientQuickActions job={job} client={client} property={property} />
                 {property && (
                   <div className="border-t border-navy-100 pt-2.5">
                     <p className="flex items-start gap-2 text-navy-600">

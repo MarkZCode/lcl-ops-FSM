@@ -85,6 +85,6 @@ export async function POST(req, { params }) {
   const next = reconcileJob(job, { ...job, ...patch, updatedAt: now }, patch);
   const { error } = await supabaseAdmin.from("jobs").upsert({ id: row.id, data: next });
   if (error) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
-  await pushToAll({ title: "Engineer confirmed", body: `${name} confirmed ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` });
+  await pushToAll({ title: "Engineer confirmed", body: `${name} confirmed ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` }, { kind: "engineer_confirmed" });
   return NextResponse.json({ ok: true });
 }

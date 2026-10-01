@@ -99,7 +99,7 @@ export async function GET(request) {
   }
 
   if (sent.length) {
-    await pushToAll({ title: "Payment reminders sent", body: `${sent.length} unpaid invoice${sent.length === 1 ? "" : "s"} chased automatically: ${sent.map((s) => s.jobId).slice(0, 4).join(", ")}`, url: "/jobs?status=invoiced" });
+    await pushToAll({ title: "Payment reminders sent", body: `${sent.length} unpaid invoice${sent.length === 1 ? "" : "s"} chased automatically: ${sent.map((s) => s.jobId).slice(0, 4).join(", ")}`, url: "/jobs?status=invoiced" }, { kind: "payments" });
   }
   return NextResponse.json({ ok: true, sent });
 }

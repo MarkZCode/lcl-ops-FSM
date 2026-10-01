@@ -111,7 +111,7 @@ export async function POST(request, { params }) {
     };
     const { error: mErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: moved });
     if (mErr) return NextResponse.json({ error: "Couldn't send that — please call us." }, { status: 502 });
-    await pushToAll({ title: "Client wants to reschedule", body: `${job.id} — would prefer ${nice}`, url: `/jobs/${job.id}` });
+    await pushToAll({ title: "Client wants to reschedule", body: `${job.id} — would prefer ${nice}`, url: `/jobs/${job.id}` }, { kind: "reschedule" });
     return NextResponse.json({ ok: true, changeRequestedAt: at });
   }
 
@@ -133,6 +133,6 @@ export async function POST(request, { params }) {
   const { error: wErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: next });
   if (wErr) return NextResponse.json({ error: "Couldn't record that — please call us." }, { status: 502 });
 
-  await pushToAll({ title: "Quote accepted online", body: `${job.id} — the client accepted. Book it in.`, url: `/jobs/${job.id}` });
+  await pushToAll({ title: "Quote accepted online", body: `${job.id} — the client accepted. Book it in.`, url: `/jobs/${job.id}` }, { kind: "quote_accepted" });
   return NextResponse.json({ ok: true, acceptedAt: now });
 }

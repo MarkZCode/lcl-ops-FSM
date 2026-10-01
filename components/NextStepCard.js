@@ -28,6 +28,8 @@ const BUTTON_LABEL = {
   accept: "Yes, accepted",
   quote_sent: "Mark it sent",
   quote_checked: "Checked — it's right",
+  "email:review_request": "Ask for a review",
+  review_skip: "Skip",
   wa_reply: "Open WhatsApp",
   wa_reply_done: "Already replied",
   quote_hold: "Will get back…",

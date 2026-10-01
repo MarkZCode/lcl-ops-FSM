@@ -26,6 +26,8 @@ import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { serviceShort } from "@/lib/format";
 import { AUTO_NOTIFY_LABELS } from "@/lib/settings";
+import { PUSH_KINDS } from "@/lib/pushKinds";
+import { useAuth } from "@/lib/auth";
 import {
   pushSupported, isIosNonStandalone, getPushSubscription, enablePush, disablePush,
 } from "@/lib/push";
@@ -197,6 +199,16 @@ function PushNotificationsSection() {
     }
   };
 
+  // Which kinds of office push this person wants — saved on their account.
+  const { user, updateOwnProfile } = useAuth();
+  const [pushOff, setPushOff] = useState(user?.pushOff || []);
+  const togglePushKind = async (key) => {
+    const next = pushOff.includes(key) ? pushOff.filter((k) => k !== key) : [...pushOff, key];
+    setPushOff(next);
+    const r = await updateOwnProfile({ push_off: next });
+    if (!r.ok) { setPushOff(pushOff); setMsg(r.error || "Couldn't save that."); }
+  };
+
   const toggle = async () => {
     setState("working");
     setMsg("");
@@ -254,6 +266,20 @@ function PushNotificationsSection() {
             {state === "on" ? <FiBell className="text-brand-600" /> : <FiBellOff />}
             {state === "working" ? "Working…" : state === "on" ? "Enabled — turn off" : "Enable"}
           </button>
+        </div>
+        <div className="mt-4 border-t border-navy-100 pt-4">
+          <p className="text-sm font-semibold text-navy-900">What reaches your devices</p>
+          <p className="mt-1 text-xs text-navy-500">Your own choice — it doesn&apos;t change what anyone else gets. Between 9pm and 7am everything except a new enquiry waits until morning.</p>
+          <ul className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            {PUSH_KINDS.map((k) => (
+              <li key={k.key}>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-navy-700">
+                  <input type="checkbox" checked={!pushOff.includes(k.key)} onChange={() => togglePushKind(k.key)} />
+                  {k.label}
+                </label>
+              </li>
+            ))}
+          </ul>
         </div>
         <div className="mt-4 border-t border-navy-100 pt-4">
           <button onClick={sendTest} disabled={test === "sending"} className="btn-outline py-1.5 text-xs disabled:opacity-50">

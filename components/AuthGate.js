@@ -91,7 +91,7 @@ export default function AuthGate({ children }) {
   // an engineer's confirm link, an unsubscribe link. They sat behind the
   // login screen like everything else, so a client opening their link saw a
   // staff sign-in form. They render bare: no shell, no store, no session.
-  if (/^\/(share|confirm)\//.test(pathname || "") || pathname === "/unsubscribe") {
+  if (/^\/(share|confirm|certs)\//.test(pathname || "") || pathname === "/unsubscribe") {
     return <ErrorBoundary><Suspense fallback={null}>{children}</Suspense></ErrorBoundary>;
   }
 

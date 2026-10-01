@@ -25,7 +25,9 @@ function prettySize(bytes) {
 // Attach certificates (CP12 / EICR PDFs), photos and any other job documents.
 export default function JobAttachments({ job, onSave }) {
   const inputRef = useRef(null);
-  const { updateJob } = useStore();
+  const { updateJob, clients } = useStore();
+  const jobPostcode = clients
+    .find((c) => c.id === job.clientId)?.properties?.find((p) => p.id === job.propertyId)?.postcode || "";
   const [error, setError] = useState("");
   const [certMsg, setCertMsg] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,11 +47,22 @@ export default function JobAttachments({ job, onSave }) {
         continue;
       }
       const up = await uploadFile(file, `jobs/${job.id}`);
+      // Does this PDF belong to this job? (postcode + certificate type)
+      let check = null;
+      if (file.type === "application/pdf") {
+        try {
+          const { inspectCertificate } = await import("@/lib/certParser");
+          check = await inspectCertificate(file, { postcode: jobPostcode, codes: job.services || [] });
+          if (check.postcode === "missing") toast.error(`"${file.name}" doesn't mention ${jobPostcode} — check it's the right certificate before sending it.`);
+          else if (check.service === "missing") toast.error(`"${file.name}" doesn't look like the certificate this job is for — check it.`);
+        } catch {}
+      }
       next = [
         {
           id: "att-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           ...up,
           addedAt: new Date().toISOString(),
+          ...(check && (check.postcode || check.service) ? { check } : {}),
         },
         ...next,
       ];
@@ -149,6 +162,14 @@ export default function JobAttachments({ job, onSave }) {
                   <p className="text-[11px] text-navy-400">
                     {prettySize(f.size)} · {fmtDate(f.addedAt)}
                   </p>
+                  {(f.check?.postcode === "missing" || f.check?.service === "missing") && (
+                    <p className="text-[11px] font-semibold text-rose-600">
+                      {f.check.postcode === "missing" ? `Postcode ${jobPostcode} not found in this PDF` : "Doesn't look like this job's certificate type"} — check before sending
+                    </p>
+                  )}
+                  {f.check?.postcode === "ok" && f.check?.service !== "missing" && (
+                    <p className="text-[11px] font-semibold text-brand-600">Postcode matches this job</p>
+                  )}
                 </div>
                 <a
                   href={fileSrc(f)}

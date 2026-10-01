@@ -19,6 +19,7 @@ import { useStore } from "@/lib/store";
 import { gbp, fmtDateTime, serviceShort, fmtDate } from "@/lib/format";
 import { getRenewals, renewalTone } from "@/lib/renewals";
 import { clientTimeline } from "@/lib/clients";
+import { toast } from "@/lib/toast";
 import { jobBalance, jobReceived } from "@/lib/payments";
 import { jobPayable } from "@/lib/format";
 import { RENEWAL_MONTHS } from "@/lib/constants";
@@ -33,7 +34,7 @@ import TaskCompletionBanner from "@/components/team/TaskCompletionBanner";
 export default function ClientDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { clients, jobs, removeClient, hydrated } = useStore();
+  const { clients, jobs, removeClient, updateClient, hydrated } = useStore();
   const [editOpen, setEditOpen] = useState(false);
   const [jobOpen, setJobOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -112,6 +113,18 @@ export default function ClientDetailPage() {
     });
   };
 
+  // One link the client can keep: all their certificates, always current.
+  const copyCertLink = () => {
+    let token = client.portalToken;
+    if (!token) {
+      token = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+      updateClient(client.id, { portalToken: token });
+    }
+    navigator.clipboard.writeText(`${window.location.origin}/certs/${token}`)
+      .then(() => toast.success("Certificate link copied — send it to the client."))
+      .catch(() => toast.error("Couldn't copy the link."));
+  };
+
   if (!client) {
     return (
       <div className="p-8">
@@ -155,6 +168,9 @@ export default function ClientDetailPage() {
                 Statement · {gbp(owing.reduce((a, j) => a + jobBalance(j), 0))} owed
               </button>
             )}
+            <button className="btn-outline" onClick={copyCertLink} title="A link where this client can download all their certificates">
+              Certificate link
+            </button>
             <button className="btn-outline" onClick={() => setEditOpen(true)}>
               <FiEdit2 /> Edit
             </button>
