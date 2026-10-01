@@ -22,6 +22,9 @@ import { buildInvoicePrefill, overridesKey } from "@/lib/invoiceData";
 import { toWhatsAppNumber } from "@/lib/whatsapp";
 import { toast } from "@/lib/toast";
 
+const URGENCY_LINE =
+  "Our diary for this week is filling up quickly, so if you'd like to go ahead, just reply today and I'll hold the earliest available slot for you.";
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -39,6 +42,7 @@ export default function SendEmailModal({
   client,
   property,
   defaultTemplate,
+  urgency = false,
 }) {
   const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob } = useStore();
   const [tplKey, setTplKey] = useState(defaultTemplate || "booking");
@@ -160,7 +164,7 @@ export default function SendEmailModal({
       initRef.current = null;
       return;
     }
-    const currentSession = `${tplKey}-${job?.id || 'none'}`;
+    const currentSession = `${tplKey}-${job?.id || 'none'}-${urgency ? "u" : ""}`;
     if (initRef.current === currentSession) return;
     initRef.current = currentSession;
 
@@ -175,7 +179,11 @@ export default function SendEmailModal({
     // sender's name, and the body now opens with "this is {{sender}} here"
     // — signing off as someone else would give the whole thing away.
     const sig = email.signature ? `\n\n${renderTemplate(email.signature, ctx)}` : "";
-    setBody(renderTemplate(tpl.body, ctx) + sig);
+    // The booking-urgency line: added to the quote when it's the answer to
+    // a fresh website/email enquiry, between the message and the sign-off.
+    // It's ordinary text in the box — edit or delete it before sending.
+    const nudge = urgency && tplKey === "quote" ? `\n\n${URGENCY_LINE}` : "";
+    setBody(renderTemplate(tpl.body, ctx) + nudge + sig);
     setTo(client?.email || "");
     setPhone(client?.phone || "");
     setStatus("idle");

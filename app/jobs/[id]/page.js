@@ -55,6 +55,9 @@ import CancelServiceModal from "@/components/CancelServiceModal";
 import RescheduleModal from "@/components/RescheduleModal";
 import NextStepCard from "@/components/NextStepCard";
 import { toast } from "@/lib/toast";
+import { openWhatsAppChat } from "@/lib/whatsapp";
+import { greetingNow, firstName, senderFor } from "@/lib/email";
+import { FaWhatsapp } from "react-icons/fa";
 
 export default function JobDetailPage() {
   const { id } = useParams();
@@ -81,6 +84,7 @@ export default function JobDetailPage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [emailTemplateOverride, setEmailTemplateOverride] = useState(null);
+  const [emailUrgency, setEmailUrgency] = useState(false);
 
   // On mount, pull the freshest version of this job from Supabase so activity
   // written by the webhook (while the app was closed/idle) is visible immediately.
@@ -201,9 +205,10 @@ export default function JobDetailPage() {
   // same click.
   const scrollToId = (id) =>
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  const handleNextStep = (what) => {
+  const handleNextStep = (what, action) => {
     if (!job) return;
     if (what.startsWith("email:")) {
+      setEmailUrgency(action?.key === "send_quote_urgent");
       setEmailTemplateOverride(what.slice(6));
       setEmailOpen(true);
       return;
@@ -262,6 +267,17 @@ export default function JobDetailPage() {
       case "quote_sent":
         markQuoteSent();
         return;
+      case "quote_checked":
+        updateJob(job.id, { quoteCheckedAt: new Date().toISOString(), quoteCheckedBy: who() });
+        logActivity(job.id, { type: "status", title: "Quote checked", by: who() });
+        return;
+      case "wa_reply":
+        replyOnWhatsApp();
+        return;
+      case "wa_reply_done":
+        updateJob(job.id, { enquiryRepliedAt: new Date().toISOString() });
+        logActivity(job.id, { type: "status", title: "Enquiry answered outside the app", by: who() });
+        return;
       case "quote_hold":
         setHoldOpen(true);
         return;
@@ -293,6 +309,18 @@ export default function JobDetailPage() {
     if (!b.length) { changeStatus("scheduled", { acceptedAt }); return; }
     updateJob(job.id, { acceptedAt, quoteHoldUntil: null });
     toast.success(`Quote accepted. Next: ${b[0]}.`, { duration: 7000 });
+  };
+  // Step 2 of an enquiry quote: the "we've got it" WhatsApp. Opens the
+  // client's chat with the message already typed — nothing is sent until
+  // they press send in WhatsApp.
+  const replyOnWhatsApp = () => {
+    if (!job || !client?.phone) return;
+    const what = (job.services || []).filter((c) => !isAddonCode(c)).map((c) => certLabel(c)).join(" and ");
+    const where = property?.postcode ? ` at ${property.postcode}` : "";
+    const msg = `${greetingNow()} ${firstName(client.name)}, this is ${senderFor(job.id)} from Landlord Compliance London. Thank you for your enquiry${what ? ` about the ${what}` : ""}${where} — we've received it and I'm putting your quote together now. You'll have it from me shortly.`;
+    if (!openWhatsAppChat(client.phone, msg)) return;
+    updateJob(job.id, { enquiryRepliedAt: new Date().toISOString() });
+    logActivity(job.id, { type: "whatsapp", title: "WhatsApp reply to the enquiry opened", detail: msg, by: who() });
   };
   const markQuoteSent = () => {
     if (!job) return;
@@ -1336,12 +1364,27 @@ export default function JobDetailPage() {
                 {client.company && (
                   <p className="text-navy-500">{client.company}</p>
                 )}
-                <a
-                  href={`tel:${client.phone}`}
-                  className="flex items-center gap-2 text-navy-600 hover:text-brand-600"
-                >
-                  <FiPhone className="text-navy-400" /> {client.phone}
-                </a>
+                {client.phone && (
+                  <div className="flex items-center gap-2">
+                    {/* The number opens their WhatsApp chat; the handset calls. */}
+                    <a
+                      href={`tel:${client.phone}`}
+                      title="Call"
+                      aria-label={`Call ${client.phone}`}
+                      className="text-navy-400 hover:text-brand-600"
+                    >
+                      <FiPhone />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => openWhatsAppChat(client.phone)}
+                      title="Open their WhatsApp chat"
+                      className="flex items-center gap-1.5 text-navy-600 hover:text-[#1ebe5b]"
+                    >
+                      {client.phone} <FaWhatsapp className="text-[#25D366]" />
+                    </button>
+                  </div>
+                )}
                 <a
                   href={`mailto:${client.email}`}
                   className="flex items-center gap-2 break-all text-navy-600 hover:text-brand-600"
@@ -1358,7 +1401,16 @@ export default function JobDetailPage() {
                       <div className="ml-6 mt-1.5 border-l-2 border-brand-200 pl-2.5 text-xs text-navy-500">
                         <p className="font-semibold text-brand-700">Access contact</p>
                         {job.accessName && <p className="mt-0.5 text-navy-700">{job.accessName}</p>}
-                        {job.accessPhone && <p className="text-navy-700">{job.accessPhone}</p>}
+                        {job.accessPhone && (
+                          <button
+                            type="button"
+                            onClick={() => openWhatsAppChat(job.accessPhone)}
+                            title="Open their WhatsApp chat"
+                            className="flex items-center gap-1.5 text-navy-700 hover:text-[#1ebe5b]"
+                          >
+                            {job.accessPhone} <FaWhatsapp className="text-[#25D366]" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1443,10 +1495,11 @@ export default function JobDetailPage() {
       />
       <SendEmailModal
         open={emailOpen}
-        onClose={() => { setEmailOpen(false); setEmailTemplateOverride(null); }}
+        onClose={() => { setEmailOpen(false); setEmailTemplateOverride(null); setEmailUrgency(false); }}
         job={job}
         client={client}
         property={property}
+        urgency={emailUrgency}
         defaultTemplate={emailTemplateOverride || defaultEmailTemplate}
       />
       <JobCardModal
