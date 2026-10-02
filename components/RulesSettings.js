@@ -63,6 +63,20 @@ export default function RulesSettings() {
           </div>
         </div>
 
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">Days the office is closed</p>
+          <p className="mb-2 text-xs text-navy-500">Bank holidays and shut-downs. Task clocks stop for the day and nothing is moved on for being late.</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {(rules.holidays || []).slice().sort().map((d) => (
+              <span key={d} className="inline-flex items-center gap-1.5 rounded-full bg-navy-100 px-2.5 py-1 text-xs font-semibold text-navy-700">
+                {new Date(`${d}T12:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                <button type="button" aria-label={`Remove ${d}`} className="text-navy-400 hover:text-rose-600" onClick={() => saveRules({ holidays: rules.holidays.filter((x) => x !== d) })}>×</button>
+              </span>
+            ))}
+            <input type="date" className="input h-8 w-auto py-0 text-xs" aria-label="Add a closed day" onChange={(e) => { const v = e.target.value; if (v && !(rules.holidays || []).includes(v)) saveRules({ holidays: [...(rules.holidays || []), v] }); e.target.value = ""; }} />
+          </div>
+        </div>
+
         <button type="button" className="text-xs font-semibold text-navy-500 underline" onClick={() => window.confirm("Put every rule back to its default?") && saveRules({ ...DEFAULT_RULES })}>
           Reset to defaults
         </button>

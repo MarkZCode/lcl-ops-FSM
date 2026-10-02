@@ -6,6 +6,8 @@
 // one click away. Click a row → DetailSlideOver with Cert history,
 // timeline, and one primary action per pipeline stage.
 
+import Link from "next/link";
+import { forecast } from "@/lib/insights";
 import { Component, memo, useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -128,13 +130,18 @@ function useFilterString(key, initialValue) {
   return [mounted ? value : initialValue, update];
 }
 
+const gbpLocal = (n) => `£${(Number(n) || 0).toFixed(2)}`;
+
 function ProspectsInner() {
   const ask = useConfirm();
   const {
     prospects, prospectsReady, importProspects, updateProspect, logProspectContact,
     removeProspect, clearProspects, convertProspectToJob, removeJob, email, templates,
-    requestBigTables,
+    requestBigTables, jobs: ownJobs,
   } = useStore();
+  // Certificates from our OWN finished jobs falling due — the same renewals,
+  // from the other side. Shown here so both lists are worked together.
+  const ownRenewals = useMemo(() => forecast(ownJobs || []), [ownJobs]);
   // This page reads the big prospect/lead tables, so ask for them. Pages
   // that don't never download them — see requestBigTables in lib/store.
   useEffect(() => { requestBigTables("prospects"); }, [requestBigTables]);
@@ -541,6 +548,12 @@ function ProspectsInner() {
           </>
         }
       />
+      {ownRenewals.renewalCount > 0 && (
+        <div className="mx-4 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-navy-200 bg-white px-4 py-2.5 text-sm sm:mx-8 dark:border-white/10 dark:bg-white/[0.03]">
+          <span className="text-navy-700">Also due: <strong className="text-navy-900">{ownRenewals.renewalCount} certificate{ownRenewals.renewalCount === 1 ? "" : "s"}</strong> from our own completed jobs expire in the next 90 days ({gbpLocal(ownRenewals.renewalValue)} at last time&apos;s prices).</span>
+          <Link href="/reports" className="text-xs font-semibold text-brand-600 hover:underline">See them in Reports → Insights</Link>
+        </div>
+      )}
 
       <div className="page">
         {staleMode && (

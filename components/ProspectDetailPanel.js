@@ -8,6 +8,7 @@
 // pricing-uplift + AI Call still live here but framed around the staged
 // "one primary action per stage" pattern from §4.2.
 
+import { useStore } from "@/lib/store";
 import { Component, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -97,6 +98,7 @@ function ProspectDetailPanelInner({
   const [note, setNote] = useState("");
   const [uplift, setUplift] = useState(0);
   const [aiCalling, setAiCalling] = useState(false);
+  const { clients: allClients, jobs: allJobs } = useStore();
 
   const p = prospect || {};
   const svcs = p.services?.length ? p.services : [p.primaryService || "CONFIRM"];
@@ -207,6 +209,23 @@ function ProspectDetailPanelInner({
           {due && <div className="ml-auto text-xs opacity-80">{due.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</div>}
         </div>
 
+        {/* Already a live job for this person? Then outreach stops — they're
+            a client mid-job, not a prospect to chase. Matched on email or
+            the last ten digits of the phone number. */}
+        {(() => {
+          const email = String(c.email || "").trim().toLowerCase();
+          const phone = String(c.phone || "").replace(/\D/g, "").slice(-10);
+          const client = (allClients || []).find((x) => (email && String(x.email || "").toLowerCase() === email) || (phone.length === 10 && String(x.phone || "").replace(/\D/g, "").slice(-10) === phone));
+          const open = client ? (allJobs || []).filter((j) => j.clientId === client.id && !["paid", "cancelled"].includes(j.status)) : [];
+          if (!open.length) return null;
+          return (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
+              <strong>Don&apos;t chase — {client.name} already has a live job.</strong>{" "}
+              {open.slice(0, 3).map((j, i) => <span key={j.id}>{i > 0 && ", "}<Link href={`/jobs/${j.id}`} className="font-semibold underline">{j.id}</Link></span>)}
+            </div>
+          );
+        })()}
+
         {/* Linked tasks — quick jump into whatever's assigned about this prospect */}
         <LinkedTasksChip prospectId={p.id} />
 
@@ -311,6 +330,17 @@ function ProspectDetailPanelInner({
             <button className="btn-secondary text-xs" onClick={() => log("note", "interested")}>Note + interested</button>
             <button className="btn-secondary text-xs" onClick={() => log("note", "booked")}>Note + booked</button>
             <button className="btn-secondary text-xs text-rose-600" onClick={() => log("note", "dnc")}>DNC</button>
+          </div>
+        </section>
+
+        {/* What came of it — one tap, so every contact has an outcome on
+            record instead of just "call outreach". */}
+        <section>
+          <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-navy-500 dark:text-slate-400">What happened?</h4>
+          <div className="flex flex-wrap gap-1.5">
+            {["No answer", "Left a message", "Call back later", "Wants a quote", "Already sorted elsewhere", "Not interested"].map((o) => (
+              <button key={o} type="button" onClick={() => onLog?.(p.id, { channel: "outcome", note: note ? `${o} — ${note}` : o })} className="rounded-lg border border-navy-200 px-2.5 py-1 text-xs font-semibold text-navy-700 hover:border-brand-300 hover:text-brand-600 dark:border-white/10 dark:text-slate-200">{o}</button>
+            ))}
           </div>
         </section>
 

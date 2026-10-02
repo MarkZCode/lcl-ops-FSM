@@ -28,6 +28,8 @@ import { serviceShort } from "@/lib/format";
 import { AUTO_NOTIFY_LABELS } from "@/lib/settings";
 import BankAccounts from "@/components/BankAccounts";
 import RulesSettings from "@/components/RulesSettings";
+import ReplySettings from "@/components/ReplySettings";
+import { RolesGrid, SettingsLog } from "@/components/SettingsExtras";
 import { PUSH_KINDS } from "@/lib/pushKinds";
 import { useAuth } from "@/lib/auth";
 import {
@@ -51,6 +53,18 @@ const SETTINGS_NAV = [
   { id: "gmail", label: "Gmail push notifications" },
   { id: "integrations", label: "Integrations roadmap" },
   { id: "data", label: "Data" },
+];
+
+// "Find a setting": what people look for → the section it lives in.
+const SETTINGS_FIND = [
+  ["Deadlines and task times", "config"], ["Urgent threshold (£)", "config"], ["Office hours and closed days", "config"],
+  ["No-access fee", "config"], ["Remedial margin", "config"], ["Weekly target", "config"],
+  ["Saved WhatsApp replies", "config"], ["Bank accounts", "config"], ["Email and templates", "config"], ["Who changed a setting", "config"],
+  ["Users, passwords and access", "profile"], ["Set someone as away", "profile"], ["What each role can do", "profile"],
+  ["Engineers", "engineers"], ["Service prices", "services"],
+  ["Notifications on this device", "push"], ["Away (me)", "push"], ["Download a backup", "push"],
+  ["Payment chasers, renewal quotes, statements", "auto-notify"], ["Automatic emails on status change", "auto-notify"],
+  ["Gmail connection", "gmail"], ["Data and reset", "data"],
 ];
 
 const integrations = [
@@ -522,6 +536,17 @@ function SettingsInner() {
         icon={FiSettings}
         title="Settings"
         subtitle="Team, services, integrations and data"
+        actions={
+          <select
+            className="input h-10 w-auto max-w-[15rem]"
+            value=""
+            aria-label="Find a setting"
+            onChange={(e) => { if (e.target.value) window.location.assign(`/settings?section=${e.target.value}`); }}
+          >
+            <option value="">Find a setting…</option>
+            {SETTINGS_FIND.map(([label, id]) => <option key={label} value={id}>{label}</option>)}
+          </select>
+        }
       />
 
       {/* Tight rhythm on a phone, where the sections are collapsed rows and a
@@ -543,9 +568,11 @@ function SettingsInner() {
           onChange={setActiveSection}
         />
         <div className="space-y-2.5 sm:space-y-6">
-        <SettingsGroup title="Configuration" id="config">
+        <SettingsGroup title="Configuration" id="config" openOnLoad={deepLinked === "config"}>
           <RulesSettings />
+          <ReplySettings />
           <BankAccounts />
+          <SettingsLog />
   {/* Configuration shortcuts */}
           <section>
             <h2 className="mb-3 section-label text-sm">
@@ -576,10 +603,11 @@ function SettingsInner() {
   {/* Users & access */}
           <div id="profile" className="scroll-mt-24">
             <UserManagement />
+            <RolesGrid />
           </div>
         </SettingsGroup>
 
-        <SettingsGroup title="Engineers" id="engineers">
+        <SettingsGroup title="Engineers" id="engineers" openOnLoad={deepLinked === "engineers"}>
   {/* Engineers */}
           <section>
             <div className="mb-3 flex items-center justify-between">
@@ -674,7 +702,7 @@ function SettingsInner() {
           </section>
         </SettingsGroup>
 
-        <SettingsGroup title="Service catalogue &amp; pricing" id="services">
+        <SettingsGroup title="Service catalogue &amp; pricing" id="services" openOnLoad={deepLinked === "services"}>
   {/* Service catalogue */}
           <section>
             <div className="mb-3 flex items-center justify-between">
@@ -788,22 +816,22 @@ function SettingsInner() {
           </section>
         </SettingsGroup>
 
-        <SettingsGroup title="Notifications, away & backup" id="push">
+        <SettingsGroup title="Notifications, away & backup" id="push" openOnLoad={deepLinked === "push"}>
   {/* Urgent outreach push notifications (phone + laptop) */}
           <PushNotificationsSection />
         </SettingsGroup>
 
-        <SettingsGroup title="Auto-notifications" id="auto-notify">
+        <SettingsGroup title="Auto-notifications" id="auto-notify" openOnLoad={deepLinked === "auto-notify"}>
   {/* Auto-notifications */}
           <AutoNotifySection />
         </SettingsGroup>
 
-        <SettingsGroup title="Gmail push notifications" id="gmail">
+        <SettingsGroup title="Gmail push notifications" id="gmail" openOnLoad={deepLinked === "gmail"}>
   {/* Gmail push notifications */}
           <GmailPushSection />
         </SettingsGroup>
 
-        <SettingsGroup title="Integrations roadmap" id="integrations">
+        <SettingsGroup title="Integrations roadmap" id="integrations" openOnLoad={deepLinked === "integrations"}>
   {/* Integrations roadmap */}
           <section>
             <h2 className="mb-3 section-label text-sm">
@@ -837,7 +865,7 @@ function SettingsInner() {
           </section>
         </SettingsGroup>
 
-        <SettingsGroup title="Data" id="data">
+        <SettingsGroup title="Data" id="data" openOnLoad={deepLinked === "data"}>
   {/* Data */}
           <section>
             <h2 className="mb-3 section-label text-sm">
