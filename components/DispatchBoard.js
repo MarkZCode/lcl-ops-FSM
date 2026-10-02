@@ -172,8 +172,17 @@ export default function DispatchBoard({ day }) {
       return {
         id: j.id, jobId: j.jobId || j.id, postcode: String(p?.postcode || "").trim().toUpperCase(), label: p?.label || c?.name || "",
         time: j.windowFrom || (j.scheduledAt ? format(parseISO(j.scheduledAt), "HH:mm") : ""),
-        engineerId: col.id, engineerName: col.name, colour: col.id === "unassigned" ? UNASSIGNED_COLOUR : MAP_COLOURS[ci % MAP_COLOURS.length], n: i + 1,
+        // The same colour as the engineer's column on the board.
+        engineerId: col.id, engineerName: col.name, colour: col.id === "unassigned" ? UNASSIGNED_COLOUR : col.color || MAP_COLOURS[ci % MAP_COLOURS.length], n: i + 1,
       };
+    })
+  ).concat(
+    // Accepted work with no date yet — shown as grey "?" dots, so you can
+    // see which engineer is already going to be nearby before booking it.
+    tray.map((j) => {
+      const c = clients.find((x) => x.id === j.clientId);
+      const p = c?.properties.find((x) => x.id === j.propertyId);
+      return { id: `tray:${j.id}`, jobId: j.id, postcode: String(p?.postcode || "").trim().toUpperCase(), label: p?.label || c?.name || "", time: "To book", engineerId: "tray", engineerName: "To book", colour: "#64748b", n: "?" };
     })
   ) : [];
 

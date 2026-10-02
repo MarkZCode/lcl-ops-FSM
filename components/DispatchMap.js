@@ -45,6 +45,20 @@ const STYLE = `
 // stops: [{ id, jobId, postcode, label, time, engineerId, engineerName, colour, n }]
 export default function DispatchMap({ stops = [] }) {
   const el = useRef(null);
+  const mapRef = useRef(null);
+  // Tap a name under the map to zoom to that engineer's jobs; "All of
+  // London" goes back out.
+  const focus = (eid) => {
+    const m = mapRef.current;
+    if (!m) return;
+    const pts = eid ? m.routes[eid]?.pts : null;
+    if (pts?.length) m.map.fitBounds(m.L.latLngBounds(pts).pad(0.35), { maxZoom: 14 });
+    else {
+      const b = m.L.latLngBounds(LONDON);
+      for (const r of Object.values(m.routes)) for (const p of r.pts) b.extend(p);
+      m.map.fitBounds(b, { padding: [12, 12] });
+    }
+  };
   const [state, setState] = useState("loading");
   const [legs, setLegs] = useState({});   // engineerId → { miles, far }
   const [live, setLive] = useState(0);
@@ -102,7 +116,7 @@ export default function DispatchMap({ stops = [] }) {
         // Join each engineer's jobs in visiting order, with the miles on each leg.
         const summary = {};
         for (const [eid, r] of Object.entries(routes)) {
-          if (eid === "unassigned" || r.pts.length < 2) { summary[eid] = { miles: 0, far: 0 }; continue; }
+          if (eid === "unassigned" || eid === "tray" || r.pts.length < 2) { summary[eid] = { miles: 0, far: 0 }; continue; }
           L.polyline(r.pts, { color: r.colour, weight: 3, opacity: 0.75, dashArray: "2 7", lineCap: "round" }).addTo(map);
           let total = 0, far = 0;
           for (let i = 1; i < r.pts.length; i++) {
@@ -142,13 +156,14 @@ export default function DispatchMap({ stops = [] }) {
         drawLive().catch(() => {});
         timer = setInterval(() => drawLive().catch(() => {}), 60_000);
 
-        const missing = stops.length - placed.length;
-        setState(!stops.length ? "empty" : missing ? `${missing} job${missing === 1 ? "" : "s"} not shown — no postcode, or it couldn't be found.` : "ok");
+        const lost = stops.filter((s) => !placed.includes(s));
+        setState(!stops.length ? "empty" : lost.length ? `Not on the map — no postcode, or it couldn't be found: ${lost.map((s) => s.jobId).slice(0, 6).join(", ")}${lost.length > 6 ? "…" : ""}.` : "ok");
+        mapRef.current = { map, L, routes };
       } catch {
         if (!off) setState("error");
       }
     })();
-    return () => { off = true; if (timer) clearInterval(timer); if (map) map.remove(); };
+    return () => { off = true; mapRef.current = null; if (timer) clearInterval(timer); if (map) map.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
@@ -167,12 +182,12 @@ export default function DispatchMap({ stops = [] }) {
         {people.length > 0 && (
           <ul className="grid grid-cols-1 gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
             {people.map((p) => (
-              <li key={p.engineerId} className="flex items-center gap-2">
+              <li key={p.engineerId} className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-0.5 hover:bg-navy-50 dark:hover:bg-white/5" onClick={() => focus(p.engineerId)} title="Zoom to these jobs">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: p.colour, boxShadow: `0 0 6px 1px ${p.colour}` }} />
                 <span className="min-w-0 truncate font-semibold text-navy-900 dark:text-white">{p.engineerName}</span>
                 <span className="shrink-0 text-navy-500 dark:text-slate-400">
                   {p.count} job{p.count === 1 ? "" : "s"}
-                  {p.engineerId !== "unassigned" && p.count > 1 && p.miles > 0 ? ` · ${p.miles.toFixed(1)} mi between them` : ""}
+                  {!["unassigned", "tray"].includes(p.engineerId) && p.count > 1 && p.miles > 0 ? ` · ${p.miles.toFixed(1)} mi between them` : ""}
                 </span>
                 {p.far > 0 && <span className="shrink-0 rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300">{p.far} far apart</span>}
               </li>
@@ -180,8 +195,9 @@ export default function DispatchMap({ stops = [] }) {
           </ul>
         )}
         <p className="text-[11px] text-navy-400">
+          <button type="button" className="mr-2 font-semibold text-brand-600 hover:underline" onClick={() => focus(null)}>All of London</button>
           {note ? `${note} ` : ""}{live > 0 ? `${live} engineer${live === 1 ? "" : "s"} sharing location (diamond). ` : ""}
-          Dots are on the postcode, numbered in visiting order; distances are straight lines. Red = no engineer yet.
+          Dots are on the postcode, numbered in visiting order; distances are straight lines. Red = no engineer yet, grey ? = accepted but not booked.
         </p>
       </div>
     </div>

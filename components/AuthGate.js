@@ -83,7 +83,7 @@ export default function AuthGate({ children }) {
     if (user?.role !== "engineer") return;
     const allowed =
       pathname === "/portal" ||
-      pathname.startsWith("/jobs/") ||
+      pathname.startsWith("/confirm/") ||
       pathname === "/help";
     if (!allowed) router.replace("/portal");
   }, [user, pathname, router]);
@@ -179,7 +179,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v149</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v150</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed
