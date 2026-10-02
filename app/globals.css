@@ -1417,3 +1417,17 @@ a, button, summary, select, label, [role="button"] {
   /* Page change: quicker and shorter on a phone. */
   .page-in { animation-duration: 160ms !important; }
 }
+
+
+/* ── iPhone home-screen app: fill the whole screen ────────────────────
+   With the status bar drawn over the page (black-translucent), WebKit lays
+   the page out the height of the status bar SHORT, and everything pinned to
+   the bottom — the tab bar — stops that far above the screen's edge, with a
+   dead black strip beneath it. Making the document that much taller is the
+   known cure: the page then reaches the bottom and the tab bar sits on it. */
+html { background-color: var(--surface-page); }
+@media (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    html { height: calc(100% + env(safe-area-inset-top)); }
+  }
+}

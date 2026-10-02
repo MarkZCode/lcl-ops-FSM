@@ -167,7 +167,7 @@ export default function NotificationBell() {
       if (!mine(job)) continue;
       const client = clients.find((c) => c.id === job.clientId);
       for (const a of job.activity || []) {
-        if (a.direction === "in") out.push({ ...a, jobId: job.id, clientName: client?.name || "Client" });
+        if (a.direction === "in" && Date.now() - new Date(a.at || 0).getTime() < 14 * 86400_000) out.push({ ...a, jobId: job.id, clientName: client?.name || "Client" });
       }
     }
     // One row per CONVERSATION, not per message. A client who replies four
@@ -187,8 +187,13 @@ export default function NotificationBell() {
   const now = new Date();
   const myTasks = useMemo(() => {
     if (!user) return [];
-    return tasks.filter((t) => t && t.status !== "done" && t.assigneeId === user.id);
+    return tasks.filter((t) => t && t.status !== "done" && t.assigneeId === user.id && t.source !== "prospect_renewal");
   }, [tasks, user]);
+  // Given to you by a person (not raised by the system) — shown first.
+  const fromTeam = useMemo(
+    () => myTasks.filter((t) => t.createdBy?.id && t.createdBy.id !== "system" && t.createdBy.id !== user?.id),
+    [myTasks, user]
+  );
 
   // Chime when a NEW task lands in "mine" between refreshes. First
   // hydration is silent (the ref is null → we just seed it) so the ping
@@ -219,7 +224,9 @@ export default function NotificationBell() {
   // Split my-tasks by urgency for the panel headings + counters.
   const myBuckets = useMemo(() => {
     const overdue = [], dueToday = [], upcoming = [];
+    const teamIds = new Set(fromTeam.map((t) => t.id));
     for (const t of myTasks) {
+      if (teamIds.has(t.id)) continue;
       const d = daysUntilDue(t);
       if (d != null && d < 0) overdue.push(t);
       else if (d === 0) dueToday.push(t);
@@ -232,7 +239,7 @@ export default function NotificationBell() {
       dueToday: dueToday.sort(sortByPri),
       upcoming: upcoming.sort(sortByPri).slice(0, 6),
     };
-  }, [myTasks]);
+  }, [myTasks, fromTeam]);
 
   // Merge everything into one flat feed for the unread counter.
   const allItems = useMemo(() => {
@@ -300,7 +307,7 @@ export default function NotificationBell() {
 
   const isNew = (id) => !seen.has(id);
   const totalMine = myBuckets.overdue.length + myBuckets.dueToday.length + myBuckets.upcoming.length;
-  const anything = totalMine || myBuckets.upcoming.length || replies.length;
+  const anything = totalMine || fromTeam.length || myBuckets.upcoming.length || replies.length;
 
   return (
     <div ref={panelRef} className="relative">
@@ -345,6 +352,51 @@ export default function NotificationBell() {
               <p className="px-4 py-10 text-center text-xs text-navy-500 dark:text-navy-400">You&apos;re all clear.</p>
             ) : (
               <>
+                {/* What a colleague asked you to do — always first. */}
+                {fromTeam.length > 0 && (
+                  <Section title="From your team" count={fromTeam.length}>
+                    {fromTeam.map((t) => (
+                      <TaskRow key={t.id} task={{ ...t, notes: `From ${t.createdBy?.name || "a colleague"}${t.notes ? ` — ${t.notes}` : ""}` }} kind="upcoming" isNew={isNew(`task-as-${t.id}-${t.assigneeId}`)} onClose={() => setOpen(false)} />
+                    ))}
+                  </Section>
+                )}
+
+                {/* Replies */}
+                {replies.length > 0 && (
+                  <Section title="Client replies" count={replies.length}>
+                    {replies.map((a) => (
+                      <Link
+                        key={a.id}
+                        href={`/jobs/${a.jobId}`}
+                        onClick={() => setOpen(false)}
+                        className="flex items-start gap-3 border-b border-navy-100 px-4 py-3 hover:bg-navy-50 dark:border-navy-800 dark:hover:bg-navy-800"
+                      >
+                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400">
+                          <FiCornerDownLeft className="h-3.5 w-3.5" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-1">
+                            <p className="truncate text-xs font-semibold text-navy-900 dark:text-white">{a.clientName}</p>
+                            <span className="shrink-0 text-[10px] text-navy-400">{fmtDate(a.at)}</span>
+                          </div>
+                          <p className="text-[11px] text-navy-500 dark:text-navy-400">
+                            {a.jobId}
+                            {a.replyCount > 1 && (
+                              <span className="ml-1.5 rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-600 dark:bg-navy-800 dark:text-navy-300">
+                                {a.replyCount} replies
+                              </span>
+                            )}
+                          </p>
+                          {/* First NON-EMPTY line. Leading with line one gave
+                              a wall of rows reading "Hi" and "Hi Lisa" — the
+                              greeting, never the message. */}
+                          <p className="mt-0.5 text-xs text-navy-600 line-clamp-2 dark:text-navy-300">{replyPreview(a.detail)}</p>
+                        </div>
+                        {isNew(a.id) && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-400" />}
+                      </Link>
+                    ))}
+                  </Section>
+                )}
                 {/* Needs you now */}
                 {totalMine > 0 && (
                   <Section title="Needs you now" count={totalMine}>
@@ -380,42 +432,6 @@ export default function NotificationBell() {
                   </Section>
                 )}
 
-                {/* Replies */}
-                {replies.length > 0 && (
-                  <Section title="Recent replies" count={replies.length}>
-                    {replies.map((a) => (
-                      <Link
-                        key={a.id}
-                        href={`/jobs/${a.jobId}`}
-                        onClick={() => setOpen(false)}
-                        className="flex items-start gap-3 border-b border-navy-100 px-4 py-3 hover:bg-navy-50 dark:border-navy-800 dark:hover:bg-navy-800"
-                      >
-                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400">
-                          <FiCornerDownLeft className="h-3.5 w-3.5" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-1">
-                            <p className="truncate text-xs font-semibold text-navy-900 dark:text-white">{a.clientName}</p>
-                            <span className="shrink-0 text-[10px] text-navy-400">{fmtDate(a.at)}</span>
-                          </div>
-                          <p className="text-[11px] text-navy-500 dark:text-navy-400">
-                            {a.jobId}
-                            {a.replyCount > 1 && (
-                              <span className="ml-1.5 rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-600 dark:bg-navy-800 dark:text-navy-300">
-                                {a.replyCount} replies
-                              </span>
-                            )}
-                          </p>
-                          {/* First NON-EMPTY line. Leading with line one gave
-                              a wall of rows reading "Hi" and "Hi Lisa" — the
-                              greeting, never the message. */}
-                          <p className="mt-0.5 text-xs text-navy-600 line-clamp-2 dark:text-navy-300">{replyPreview(a.detail)}</p>
-                        </div>
-                        {isNew(a.id) && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-400" />}
-                      </Link>
-                    ))}
-                  </Section>
-                )}
               </>
             )}
           </div>

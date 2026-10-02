@@ -24,8 +24,20 @@ import { useEffect } from "react";
 // Safari's UI chrome collapsing/expanding) so it never goes stale.
 export default function ViewportHeightFix() {
   useEffect(() => {
+    // Installed on an iPhone home screen, with the status bar drawn over the
+    // page, WebKit reports innerHeight SHORT by the height of the status bar
+    // — so a shell sized to it stops that far above the bottom of the
+    // screen, leaving a dead strip under the tab bar. There the real figure
+    // is the screen itself. (navigator.standalone exists only on iOS.)
     const setAppHeight = () => {
-      document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+      let h = window.innerHeight;
+      if (window.navigator.standalone === true) {
+        const portrait = window.innerHeight >= window.innerWidth;
+        const screenH = portrait ? Math.max(window.screen.height, window.screen.width) : Math.min(window.screen.height, window.screen.width);
+        // Not while the keyboard is up (then the short figure is the true one).
+        if (screenH - h < 120) h = screenH;
+      }
+      document.documentElement.style.setProperty("--app-height", `${h}px`);
     };
     setAppHeight();
     window.addEventListener("resize", setAppHeight);

@@ -290,39 +290,45 @@ export async function GET(request) {
 
   const clientsById = new Map((clientsRes.data || []).map((r) => [r.id, r.data]));
 
-  // ── 1. Prospect renewals due in next 14 days (or overdue) ──────────────
-  const prospectRows = prospectsRes.data || [];
-  const prospectCandidates = [];
-  for (const row of prospectRows) {
-    const p = row.data;
-    if (!p || p.stage === "dnc" || p.stage === "booked") continue;
-    const due = currentCycleDue(p, now);
-    if (!due) continue;
-    const daysLeft = Math.ceil((due - now) / 86400_000);
-    if (daysLeft > DUE_WITHIN_DAYS) continue;
-    if (openLinkedKeys.has(`prospect:${row.id}`)) continue;
-    prospectCandidates.push({ row, p, daysLeft });
+  // ── 1. Renewal outreach — ONE task a day ───────────────────────────────
+  // How outreach actually runs: the month's emails go out in daily batches
+  // from Campaigns, then a handful of prospects are chased on WhatsApp each
+  // day. That is one piece of work a day, so it is one task a day — not a
+  // task (and three reminders) per prospect, which is what buried every
+  // other notification under "Chase X — renewal".
+  //
+  // The old per-prospect tasks still open are closed here, once.
+  const staleRenewals = (tasksRes.data || []).filter((r) => r.data && r.data.status !== "done" && r.data.source === "prospect_renewal" && !closedIds.has(r.id));
+  for (let i = 0; i < staleRenewals.length; i += 200) {
+    await supabaseAdmin.from("tasks").upsert(staleRenewals.slice(i, i + 200).map((r) => ({
+      id: r.id,
+      data: {
+        ...r.data, status: "done", completedAt: nowIso, completedBy: { id: "system", name: "Auto-close" }, updatedAt: nowIso,
+        updates: [...(r.data.updates || []), { at: nowIso, by: { id: "system", name: "Auto-close" }, kind: "status", text: "Renewal outreach is now one daily task — closed." }],
+      },
+    })));
   }
-  // Sort most-urgent first so the earliest-due agents get the earliest cases.
-  prospectCandidates.sort((a, b) => a.daysLeft - b.daysLeft);
-  for (const { row, p, daysLeft } of prospectCandidates) {
-    const svcs = p.services?.length ? p.services : [p.primaryService || "CONFIRM"];
-    const svcText = svcs.filter((s) => s !== "CONFIRM").map(serviceLabel).join(", ") || "compliance cert";
-    const name = p.nameOnCert || p.ownerName || "Prospect";
-    // Same-face continuity: hand it back to the agent who last talked to them.
-    const owner = lastAgentForProspect.get(row.id) || pickAgent();
-    const urgent = daysLeft <= 3;
+  const dueProspects = (prospectsRes.data || []).filter((row) => {
+    const p = row.data;
+    if (!p || p.stage === "dnc" || p.stage === "booked") return false;
+    const due = currentCycleDue(p, now);
+    return due && Math.ceil((due - now) / 86400_000) <= DUE_WITHIN_DAYS;
+  }).length;
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" }).format(now);
+  const outreachOpen = (tasksRes.data || []).some((r) => r.data && r.data.status !== "done" && r.data.source === "outreach_daily");
+  if (dueProspects > 0 && !["Sat", "Sun"].includes(weekday) && !outreachOpen && state.outreachDate !== todayKey) {
+    const owner = agents[0] ? pickAgent() : { id: adminId, name: adminName };
     makeTask({
-      title: `Chase ${name} — ${svcText} renewal`,
-      notes: `${daysLeft < 0 ? `${Math.abs(daysLeft)}d overdue` : `${daysLeft}d until due`} · ${p.address || ""}`.trim(),
+      title: "Renewal outreach — today's WhatsApp chases",
+      notes: `${dueProspects} prospect${dueProspects === 1 ? "" : "s"} due or overdue. Chase today's batch (10–15) from Prospects and log what each said.`,
       assigneeId: owner.id,
       assigneeName: owner.name,
-      dueDate: isoDatePlusDays(now, Math.max(0, Math.min(daysLeft, 2))),
-      priority: urgent ? "urgent" : "normal",
-      cadence: daysLeft < 0 ? "aggressive" : urgent ? "daily" : "daily",
-      linkedTo: { kind: "prospect", id: row.id, label: name },
-      source: "prospect_renewal",
-      reason: lastAgentForProspect.has(row.id) ? "You spoke to this prospect last time — auto-routed back to you." : "Auto-assigned via round-robin.",
+      dueDate: isoDatePlusDays(now, 0),
+      priority: "normal",
+      cadence: "none",
+      linkedTo: null,
+      source: "outreach_daily",
+      reason: "One outreach task per working day.",
     });
   }
 
@@ -402,6 +408,7 @@ export async function GET(request) {
       dailyByAgent: dailyState,
       lastRunAt: nowIso,
       monthlyDoneFor: (adminId && dayOfMonth === 1) ? monthKey : state.monthlyDoneFor,
+      outreachDate: todayKey,
     },
   });
 

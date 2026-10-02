@@ -29,7 +29,7 @@ export function orderMyDay(tasks, userId, now = Date.now()) {
 
 export default function MyDay({ tasks, userId, onOpen, onDone }) {
   const list = orderMyDay(tasks, userId);
-  if (!list.length) return <div className="card p-10 text-center text-sm text-navy-500">Nothing on your list. New work appears here as soon as it&apos;s given to you.</div>;
+  if (!list.length) return <div className="card p-6 text-center text-sm text-navy-500">Nothing on your list. New work appears here as soon as it&apos;s given to you.</div>;
   const late = list.filter((x) => x.left?.late).length;
   return (
     <div className="space-y-3">
@@ -42,7 +42,7 @@ export default function MyDay({ tasks, userId, onOpen, onDone }) {
               <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-navy-100 text-xs font-bold text-navy-700">{i + 1}</span>
               <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpen(t)}>
                 <span className="block truncate text-sm font-semibold text-navy-900">{t.title}</span>
-                <span className="block truncate text-xs text-navy-500">{t.linkedTo?.label || t.notes?.split("\n")[0] || ""}</span>
+                <span className="block truncate text-xs text-navy-500">{t.createdBy?.id && t.createdBy.id !== "system" && t.createdBy.id !== userId ? `From ${t.createdBy.name || "a colleague"} · ` : ""}{t.linkedTo?.label || t.notes?.split("\n")[0] || ""}</span>
               </button>
               <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${p.chip}`}>{p.label}</span>
               {left && <span className={`shrink-0 text-xs font-semibold ${left.late ? "text-rose-600" : "text-navy-500"}`}>{left.text}</span>}

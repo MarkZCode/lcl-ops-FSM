@@ -30,9 +30,9 @@ export async function POST(request) {
 
   const payload = {
     title: assigneeId
-      ? (priority === "urgent" ? "URGENT task assigned to you" : "New task assigned to you")
+      ? `${priority === "urgent" ? "Urgent — " : ""}${task?.createdBy?.name && task.createdBy.id !== "system" ? `${String(task.createdBy.name).split("@")[0]} gave you a task` : "New task for you"}`
       : "New team task",
-    body: title,
+    body: task?.linkedTo?.label ? `${title} · ${task.linkedTo.label}` : title,
     url: taskDeepLink(task || (taskId ? { id: taskId } : null)),
   };
 

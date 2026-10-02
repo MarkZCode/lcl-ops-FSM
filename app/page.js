@@ -22,6 +22,7 @@ import { isToday, parseISO } from "date-fns";
 import DailyActivityPanel from "@/components/DailyActivityPanel";
 import OpsBoard from "@/components/OpsBoard";
 import DashboardBrief from "@/components/DashboardBrief";
+import DashboardTasks from "@/components/DashboardTasks";
 import NeedsDecisionPanel from "@/components/NeedsDecisionPanel";
 import CoverageMap from "@/components/CoverageMap";
 import RevenueChart from "@/components/RevenueChart";
@@ -421,6 +422,7 @@ export default function Dashboard() {
 
         {/* Same period control Reports uses, same shared state — changing it
             here changes what Reports shows too, and vice versa. */}
+        {hydrated && <DashboardTasks />}
         {hydrated && show("brief") && <DashboardBrief />}
         {hydrated && <PeriodControls ctl={ctl} />}
 

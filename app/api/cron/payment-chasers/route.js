@@ -12,6 +12,7 @@ import { mailboxForPurpose, resolveProvider } from "@/lib/emailProviders";
 import { invoiceConfig } from "@/lib/invoiceConfig";
 import { applyCompanyServer } from "@/lib/companyServer";
 import { jobBalance } from "@/lib/payments";
+import { firstName } from "@/lib/email";
 import { bankForJob } from "@/lib/bank";
 import { pushToAll } from "@/lib/pushAll";
 
@@ -63,7 +64,7 @@ export async function GET(request) {
     if (!to || suppressed.has(to)) continue;
 
     const ref = job.invoiceNumber ? `invoice ${job.invoiceNumber}` : `invoice ${job.id}`;
-    const first = String(client.billingName || client.name || "").trim().split(/\s+/)[0] || "there";
+    const first = firstName(client.billingName || client.name);
     // The account printed on THIS job's invoice.
     const b = bankForJob(job, bankRow?.data?.accounts, bankRow?.data?.activeId);
     const text =
