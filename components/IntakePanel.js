@@ -7,7 +7,7 @@
 // asks about appliances, an FRA about floors and communal areas…), lists
 // what is still missing, and writes the message asking the client for
 // exactly those things and nothing else.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FaWhatsapp } from "react-icons/fa";
 import { FiCopy, FiAlertTriangle, FiCheckCircle } from "react-icons/fi";
 import { useStore } from "@/lib/store";
@@ -33,10 +33,21 @@ const sentence = (items) =>
   items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 
 export default function IntakePanel({ job, client, property }) {
-  const { updateJob, logActivity, rules } = useStore();
+  const { updateJob, updateClient, logActivity, rules } = useStore();
   const feeDefault = Number(rules?.noAccessFee) || NO_ACCESS_FEE_DEFAULT;
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
+  // "Open job details" on the Next step card opens the panel as well.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener("lcl-open-job-details", show);
+    return () => window.removeEventListener("lcl-open-job-details", show);
+  }, []);
+  // The address and postcode live on the client's property.
+  const setProperty = (patch) => {
+    if (!client || !property) return;
+    updateClient(client.id, { properties: (client.properties || []).map((p) => (p.id === property.id ? { ...p, ...patch } : p)) });
+  };
   if (!job || ["paid", "cancelled"].includes(job.status)) return null;
 
   const intake = job.intake || {};
@@ -135,6 +146,35 @@ export default function IntakePanel({ job, client, property }) {
               ))}
             </div>
           )}
+
+          {/* The property and who lets the engineer in — needed to book. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label className="label">Full property address</label>
+              <input className="input" defaultValue={property?.label || ""} key={`addr-${property?.label || ""}`} placeholder="Flat / house number and street" disabled={!property}
+                onBlur={(e) => e.target.value.trim() !== (property?.label || "") && setProperty({ label: e.target.value.trim() })} />
+            </div>
+            <div>
+              <label className="label">Postcode</label>
+              <input className="input uppercase" defaultValue={property?.postcode || ""} key={`pc-${property?.postcode || ""}`} disabled={!property}
+                onBlur={(e) => e.target.value.trim().toUpperCase() !== (property?.postcode || "") && setProperty({ postcode: e.target.value.trim().toUpperCase() })} />
+            </div>
+            <div>
+              <label className="label">Who gives access</label>
+              <input className="input" defaultValue={job.accessName || ""} placeholder={client?.name || "Tenant or contact name"}
+                onBlur={(e) => e.target.value.trim() !== (job.accessName || "") && updateJob(job.id, { accessName: e.target.value.trim() })} />
+            </div>
+            <div>
+              <label className="label">Their phone number</label>
+              <input className="input" inputMode="tel" defaultValue={job.accessPhone || ""} placeholder={client?.phone || ""}
+                onBlur={(e) => e.target.value.trim() !== (job.accessPhone || "") && updateJob(job.id, { accessPhone: e.target.value.trim() })} />
+            </div>
+            <div>
+              <label className="label">Client&apos;s phone number</label>
+              <input className="input" inputMode="tel" defaultValue={client?.phone || ""} key={`ph-${client?.phone || ""}`} disabled={!client}
+                onBlur={(e) => client && e.target.value.trim() !== (client.phone || "") && updateClient(client.id, { phone: e.target.value.trim() })} />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>

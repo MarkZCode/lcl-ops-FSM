@@ -32,7 +32,7 @@ import { STAGE_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
 import { jobStage, isCertified, quoteStage, QUOTE_STAGES } from "@/lib/stages";
 import { gbp, fmtDate, fmtDateTime, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode } from "@/lib/format";
 import { jobFinancialsSplit } from "@/lib/finance";
-import { dateLine, certLabel, acceptanceProgress, setScopeConfirmed, scopeAccepted } from "@/lib/jobCard";
+import { lineSizeLabel, dateLine, certLabel, acceptanceProgress, setScopeConfirmed, scopeAccepted } from "@/lib/jobCard";
 import { computeCertExpiry } from "@/lib/renewals";
 import { isSplit, getVisits, visitLines, blockersForScheduling } from "@/lib/visits";
 import { supabase } from "@/lib/supabase";
@@ -314,6 +314,8 @@ export default function JobDetailPage() {
         scrollToId("certificate");
         return;
       case "intake":
+        // Open the panel as well as going to it — the fields are inside.
+        window.dispatchEvent(new Event("lcl-open-job-details"));
         scrollToId("job-details");
         return;
       case "access":
@@ -1033,8 +1035,8 @@ export default function JobDetailPage() {
                           {l.payEngineer ? " · engineer paid" : ""}
                         </span>
                       )}
-                      {l.tier && (
-                        <span className="text-xs text-navy-400">· {l.tier}</span>
+                      {lineSizeLabel(l, job) && (
+                        <span className="text-xs text-navy-400">· {lineSizeLabel(l, job)}{l.tier && lineSizeLabel(l, job) !== l.tier ? ` (${l.tier} price)` : ""}</span>
                       )}
                       {l.waived && !l.cancelled && (
                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">

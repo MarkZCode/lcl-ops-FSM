@@ -383,7 +383,7 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
                 {shownLines
                   .map((l) => {
                     const base = l.code === "CUSTOM" ? l.name : certLabel(l.code);
-                    const size = lineSizeLabel(l);
+                    const size = lineSizeLabel(l, job);
                     return size ? `${base} (${size})` : base;
                   })
                   .join(", ") || "—"}

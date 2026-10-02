@@ -38,7 +38,9 @@ export default function Modal({ open, onClose, title, children, footer, wide, xw
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center"
-      style={{ height: "100dvh" }}
+      // The measured screen height, not 100dvh — which is short on an
+      // iPhone home-screen app (see ViewportHeightFix.js).
+      style={{ height: "var(--app-height, 100dvh)" }}
     >
       <div
         className="absolute inset-0 bg-navy-950/50"
@@ -49,24 +51,26 @@ export default function Modal({ open, onClose, title, children, footer, wide, xw
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative z-10 flex max-h-[92dvh] w-full flex-col rounded-t-xl bg-white shadow-xl sm:max-h-[90dvh] sm:rounded-xl ${
+        className={`modal-sheet relative z-10 flex max-h-[92%] w-full flex-col rounded-t-[22px] bg-white shadow-xl sm:max-h-[90dvh] sm:rounded-xl ${
           xwide ? "sm:max-w-5xl" : wide ? "sm:max-w-2xl" : "sm:max-w-lg"
         }`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-navy-100 px-5 py-4">
-          <h2 className="text-base font-semibold text-navy-900">{title}</h2>
+        {/* Phone: the grab handle every iOS sheet has. */}
+        <span className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-navy-200 sm:hidden" aria-hidden />
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-navy-100 px-4 pb-3 pt-2 sm:px-5 sm:py-4">
+          <h2 className="min-w-0 truncate text-[17px] font-semibold text-navy-900 sm:text-base">{title}</h2>
           <button
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg text-navy-500 hover:bg-navy-100"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-navy-100 text-navy-600 hover:bg-navy-200 sm:rounded-lg sm:bg-transparent sm:text-navy-500"
             aria-label="Close"
           >
             <FiX />
           </button>
         </div>
-        <div className="scroll-area flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="scroll-area flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5" style={footer ? undefined : { paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}>{children}</div>
         {footer && (
           <div
-            className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-navy-100 px-5 py-3"
+            className="modal-footer flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-navy-100 px-4 py-3 sm:px-5"
             style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
           >
             {footer}

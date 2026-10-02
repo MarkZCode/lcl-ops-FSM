@@ -1571,3 +1571,14 @@ body[data-drawer-open] [data-bottom-nav] {
   /* Tables that are wider than the screen scroll inside their card. */
   .card > table, .panel > table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
+
+
+/* Pop-ups on a phone are sheets: they slide up, and the buttons at the
+   bottom share the width so the main one is easy to reach with a thumb. */
+@keyframes sheet-up { from { transform: translate3d(0, 24px, 0); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 639px) {
+  .modal-sheet { animation: sheet-up 220ms cubic-bezier(0.22, 0.8, 0.24, 1); }
+  .modal-footer > .btn, .modal-footer > button, .modal-footer > a { flex: 1 1 0; min-height: 44px; justify-content: center; }
+  .modal-sheet .grid.grid-cols-2:not(.keep-cols), .modal-sheet .grid.sm\:grid-cols-2 { gap: 0.75rem; }
+}
+@media (prefers-reduced-motion: reduce) { .modal-sheet { animation: none; } }

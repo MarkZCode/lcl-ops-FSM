@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getJobLines, lineTotal } from "@/lib/format";
+import { lineSizeLabel } from "@/lib/jobCard";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -89,7 +90,7 @@ export async function GET(_request, { params }) {
       name: l.code === "CUSTOM" ? l.name : l.name,
       code: l.code,
       qty: l.qty || 1,
-      tier: l.tier || null,
+      tier: lineSizeLabel(l, job) || l.tier || null,
       total: lineTotal(l),
     })),
   };
