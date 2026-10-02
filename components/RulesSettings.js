@@ -47,6 +47,16 @@ export default function RulesSettings() {
         </div>
 
         <div>
+          <label className="label">WhatsApp message sent with every quote</label>
+          <textarea
+            className="input resize-y text-sm" rows={3}
+            defaultValue={rules.quoteNudge} key={rules.quoteNudge}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== rules.quoteNudge) saveRules({ quoteNudge: v }); }}
+          />
+          <p className="mt-1 text-[11px] text-navy-400">Offered as the next step as soon as a quote has gone out. {"{name}"} is replaced with the client&apos;s first name.</p>
+        </div>
+
+        <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-500">Time allowed before a task is late (minutes of office time)</p>
           <div className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
             {Object.keys(DEFAULT_RULES.sla).map((k) => (

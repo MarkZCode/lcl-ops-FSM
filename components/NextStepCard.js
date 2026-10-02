@@ -37,6 +37,8 @@ const BUTTON_LABEL = {
   review_skip: "Skip",
   wa_reply: "Open WhatsApp",
   wa_reply_done: "Already replied",
+  wa_nudge: "Open WhatsApp",
+  wa_nudge_done: "Already sent",
   quote_hold: "Will get back…",
   certify: "Mark certified",
   reschedule: "Reschedule",

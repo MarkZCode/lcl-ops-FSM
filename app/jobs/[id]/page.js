@@ -77,7 +77,7 @@ export default function JobDetailPage() {
   const { addJob, jobs, clients, updateJob, removeJob, mergeBackToParentJob, cancelServices, restoreService, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
     useStore();
   const { can, user } = useAuth();
-  const { bankAccounts, invoiceBankId } = useStore();
+  const { bankAccounts, invoiceBankId, rules } = useStore();
   const [editOpen, setEditOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
@@ -332,6 +332,18 @@ export default function JobDetailPage() {
       case "wa_reply_done":
         updateJob(job.id, { enquiryRepliedAt: new Date().toISOString() });
         logActivity(job.id, { type: "status", title: "Enquiry answered outside the app", by: who() });
+        return;
+      case "wa_nudge": {
+        if (!client?.phone) return;
+        const msg = String(rules?.quoteNudge || "").replace(/\{name\}/g, firstName(client.name));
+        if (!msg.trim() || !openWhatsAppChat(client.phone, msg)) return;
+        updateJob(job.id, { quoteNudgeAt: new Date().toISOString() });
+        logActivity(job.id, { type: "whatsapp", title: "Booking message sent with the quote (WhatsApp opened)", detail: msg, by: who() });
+        return;
+      }
+      case "wa_nudge_done":
+        updateJob(job.id, { quoteNudgeAt: new Date().toISOString() });
+        logActivity(job.id, { type: "status", title: "Booking message sent outside the app", by: who() });
         return;
       case "quote_hold":
         setHoldOpen(true);
