@@ -1431,3 +1431,73 @@ html { background-color: var(--surface-page); }
     html { height: calc(100% + env(safe-area-inset-top)); }
   }
 }
+
+/* ── Liquid glass (the phone tab bar) ─────────────────────────────────
+   Apple's material, as closely as a web page can draw it: a nearly clear
+   body that blurs and brightens what is behind it, a bright specular rim
+   that is strongest along the top edge, a soft sheen across the upper
+   half, and a floating shadow. The selected tab is a second, brighter
+   piece of glass sitting inside the first.
+   (True refraction — the page bending at the edges — is drawn by iOS
+   itself for native apps and is not available to a web page in Safari.) */
+.glass-bar {
+  position: relative;
+  isolation: isolate;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.30) 0%, rgba(255, 255, 255, 0.12) 100%);
+  -webkit-backdrop-filter: blur(11px) saturate(200%);
+  backdrop-filter: blur(11px) saturate(200%);
+  border: 0.5px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 14px 36px -10px rgba(0, 0, 0, 0.30),
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0.5px rgba(255, 255, 255, 0.40),
+    inset 1px 0 0.5px rgba(255, 255, 255, 0.40),
+    inset -1px 0 0.5px rgba(255, 255, 255, 0.40),
+    inset 0 0 16px rgba(255, 255, 255, 0.20);
+}
+/* The sheen: light catching the top-left of the glass. */
+.glass-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 18% -10%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 55%),
+    radial-gradient(90% 70% at 90% 120%, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 60%);
+}
+.glass-pill {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.34) 100%);
+  box-shadow:
+    inset 0 1px 0.5px rgba(255, 255, 255, 1),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.04),
+    0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.dark .glass-bar {
+  background: linear-gradient(180deg, rgba(72, 72, 78, 0.42) 0%, rgba(28, 28, 30, 0.36) 100%);
+  -webkit-backdrop-filter: blur(11px) saturate(180%) brightness(0.9);
+  backdrop-filter: blur(11px) saturate(180%) brightness(0.9);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 14px 36px -10px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.34),
+    inset 0 -1px 0.5px rgba(255, 255, 255, 0.10),
+    inset 1px 0 0.5px rgba(255, 255, 255, 0.10),
+    inset -1px 0 0.5px rgba(255, 255, 255, 0.10),
+    inset 0 0 16px rgba(255, 255, 255, 0.05);
+}
+.dark .glass-bar::before {
+  background: radial-gradient(120% 90% at 18% -10%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 55%);
+}
+.dark .glass-pill {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.11) 100%);
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.40), 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+/* A phone that can't blur gets a solid bar rather than an unreadable one. */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass-bar { background: rgba(255, 255, 255, 0.94); }
+  .dark .glass-bar { background: rgba(28, 28, 30, 0.94); }
+}

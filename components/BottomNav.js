@@ -50,7 +50,8 @@ export default function BottomNav() {
   // fires (which is why the first version of this did nothing).
   const hidden = useHideWhileScrolling({ resetKey: pathname });
 
-  // A floating glass capsule, the way current iOS apps draw their tab bar:
+  // A floating liquid-glass capsule (.glass-bar in globals.css), the way
+  // current iOS apps draw their tab bar:
   // inset from the edges, sitting just above the home indicator, the page
   // showing softly through it. The background is mostly opaque on its own,
   // so if a phone ever fails to apply the blur the bar is still solid enough
@@ -69,12 +70,8 @@ export default function BottomNav() {
       }}
     >
       <div
-        className="pointer-events-auto mx-auto grid h-[62px] max-w-md items-center gap-1 rounded-full border border-black/[0.06] bg-white/75 p-1.5 shadow-[0_10px_34px_-6px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-white/[0.12] dark:bg-[#1c1c1e]/75 dark:shadow-[0_10px_34px_-6px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)]"
-        style={{
-          gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))`,
-          backdropFilter: "blur(22px) saturate(180%)",
-          WebkitBackdropFilter: "blur(22px) saturate(180%)",
-        }}
+        className="glass-bar pointer-events-auto mx-auto grid h-[64px] max-w-md items-center gap-1 p-1.5"
+        style={{ gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))` }}
       >
         {primary.map((link) => {
           const Icon = link.icon;
@@ -85,16 +82,16 @@ export default function BottomNav() {
               href={link.href}
               aria-current={active ? "page" : undefined}
               className={`flex h-full flex-col items-center justify-center gap-0.5 rounded-full transition-colors duration-200 active:opacity-70 ${
-                active ? "bg-black/[0.07] dark:bg-white/[0.14]" : ""
+                active ? "glass-pill" : ""
               }`}
             >
               {Icon && (
                 <Icon
-                  className={`h-[22px] w-[22px] ${active ? "text-brand-600 dark:text-brand-300" : "text-navy-600 dark:text-slate-300"}`}
+                  className={`h-[22px] w-[22px] ${active ? "text-brand-600 dark:text-brand-300" : "text-navy-800 dark:text-white"}`}
                   strokeWidth={active ? 2.3 : 1.9}
                 />
               )}
-              <span className={`text-[10.5px] leading-none ${active ? "font-semibold text-brand-700 dark:text-brand-300" : "font-medium text-navy-600 dark:text-slate-300"}`}>
+              <span className={`text-[10.5px] leading-none ${active ? "font-semibold text-brand-700 dark:text-brand-300" : "font-medium text-navy-800 dark:text-white"}`}>
                 {link.label}
               </span>
             </Link>
