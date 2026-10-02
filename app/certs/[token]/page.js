@@ -75,7 +75,7 @@ export default function CertsPage() {
         ))}
         <p className="pb-8 text-center text-xs text-navy-400">
           Need a renewal? Call <a href="tel:07426409342" className="font-semibold text-navy-600">07426 409342</a> or email{" "}
-          <a href={`mailto:${invoiceConfig.email}`} className="font-semibold text-navy-600">{invoiceConfig.email}</a>
+          <a href={`mailto:${data?.companyEmail || invoiceConfig.email}`} className="font-semibold text-navy-600">{data?.companyEmail || invoiceConfig.email}</a>
         </p>
       </div>
     </div>

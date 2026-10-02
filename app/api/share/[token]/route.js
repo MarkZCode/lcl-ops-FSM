@@ -18,6 +18,8 @@ import { getJobLines, lineTotal } from "@/lib/format";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { applyCompanyServer } from "@/lib/companyServer";
+import { invoiceConfig } from "@/lib/invoiceConfig";
 
 export async function GET(_request, { params }) {
   const token = params?.token;
@@ -43,7 +45,10 @@ export async function GET(_request, { params }) {
   const job = data.data;
   // Explicit allow-list. Anything added to a job in future is private by
   // default and has to be named here to become public.
+  await applyCompanyServer();
   const safe = {
+    // The contact address from Settings → Company details.
+    companyEmail: invoiceConfig.email,
     id: job.id,
     status: job.status,
     price: job.price,

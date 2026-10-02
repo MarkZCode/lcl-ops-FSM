@@ -198,7 +198,7 @@ export default function SharePage() {
           Questions? Call us on <a href="tel:07426409342" className="font-semibold text-navy-600">07426 409342</a> or email{" "}
           {/* Same company address the quotes and invoices carry — a client
               looking at their certificate shouldn't be handed a gmail. */}
-          <a href={`mailto:${invoiceConfig.email}`} className="font-semibold text-navy-600">{invoiceConfig.email}</a>
+          <a href={`mailto:${job?.companyEmail || invoiceConfig.email}`} className="font-semibold text-navy-600">{job?.companyEmail || invoiceConfig.email}</a>
         </p>
       </div>
     </div>

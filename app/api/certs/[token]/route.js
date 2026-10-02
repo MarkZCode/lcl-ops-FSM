@@ -8,6 +8,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { serviceShort, isAddonCode } from "@/lib/format";
+import { applyCompanyServer } from "@/lib/companyServer";
+import { invoiceConfig } from "@/lib/invoiceConfig";
 
 export const runtime = "nodejs";
 
@@ -44,5 +46,6 @@ export async function GET(_req, { params }) {
     }
   }
   certs.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-  return NextResponse.json({ name: client.name, certs }, { headers: { "Cache-Control": "no-store" } });
+  await applyCompanyServer();
+  return NextResponse.json({ name: client.name, certs, companyEmail: invoiceConfig.email }, { headers: { "Cache-Control": "no-store" } });
 }
