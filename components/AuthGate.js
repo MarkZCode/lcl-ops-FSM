@@ -11,6 +11,7 @@ import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
 import ViewportProbe from "./ViewportProbe";
 import VersionWatcher from "./VersionWatcher";
+import PageTransition from "./PageTransition";
 import Toaster from "./Toaster";
 import SyncErrorBanner from "./SyncErrorBanner";
 import ErrorBoundary from "./ErrorBoundary";
@@ -156,7 +157,7 @@ export default function AuthGate({ children }) {
                 actually needed restoring, see BottomNav.js). */}
             <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(4rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
             <div className="flex min-h-full flex-col">
-              <main className="flex-1 min-w-0">{children}</main>
+              <main className="flex-1 min-w-0"><PageTransition>{children}</PageTransition></main>
               <footer className="bar-navy border-t border-white/[0.06] px-5 py-3 sm:px-8">
                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                   <div className="flex items-center gap-2">
@@ -178,7 +179,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v128</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v129</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed

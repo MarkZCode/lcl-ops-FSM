@@ -1366,3 +1366,23 @@ textarea {
 /* The one shadow in the system, for imagery resting on a surface. Nothing
    else gets elevation — depth comes from the surface changing colour. */
 .product-shadow { box-shadow: var(--shadow-product); }
+
+/* ── Page transitions (components/PageTransition.js) ─────────────────────
+   Each page slides a short way and fades in as it opens. `backwards` fill
+   only: once it has played there is no transform left on the wrapper, so
+   fixed pop-ups and sticky headers inside the page are unaffected. */
+.page-in { animation: page-in-fade 240ms cubic-bezier(0.22, 0.8, 0.24, 1) backwards; }
+.page-in-left { animation-name: page-in-left; }
+.page-in-right { animation-name: page-in-right; }
+.page-in-up { animation-name: page-in-up; }
+.page-in-down { animation-name: page-in-down; }
+@keyframes page-in-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes page-in-left { from { opacity: 0; transform: translate3d(22px, 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes page-in-right { from { opacity: 0; transform: translate3d(-22px, 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes page-in-up { from { opacity: 0; transform: translate3d(0, 18px, 0); } to { opacity: 1; transform: none; } }
+@keyframes page-in-down { from { opacity: 0; transform: translate3d(0, -18px, 0); } to { opacity: 1; transform: none; } }
+/* Tabs and panels inside a page can use the same feel. */
+.section-in { animation: page-in-up 200ms cubic-bezier(0.22, 0.8, 0.24, 1) backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .page-in, .section-in { animation: none; }
+}
