@@ -215,10 +215,12 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
       title="Job card"
       footer={
         <>
-          <button className="btn-outline" onClick={onClose}>
+          {/* Close is the X at the top and nobody prints from a phone —
+              so on a phone the footer is just Copy and WhatsApp. */}
+          <button className="btn-outline !hidden sm:!inline-flex" onClick={onClose}>
             Close
           </button>
-          <button className="btn-outline" onClick={printCard}>
+          <button className="btn-outline !hidden sm:!inline-flex" onClick={printCard}>
             <FiPrinter /> Print
           </button>
           <button className="btn-outline" onClick={copy}>
@@ -236,9 +238,9 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
     >
       <div className="space-y-4">
         {/* Mode toggle */}
-        <div className="flex rounded-lg border border-navy-200 bg-navy-50 p-1 text-sm font-semibold">
+        <div className="flex rounded-full border border-navy-200 bg-navy-50 p-1 text-sm font-semibold dark:border-white/10 dark:bg-white/5">
           <button
-            className={`flex-1 rounded-md px-3 py-1.5 transition ${
+            className={`flex-1 rounded-full px-3 py-2 transition ${
               !assigned ? "bg-white text-navy-900 shadow-sm" : "text-navy-500"
             }`}
             onClick={() => setMode("quote")}
@@ -246,7 +248,7 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
             Offer card
           </button>
           <button
-            className={`flex-1 rounded-md px-3 py-1.5 transition ${
+            className={`flex-1 rounded-full px-3 py-2 transition ${
               assigned ? "bg-white text-navy-900 shadow-sm" : "text-navy-500"
             }`}
             onClick={() => setMode("assigned")}

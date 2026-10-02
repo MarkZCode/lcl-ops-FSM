@@ -110,7 +110,7 @@ export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team 
             <button className="btn-outline" onClick={() => setStatus("open")}>Reopen</button>
           )}
           <button className="btn-outline ml-auto text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => onDelete(task)}>
-            <FiTrash2 /> Delete
+            <FiTrash2 /> <span className="hidden sm:inline">Delete</span>
           </button>
         </div>
       }
@@ -269,7 +269,7 @@ function Meta({ icon: Icon, label, value, sub, tone = "default", chipClass }) {
       <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider opacity-70">
         <Icon className="h-3 w-3" /> {label}
       </div>
-      <p className="mt-0.5 truncate text-sm font-semibold">{value}</p>
+      <p className="mt-0.5 text-sm font-semibold leading-snug line-clamp-2 sm:truncate">{value}</p>
       {sub && <p className="text-[11px] opacity-70">{sub}</p>}
       {chipClass && <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${chipClass}`}>&nbsp;</span>}
     </div>
@@ -285,13 +285,13 @@ function SnoozeMenu({ onSnooze }) {
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 z-20 mb-1 w-40 overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-navy-900">
+          <div className="menu-backdrop fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="menu-pop absolute bottom-full left-0 z-20 mb-1 w-40 overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-navy-900">
             {SNOOZE_OPTIONS.map((o) => (
               <button
                 key={o.key}
                 onClick={() => { setOpen(false); onSnooze(o.key); }}
-                className="block w-full px-3 py-2 text-left text-xs font-semibold text-navy-700 hover:bg-navy-50 dark:text-slate-200 dark:hover:bg-white/5"
+                className="block w-full px-3 py-2 text-left text-xs font-semibold text-navy-700 sm:text-xs hover:bg-navy-50 dark:text-slate-200 dark:hover:bg-white/5"
               >
                 {o.label}
               </button>
