@@ -1386,3 +1386,14 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   .page-in, .section-in { animation: none; }
 }
+
+/* ── Printing ────────────────────────────────────────────────────────────
+   "Print / save as PDF" on Summary (and any page): the page itself, without
+   the sidebar, top bar, bottom nav or footer, and without the app's
+   fixed-height scrolling box cutting it off after one sheet. */
+@media print {
+  aside, nav, footer, [role="tablist"], .no-print { display: none !important; }
+  html, body, .scroll-area, main { height: auto !important; overflow: visible !important; }
+  .card, .panel { break-inside: avoid; box-shadow: none !important; }
+  body { background: #fff !important; }
+}

@@ -281,7 +281,7 @@ function ReportsInner() {
         )}
 
         {view === "pipeline" && <PipelineView pipeline={pipeline} />}
-        {view === "insights" && <ReportInsights jobs={pipelineJobs} engineerById={(id) => engineers.find((e) => e.id === id)} label={range.label} clients={clients} engineers={engineers} />}
+        {view === "insights" && <ReportInsights jobs={pipelineJobs} engineerById={(id) => engineers.find((e) => e.id === id)} label={range.label} clients={clients} engineers={engineers} allJobs={jobs} />}
 
         {/* Shared period controls — apply to every financial tab except Pipeline */}
         {view !== "pipeline" && view !== "insights" && <>

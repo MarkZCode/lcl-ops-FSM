@@ -27,6 +27,9 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 import { PRIORITIES, STATUSES, filterTasks } from "@/lib/tasks";
+import TaskBoardGrouped from "@/components/team/TaskBoardGrouped";
+import MyDay from "@/components/team/MyDay";
+import WeekSummary from "@/components/team/WeekSummary";
 import TaskBoard from "@/components/team/TaskBoardGrouped";
 import TaskList from "@/components/team/TaskList";
 import NewTaskModal from "@/components/team/NewTaskModal";
@@ -60,6 +63,7 @@ async function authedFetch(url, options = {}) {
 }
 
 const TABS = [
+  { key: "myday",    label: "My day",   icon: FiCheckSquare },
   { key: "board",    label: "Board",    icon: FiGrid },
   { key: "list",     label: "List",     icon: FiList },
   { key: "activity", label: "Activity", icon: FiActivity },
@@ -88,6 +92,8 @@ function TeamInner() {
     search: "",
   });
   const [selected, setSelected] = useState(() => new Set());
+  const [grouped, setGrouped] = useState(false);
+  useEffect(() => { try { setGrouped(localStorage.getItem("lcl-tasks-grouped") === "1"); } catch {} }, []);
   const [focusApplied, setFocusApplied] = useState(false);
 
   const load = useCallback(async () => {
@@ -380,6 +386,8 @@ function TeamInner() {
 
         {tab === "activity" ? (
           <AgentActivity />
+        ) : tab === "myday" ? (
+          <MyDay tasks={tasks} userId={user?.id} onOpen={setOpenTask} onDone={toggleDone} />
         ) : (
           <>
             {/* Filter bar shared by Board + List */}
@@ -408,14 +416,21 @@ function TeamInner() {
                   currentAssignee={filters.assignee}
                   onSelectAssignee={(id) => setFilters((f) => ({ ...f, assignee: id }))}
                 />
+                <WeekSummary tasks={tasks} team={team} />
                 <SuggestedTasks onPromote={promoteSuggestion} />
+                <label className="flex w-max items-center gap-2 text-xs font-semibold text-navy-600">
+                  <input type="checkbox" checked={grouped} onChange={(e) => { setGrouped(e.target.checked); try { localStorage.setItem("lcl-tasks-grouped", e.target.checked ? "1" : "0"); } catch {} }} />
+                  Keep each job&apos;s tasks together
+                </label>
               </>
             )}
 
             {loading ? (
               <div className="card p-8 text-center text-sm text-navy-400">Loading tasks…</div>
             ) : tab === "board" ? (
-              <TaskBoard tasks={filtered} onOpen={setOpenTask} onStatusChange={setStatus} />
+              grouped
+                ? <TaskBoardGrouped tasks={filtered} onOpen={setOpenTask} onStatusChange={setStatus} />
+                : <TaskBoard tasks={filtered} onOpen={setOpenTask} onStatusChange={setStatus} />
             ) : (
               <TaskList
                 tasks={filtered}
@@ -451,6 +466,7 @@ function TeamInner() {
         onClose={closeDetail}
         onSave={saveTask}
         onDelete={removeTask}
+        team={team}
       />
     </>
   );

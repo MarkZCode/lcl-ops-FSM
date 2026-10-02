@@ -523,9 +523,14 @@ function SummaryInner() {
         subtitle={`Everything for ${range.label}, laid out end to end`}
         back={{ label: "Back" }}
         actions={
-          <button onClick={downloadCsv} disabled={busy} className="btn-primary shrink-0">
-            <FiDownload /> <span className="hidden sm:inline">Download CSV</span><span className="sm:hidden">CSV</span>
-          </button>
+          <>
+            <button onClick={() => window.print()} className="btn-outline shrink-0" title="Print this page, or save it as a PDF from the print window">
+              <span className="hidden sm:inline">Print / save as PDF</span><span className="sm:hidden">Print</span>
+            </button>
+            <button onClick={downloadCsv} disabled={busy} className="btn-primary shrink-0">
+              <FiDownload /> <span className="hidden sm:inline">Download CSV</span><span className="sm:hidden">CSV</span>
+            </button>
+          </>
         }
       />
 

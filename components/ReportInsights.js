@@ -7,13 +7,23 @@ import { useMemo } from "react";
 import { gbp } from "@/lib/format";
 import { insights } from "@/lib/insights";
 import { waitLabel } from "@/lib/quoteChecks";
+import { downloadCsv } from "@/lib/jobsView";
+
+// Any table on this page can be taken away as a spreadsheet.
+function exportTable(title, head, rows) {
+  const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+  downloadCsv(`${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.csv`, csv);
+}
 
 function Table({ title, note, head, rows, empty }) {
   return (
     <section className="card overflow-hidden p-0">
-      <div className="border-b border-navy-100 px-5 py-3">
-        <h2 className="panel-title">{title}</h2>
-        {note && <p className="mt-0.5 text-xs text-navy-500">{note}</p>}
+      <div className="flex items-start justify-between gap-3 border-b border-navy-100 px-5 py-3">
+        <div>
+          <h2 className="panel-title">{title}</h2>
+          {note && <p className="mt-0.5 text-xs text-navy-500">{note}</p>}
+        </div>
+        {rows.length > 0 && <button type="button" className="shrink-0 text-xs font-semibold text-brand-600 hover:text-brand-700" onClick={() => exportTable(title, head, rows)}>Export</button>}
       </div>
       {rows.length === 0 ? (
         <p className="px-5 py-6 text-sm text-navy-500">{empty}</p>
@@ -39,8 +49,8 @@ function Table({ title, note, head, rows, empty }) {
   );
 }
 
-export default function ReportInsights({ jobs, engineerById, label, clients = [], engineers = [] }) {
-  const d = useMemo(() => insights(jobs, engineerById, { clients, engineers }), [jobs, engineerById, clients, engineers]);
+export default function ReportInsights({ jobs, engineerById, label, clients = [], engineers = [], allJobs }) {
+  const d = useMemo(() => insights(jobs, engineerById, { clients, engineers, allJobs }), [jobs, engineerById, clients, engineers, allJobs]);
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -60,6 +70,47 @@ export default function ReportInsights({ jobs, engineerById, label, clients = []
           <p className="mt-1 text-xs text-navy-500">{d.lost[0] ? `Most common: ${d.lost[0].reason}` : "Nothing lost in this period"}</p>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="card p-4">
+          <p className="metric-label">Coming up</p>
+          <p className="metric-value mt-1.5 text-xl">{gbp(d.forecast.bookedValue)}</p>
+          <p className="mt-1 text-xs text-navy-500">{d.forecast.bookedCount} accepted or booked · another {gbp(d.forecast.quotedValue)} quoted, not accepted</p>
+        </div>
+        <div className="card p-4">
+          <p className="metric-label">Repeat clients · {label}</p>
+          <p className="metric-value mt-1.5 text-xl">{d.repeat.total ? `${d.repeat.rate}%` : "—"}</p>
+          <p className="mt-1 text-xs text-navy-500">{d.repeat.repeatJobs} of {d.repeat.total} jobs · {gbp(d.repeat.repeatValue)}</p>
+        </div>
+        <div className="card p-4">
+          <p className="metric-label">Cancelled and no-access · {label}</p>
+          <p className="metric-value mt-1.5 text-xl">{gbp(d.losses.cancelledValue)}</p>
+          <p className="mt-1 text-xs text-navy-500">{d.losses.cancelledCount} cancelled · {d.losses.noAccessVisits} no-access visit{d.losses.noAccessVisits === 1 ? "" : "s"}</p>
+        </div>
+      </div>
+
+      <Table
+        title="Money owed, by age"
+        note={`Every unpaid invoice, whatever period is selected. ${gbp(d.debt.total)} owed in all.`}
+        head={["How long", "Invoices", "Owed"]}
+        rows={d.debt.buckets.filter((b) => b.count).map((b) => [b.key, b.count, gbp(b.total)])}
+        empty="Nothing is owed."
+      />
+      {d.debt.rows.length > 0 && (
+        <Table
+          title="Unpaid invoices, oldest first"
+          head={["Job", "Client", "Invoice", "Days", "Owed"]}
+          rows={d.debt.rows.slice(0, 40).map((r) => [r.id, r.client, r.invoice || "—", r.days, gbp(r.owed)])}
+          empty=""
+        />
+      )}
+      <Table
+        title="Renewals due in the next 90 days"
+        note={`${d.forecast.renewalCount} certificate${d.forecast.renewalCount === 1 ? "" : "s"} · ${gbp(d.forecast.renewalValue)} if each is renewed at last time's price.`}
+        head={["Job", "Expires", "Last price"]}
+        rows={d.forecast.renewals.map((j) => [j.id, new Date(j.certExpiry).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), gbp(j.price)])}
+        empty="No certificates fall due in the next 90 days."
+      />
 
       <Table
         title="Where the work comes from"

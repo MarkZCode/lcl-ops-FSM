@@ -5,6 +5,11 @@
 // see is the current state of the mailbox. Click a row → slide-over with
 // the full message body (fetched on demand from /api/gmail/message).
 
+import Link from "next/link";
+import Conversations from "@/components/Conversations";
+import { useStore } from "@/lib/store";
+import { statusMeta } from "@/lib/constants";
+import { toast } from "@/lib/toast";
 import { useEffect, useMemo, useState } from "react";
 import {
   FiInbox, FiSend, FiSearch, FiRefreshCw, FiX, FiMail, FiArrowDown, FiArrowUp, FiStar, FiAlertCircle,
@@ -43,6 +48,19 @@ function fmtFull(iso) {
 
 function InboxInner() {
   const [box, setBox] = useState("all"); // all | inbox | sent
+  // Two views: every client conversation as logged on the jobs (default —
+  // it shows who is waiting on us), or the raw Gmail mailbox.
+  const [mode, setMode] = useState("conversations");
+  const { clients, jobs, logActivity } = useStore();
+  // Which client an address belongs to, and their most recent open job.
+  const jobFor = (email) => {
+    const e = String(email || "").toLowerCase();
+    if (!e) return null;
+    const c = clients.find((x) => String(x.email || "").toLowerCase() === e || String(x.billingEmail || "").toLowerCase() === e || (x.contacts || []).some((k) => String(k.email || "").toLowerCase() === e));
+    if (!c) return null;
+    const mine = jobs.filter((j) => j.clientId === c.id).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return { client: c, job: mine.find((j) => !["paid", "cancelled"].includes(j.status)) || mine[0] || null };
+  };
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -113,8 +131,17 @@ function InboxInner() {
         }
       />
 
+      <div className="px-4 pt-4 sm:px-8">
+        <div className="inline-flex rounded-lg border border-navy-200 bg-white p-0.5 dark:border-white/10 dark:bg-navy-900">
+          <TabBtn label="Client conversations" active={mode === "conversations"} onClick={() => setMode("conversations")} />
+          <TabBtn label="Gmail mailbox" active={mode === "gmail"} onClick={() => setMode("gmail")} />
+        </div>
+      </div>
+
       <div className="p-4 sm:p-8">
-        {notConfigured ? (
+        {mode === "conversations" ? (
+          <Conversations />
+        ) : notConfigured ? (
           <NotConfigured />
         ) : (
           <>
@@ -148,14 +175,29 @@ function InboxInner() {
               <EmptyState />
             ) : (
               <ul className="divide-y divide-navy-100 overflow-hidden rounded-xl border border-navy-200 bg-white dark:divide-white/5 dark:border-white/10 dark:bg-navy-900">
-                {filtered.map((m) => <Row key={m.id} m={m} me={me} onOpen={setActive} />)}
+                {filtered.map((m) => <Row key={m.id} m={m} me={me} onOpen={setActive} linked={jobFor(m.kind === "inbox" ? m.from?.email : m.to?.email)} />)}
               </ul>
             )}
           </>
         )}
       </div>
 
-      <MessageDrawer message={active} onClose={() => setActive(null)} />
+      <MessageDrawer
+        message={active}
+        onClose={() => setActive(null)}
+        linked={active ? jobFor(active.kind === "inbox" ? active.from?.email : active.to?.email) : null}
+        jobs={jobs}
+        onFile={(job, message, text) => {
+          if ((job.activity || []).some((a) => a.meta?.messageId === message.id)) { toast("That email is already on the job."); return; }
+          logActivity(job.id, {
+            type: "email", direction: message.kind === "inbox" ? "in" : undefined,
+            title: message.kind === "inbox" ? "Email from client (filed from the inbox)" : "Email sent (filed from the inbox)",
+            detail: `Subject: ${message.subject || ""}\n\n${String(text || message.snippet || "").slice(0, 4000)}`,
+            at: message.date, by: message.from?.email || "", meta: { messageId: message.id },
+          });
+          toast.success(`Filed on ${job.id}.`);
+        }}
+      />
     </>
   );
 }
@@ -168,14 +210,16 @@ function TabBtn({ label, count, active, onClick, icon }) {
       }`}>
       {icon}
       {label}
-      <span className={`rounded-full px-1.5 text-[10px] font-bold ${
-        active ? "bg-white/20" : "bg-navy-100 text-navy-700 dark:bg-white/10 dark:text-slate-300"
-      }`}>{count}</span>
+      {count != null && (
+        <span className={`rounded-full px-1.5 text-[10px] font-bold ${
+          active ? "bg-white/20" : "bg-navy-100 text-navy-700 dark:bg-white/10 dark:text-slate-300"
+        }`}>{count}</span>
+      )}
     </button>
   );
 }
 
-function Row({ m, me, onOpen }) {
+function Row({ m, me, onOpen, linked }) {
   const isInbound = m.kind === "inbox";
   const other = isInbound ? m.from : m.to;
   const display = other?.name || other?.email || "—";
@@ -203,13 +247,17 @@ function Row({ m, me, onOpen }) {
             {m.subject || "(no subject)"}
           </div>
           <div className="mt-0.5 truncate text-xs text-navy-500 dark:text-slate-400">{m.snippet}</div>
+          {linked?.job && (
+            <div className="mt-1 text-[11px] font-semibold text-brand-700">{linked.client.name} · {linked.job.id} · {statusMeta(linked.job.status)?.label || linked.job.status}</div>
+          )}
         </div>
       </button>
     </li>
   );
 }
 
-function MessageDrawer({ message, onClose }) {
+function MessageDrawer({ message, onClose, linked, jobs = [], onFile }) {
+  const [pick, setPick] = useState("");
   const [full, setFull] = useState(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
@@ -241,10 +289,25 @@ function MessageDrawer({ message, onClose }) {
         </span>
       }
       footer={
-        <a href={`https://mail.google.com/mail/u/0/#all/${message.id}`} target="_blank" rel="noreferrer"
-          className="btn-secondary inline-flex items-center gap-2">
-          <FiMail /> Open in Gmail
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          <a href={`https://mail.google.com/mail/u/0/#all/${message.id}`} target="_blank" rel="noreferrer"
+            className="btn-secondary inline-flex items-center gap-2">
+            <FiMail /> Open in Gmail
+          </a>
+          {/* Put this email on a job's record — the job it matches, or one
+              you choose by reference. */}
+          {linked?.job ? (
+            <>
+              <button type="button" className="btn-outline" onClick={() => onFile(linked.job, message, full?.text)}>File on {linked.job.id}</button>
+              <Link href={`/jobs/${linked.job.id}`} className="btn-outline">Open {linked.job.id}</Link>
+            </>
+          ) : (
+            <>
+              <input className="input h-10 w-32" placeholder="JOB-1234" value={pick} onChange={(e) => setPick(e.target.value.toUpperCase())} aria-label="Job reference to file this email on" />
+              <button type="button" className="btn-outline" disabled={!jobs.some((j) => j.id === pick.trim())} onClick={() => onFile(jobs.find((j) => j.id === pick.trim()), message, full?.text)}>File on job</button>
+            </>
+          )}
+        </div>
       }
     >
       <div className="space-y-4">

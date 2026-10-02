@@ -205,6 +205,11 @@ export default function NotificationBell() {
     // Chime disabled for now — was firing/spamming on app open. The bell
     // badge count above still updates normally; only the audio ping is off.
     // if (fresh.length > 0) playPing();
+    // An URGENT task created in the last few minutes does chime — that is
+    // the "new enquiry needs answering now" case. Anything older (the list
+    // loading, a re-sync) stays silent.
+    const justNow = Date.now() - 3 * 60 * 1000;
+    if (myTasks.some((t) => fresh.includes(t.id) && t.priority === "urgent" && new Date(t.createdAt || 0).getTime() > justNow)) playPing();
     knownMineIds.current = currentIds;
   }, [myTasks, user]);
   // Unassigned "Everyone" tasks are intentionally NOT surfaced here any

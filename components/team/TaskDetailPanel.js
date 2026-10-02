@@ -7,6 +7,7 @@
 //   • Comment box to add an update
 //   • Quick action row (mark in-progress / done, delete)
 
+import { useStore } from "@/lib/store";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -20,7 +21,8 @@ import {
   SNOOZE_OPTIONS, snoozeTask,
 } from "@/lib/tasks";
 
-export default function TaskDetailPanel({ task, onClose, onSave, onDelete }) {
+export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team = [] }) {
+  const { logActivity } = useStore();
   const { user } = useAuth();
   const [notes, setNotes] = useState("");
   const [comment, setComment] = useState("");
@@ -91,7 +93,18 @@ export default function TaskDetailPanel({ task, onClose, onSave, onDelete }) {
             </button>
           )}
           {task.status !== "done" && (
-            <SnoozeMenu onSnooze={(days) => onSave(snoozeTask(task, days, { id: user.id, name: user.name || user.email }))} />
+            <SnoozeMenu onSnooze={(days) => {
+              // A snooze says why — on the task, and on the job it belongs to,
+              // so whoever opens the job sees why nothing is happening.
+              const reason = window.prompt("Why is this being put off? (Shown on the task and the job.)");
+              if (reason === null) return;
+              const actor = { id: user.id, name: user.name || user.email };
+              const next = snoozeTask(task, days, actor);
+              if (reason.trim()) next.updates = [...next.updates.slice(0, -1), { ...next.updates[next.updates.length - 1], text: `${next.updates[next.updates.length - 1].text} — ${reason.trim()}` }];
+              next.snoozedUntil = next.dueDate;
+              onSave(next);
+              if (task.linkedTo?.kind === "job") logActivity(task.linkedTo.id, { type: "status", title: `Task put off to ${next.dueDate}: ${task.title}`, detail: reason.trim(), by: actor.name });
+            }} />
           )}
           {task.status === "done" && (
             <button className="btn-outline" onClick={() => setStatus("open")}>Reopen</button>
@@ -116,6 +129,43 @@ export default function TaskDetailPanel({ task, onClose, onSave, onDelete }) {
           <Meta icon={FiBell} label="Cadence" value={c.label.replace(" (3× / day)", "")} />
           <Meta icon={FiClock} label="Status" value={s.label} chipClass={s.chip} />
         </div>
+
+        {/* How it went against its deadline, once it's done. */}
+        {task.status === "done" && task.completedAt && task.createdAt && (() => {
+          const mins = Math.max(0, Math.round((new Date(task.completedAt) - new Date(task.createdAt)) / 60000));
+          const span = (m) => (m < 60 ? `${m} minutes` : m < 1440 ? `${(m / 60).toFixed(1)} hours` : `${(m / 1440).toFixed(1)} days`);
+          const late = task.dueAt && new Date(task.completedAt) > new Date(task.dueAt);
+          return (
+            <p className={`rounded-lg px-3 py-2 text-xs ${late ? "bg-rose-50 text-rose-700" : "bg-brand-50 text-brand-800"}`}>
+              Finished in {span(mins)}{task.slaMinutes ? ` · the time allowed was ${span(task.slaMinutes)} of office hours` : ""}{late ? " — after its deadline" : ""}.
+            </p>
+          );
+        })()}
+
+        {/* Hand it to a colleague, with a note so they know why. */}
+        {task.status !== "done" && team.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-navy-600">Hand over to</span>
+            <select
+              className="input h-8 w-auto py-0 text-xs"
+              value=""
+              onChange={(e) => {
+                const to = team.find((m) => m.id === e.target.value);
+                if (!to) return;
+                const note = window.prompt(`A note for ${to.name} (optional):`);
+                if (note === null) return;
+                const actor = { id: user.id, name: user.name || user.email };
+                onSave({
+                  ...task, assigneeId: to.id, assigneeName: to.name, escalationLevel: 0,
+                  updates: [...(task.updates || []), { at: new Date().toISOString(), by: actor, kind: "status", text: `Handed over from ${task.assigneeName || "nobody"} to ${to.name}${note.trim() ? ` — ${note.trim()}` : ""}` }],
+                });
+              }}
+            >
+              <option value="">Choose…</option>
+              {team.filter((m) => m.id !== task.assigneeId).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Priority + source */}
         <div className="flex flex-wrap gap-2">

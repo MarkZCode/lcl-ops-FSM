@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendEmailRaw } from "@/lib/emailSend";
 import { mailboxForPurpose, resolveProvider } from "@/lib/emailProviders";
 import { invoiceConfig } from "@/lib/invoiceConfig";
+import { jobBalance } from "@/lib/payments";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -50,12 +51,26 @@ export async function GET(request) {
       return NextResponse.json({ ok: false, error: "Backup is too large to email", bytes: gz.length }, { status: 500 });
     }
 
+    // Last week in five figures, at the top of the same Monday email.
+    const weekAgo = Date.now() - 7 * 86400_000;
+    const inWeek = (iso) => iso && new Date(iso).getTime() >= weekAgo;
+    const gbp = (n) => `£${(Number(n) || 0).toFixed(2)}`;
+    const live = jobs.filter((j) => j.status !== "cancelled");
+    const figures = [
+      `New jobs: ${jobs.filter((j) => inWeek(j.createdAt)).length}`,
+      `Quotes accepted: ${jobs.filter((j) => inWeek(j.acceptedAt)).length}`,
+      `Invoiced: ${gbp(live.filter((j) => inWeek(j.invoicedAt)).reduce((s, j) => s + (Number(j.price) || 0), 0))}`,
+      `Paid: ${gbp(live.filter((j) => inWeek(j.paidAt)).reduce((s, j) => s + (Number(j.price) || 0), 0))}`,
+      `Owed to us now: ${gbp(live.filter((j) => j.status === "invoiced").reduce((s, j) => s + jobBalance(j), 0))}`,
+    ].join("\n");
+
     const to = process.env.BACKUP_EMAIL || invoiceConfig.accountsEmail || process.env.GMAIL_USER;
     const routed = mailboxForPurpose("invoice");
     const result = await sendEmailRaw({
       to,
-      subject: `LCL Ops weekly backup — ${stamp}`,
+      subject: `LCL Ops — last week's figures and backup, ${stamp}`,
       text:
+        `LAST WEEK\n${figures}\n\n` +
         `Attached is this week's backup of LCL Ops: ${jobs.length} jobs, ${clients.length} clients and ${engineers.length} engineers.\n\n` +
         `Keep this email. The attachment is a compressed file (.json.gz) holding client details — don't forward it.\n\n` +
         `Sent automatically every Monday.`,
