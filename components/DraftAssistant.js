@@ -95,7 +95,7 @@ export default function DraftAssistant({ job, client, property }) {
   return (
     <>
       <button type="button" className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700" onClick={() => { setOpen(true); setDraft(""); setError(""); }}>
-        <FiEdit3 /> Draft a reply with the assistant
+        <FiEdit3 /> Draft a reply
       </button>
       <Modal open={open} onClose={() => setOpen(false)} wide title={`Draft a reply — ${job.id}`} footer={
         <>

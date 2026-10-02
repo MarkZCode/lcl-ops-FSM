@@ -145,13 +145,15 @@ export default function ClientQuickActions({ job, client, property, engineerConf
           {PLAYBOOKS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
         </select>
       </label>
-      <DraftAssistant job={job} client={client} property={property} />
-      <button type="button" className="inline-flex items-center gap-1.5 font-semibold text-navy-600 hover:text-brand-600" onClick={() => setHistory(true)}>
-        <FiList /> Message record for this job
-      </button>
-      <div>
-        <p className="mb-1 font-semibold uppercase tracking-wide text-navy-400">Log a call</p>
-        <input className="input mb-1.5 h-8 py-0 text-xs" placeholder="What was said (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <DraftAssistant job={job} client={client} property={property} />
+        <button type="button" className="inline-flex items-center gap-1.5 font-semibold text-navy-600 hover:text-brand-600" onClick={() => setHistory(true)}>
+          <FiList /> Message record
+        </button>
+      </div>
+      <details>
+        <summary className="cursor-pointer font-semibold text-navy-600 hover:text-brand-600">Log a call</summary>
+        <input className="input mb-1.5 mt-1.5 h-8 py-0 text-xs" placeholder="What was said (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         <div className="flex flex-wrap gap-1.5">
           {CALLS.map((c) => (
             <button key={c.key} type="button" onClick={() => logCall(c)} className="inline-flex items-center gap-1 rounded-lg border border-navy-200 px-2 py-1 font-semibold text-navy-600 hover:border-brand-300 hover:text-brand-600">
@@ -159,7 +161,7 @@ export default function ClientQuickActions({ job, client, property, engineerConf
             </button>
           ))}
         </div>
-      </div>
+      </details>
 
       <Modal open={!!book} onClose={() => setBook(null)} title={book?.label || ""} footer={
         <>

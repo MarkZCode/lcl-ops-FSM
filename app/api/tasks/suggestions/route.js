@@ -74,72 +74,10 @@ export async function GET(request) {
     });
   }
 
-  // ── Unread inbound replies (last 3 days) ─────────────────────────────────
-  const clientsById = new Map((clientRows.data || []).map((r) => [r.id, r.data]));
-  const replyCutoff = now.getTime() - REPLY_LOOKBACK_HOURS * 3600_000;
-  for (const row of jobRows.data || []) {
-    const job = row.data;
-    if (!job) continue;
-    const reply = (job.activity || [])
-      .filter((a) => a.direction === "in" && new Date(a.at).getTime() >= replyCutoff)
-      .sort((a, b) => new Date(b.at) - new Date(a.at))[0];
-    if (!reply) continue;
-    if (linkedOpenKeys.has(`job:${row.id}`)) continue;
-    const client = clientsById.get(job.clientId);
-    const hrs = Math.max(0, Math.floor((now.getTime() - new Date(reply.at).getTime()) / 3600_000));
-    suggestions.push({
-      kind: "reply",
-      priority: hrs > 24 ? "urgent" : "normal",
-      title: `Reply from ${client?.name || "client"} on ${job.id}`,
-      subtitle: hrs < 1 ? "Just now" : hrs < 24 ? `${hrs}h ago` : `${Math.floor(hrs / 24)}d ago`,
-      dueOffsetDays: 0,
-      linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
-      sortKey: -hrs,
-    });
-  }
-
-  // ── Stale quotes (>3 days since last activity) ───────────────────────────
-  const quoteStaleCutoff = now.getTime() - QUOTE_STALE_DAYS * 86400_000;
-  for (const row of jobRows.data || []) {
-    const job = row.data;
-    if (!job || job.status !== "quote") continue;
-    if (linkedOpenKeys.has(`job:${row.id}`)) continue;
-    const lastActivity = (job.activity || [])
-      .map((a) => new Date(a.at).getTime())
-      .filter((t) => !isNaN(t))
-      .sort((a, b) => b - a)[0] || new Date(job.createdAt || 0).getTime();
-    if (!lastActivity || lastActivity > quoteStaleCutoff) continue;
-    const client = clientsById.get(job.clientId);
-    const daysSince = Math.floor((now.getTime() - lastActivity) / 86400_000);
-    suggestions.push({
-      kind: "quote_followup",
-      priority: daysSince > 7 ? "urgent" : "normal",
-      title: `Follow up quote ${job.id}${client?.name ? ` · ${client.name}` : ""}`,
-      subtitle: `Quote sat ${daysSince}d with no activity`,
-      dueOffsetDays: 0,
-      linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
-      sortKey: -daysSince,
-    });
-  }
-
-  // ── Booked/scheduled jobs without an assigned engineer ────────────────────
-  for (const row of jobRows.data || []) {
-    const job = row.data;
-    if (!job) continue;
-    if (!["scheduled", "in_progress"].includes(job.status)) continue;
-    if (job.engineerId && job.engineerId !== "unassigned") continue;
-    if (linkedOpenKeys.has(`job:${row.id}`)) continue;
-    const client = clientsById.get(job.clientId);
-    suggestions.push({
-      kind: "job_unassigned",
-      priority: "urgent",
-      title: `Assign engineer to ${job.id}`,
-      subtitle: `${job.status === "scheduled" ? "Scheduled" : "In progress"} · no engineer set`,
-      dueOffsetDays: 0,
-      linkedTo: { kind: "job", id: row.id, label: `${job.id} · ${client?.name || ""}`.trim() },
-      sortKey: -1000,
-    });
-  }
+  // Job tasks (reply, chase the quote, assign an engineer…) are NOT
+  // suggested here any more. They are created automatically, with the same
+  // rules as the job page's "Next step" (lib/taskEngine.js) — a second,
+  // simpler rule set here was suggesting chases the notes said not to make.
 
   // Urgent first, then by their internal sortKey (overdue-most / most stale first).
   suggestions.sort((a, b) => {

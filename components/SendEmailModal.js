@@ -25,9 +25,6 @@ import { blockersForScheduling } from "@/lib/visits";
 import { bookingMissing } from "@/lib/gates";
 import { toast } from "@/lib/toast";
 
-const URGENCY_LINE =
-  "Our diary for this week is filling up quickly, so if you'd like to go ahead, just reply today and I'll hold the earliest available slot for you.";
-
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
@@ -45,7 +42,6 @@ export default function SendEmailModal({
   client,
   property,
   defaultTemplate,
-  urgency = false,
 }) {
   const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob, generateShareToken, bankAccounts, invoiceBankId, engineerById } = useStore();
   // The account this job's invoice carries: the one already used, else the
@@ -194,7 +190,7 @@ export default function SendEmailModal({
       initRef.current = null;
       return;
     }
-    const currentSession = `${tplKey}-${job?.id || 'none'}-${urgency ? "u" : ""}`;
+    const currentSession = `${tplKey}-${job?.id || 'none'}`;
     if (initRef.current === currentSession) return;
     initRef.current = currentSession;
 
@@ -209,10 +205,6 @@ export default function SendEmailModal({
     // sender's name, and the body now opens with "this is {{sender}} here"
     // — signing off as someone else would give the whole thing away.
     const sig = email.signature ? `\n\n${renderTemplate(email.signature, ctx)}` : "";
-    // The booking-urgency line: added to the quote when it's the answer to
-    // a fresh website/email enquiry, between the message and the sign-off.
-    // It's ordinary text in the box — edit or delete it before sending.
-    const nudge = urgency && tplKey === "quote" ? `\n\n${URGENCY_LINE}` : "";
     // A quote carries the link where the client can accept it in one tap.
     let acceptLine = "";
     if (tplKey === "quote" && job?.id && job.status === "quote" && !job.acceptedAt && typeof window !== "undefined") {
@@ -227,7 +219,7 @@ export default function SendEmailModal({
     // The engineer's courtesy call, when one has been arranged.
     const callLine = tplKey === "booking" && job?.callBefore && !/no call/i.test(job.callBefore)
       ? `\n\nYour engineer will ${job.callBefore.replace(/^Call/i, "call")}.` : "";
-    setBody(renderTemplate(tpl.body, ctx) + callLine + noAccessLine + acceptLine + nudge + sig);
+    setBody(renderTemplate(tpl.body, ctx) + callLine + noAccessLine + acceptLine + sig);
     // Invoices go to the billing email when the client has one.
     setTo((["invoice", "job_completed"].includes(tplKey) && client?.billingEmail) || client?.email || "");
     setPhone(client?.phone || "");

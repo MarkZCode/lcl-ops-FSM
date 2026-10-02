@@ -95,7 +95,6 @@ export default function JobDetailPage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [emailTemplateOverride, setEmailTemplateOverride] = useState(null);
-  const [emailUrgency, setEmailUrgency] = useState(false);
 
   // On mount, pull the freshest version of this job from Supabase so activity
   // written by the webhook (while the app was closed/idle) is visible immediately.
@@ -220,7 +219,6 @@ export default function JobDetailPage() {
   const handleNextStep = (what, action) => {
     if (!job) return;
     if (what.startsWith("email:")) {
-      setEmailUrgency(action?.key === "send_quote_urgent");
       setEmailTemplateOverride(what.slice(6));
       setEmailOpen(true);
       return;
@@ -351,7 +349,7 @@ export default function JobDetailPage() {
     if (!job || !client?.phone) return;
     const what = (job.services || []).filter((c) => !isAddonCode(c)).map((c) => certLabel(c)).join(" and ");
     const where = property?.postcode ? ` at ${property.postcode}` : "";
-    const msg = `${greetingNow()} ${firstName(client.name)}, this is ${jobSender(job)} from Landlord Compliance London. Thank you for your enquiry${what ? ` about the ${what}` : ""}${where} — we've received it and I'm putting your quote together now. You'll have it from me shortly.`;
+    const msg = `${greetingNow()} ${firstName(client.name)}, this is ${jobSender(job)} from Landlord Compliance London. Thank you for your enquiry${what ? ` regarding the ${what}` : ""}${where}.\n\nWe'd be happy to arrange this for you and will come back to you with the quote shortly.`;
     if (!openWhatsAppChat(client.phone, msg)) return;
     updateJob(job.id, { enquiryRepliedAt: new Date().toISOString() });
     logActivity(job.id, { type: "whatsapp", title: "WhatsApp reply to the enquiry opened", detail: msg, by: who() });
@@ -574,17 +572,11 @@ export default function JobDetailPage() {
             })()}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Accepting a quote records the CLIENT'S yes. It used to try to
-                jump straight to Scheduled and, if anything wasn't booked yet,
-                refuse and save nothing — so the acceptance itself was lost.
-                Now it's always recorded; the job moves to Scheduled on its own
-                once an engineer and date are confirmed, and Next step says
-                what's missing. */}
-            {job.status === "quote" && !job.acceptedAt && (
-              <button className="btn-primary" onClick={acceptQuote}>
-                <FiCheckCircle /> Accept quote
-              </button>
-            )}
+            {/* "Client accepted" lives in the quote card just below (with
+                sent / will get back / declined) — one place, not a second
+                button up here. Accepting records the CLIENT'S yes; the job
+                moves to Scheduled on its own once an engineer and date are
+                confirmed, and Next step says what's missing. */}
             {job.status === "quote" && job.acceptedAt && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700">
                 <FiCheckCircle /> Accepted — booking in progress
@@ -1602,11 +1594,10 @@ export default function JobDetailPage() {
       />
       <SendEmailModal
         open={emailOpen}
-        onClose={() => { setEmailOpen(false); setEmailTemplateOverride(null); setEmailUrgency(false); }}
+        onClose={() => { setEmailOpen(false); setEmailTemplateOverride(null); }}
         job={job}
         client={client}
         property={property}
-        urgency={emailUrgency}
         defaultTemplate={emailTemplateOverride || defaultEmailTemplate}
       />
       <JobCardModal

@@ -45,7 +45,7 @@ const SETTINGS_NAV = [
   { id: "profile", label: "Users & access" },
   { id: "engineers", label: "Engineers" },
   { id: "services", label: "Service catalogue & pricing" },
-  { id: "push", label: "Urgent outreach alerts" },
+  { id: "push", label: "Notifications, away & backup" },
   { id: "auto-notify", label: "Auto-notifications" },
   { id: "gmail", label: "Gmail push notifications" },
   { id: "integrations", label: "Integrations roadmap" },
@@ -255,7 +255,7 @@ function PushNotificationsSection() {
   return (
     <section>
       <h2 className="mb-3 section-label text-sm">
-        Urgent outreach alerts
+        Notifications, away &amp; backup
       </h2>
       <div className="card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -786,7 +786,7 @@ function SettingsInner() {
           </section>
         </SettingsGroup>
 
-        <SettingsGroup title="Urgent outreach alerts" id="push">
+        <SettingsGroup title="Notifications, away & backup" id="push">
   {/* Urgent outreach push notifications (phone + laptop) */}
           <PushNotificationsSection />
         </SettingsGroup>
