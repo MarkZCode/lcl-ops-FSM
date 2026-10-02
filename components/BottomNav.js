@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { useHideWhileScrolling } from "@/lib/useHideOnScroll";
 import { visibleNavLinks, visibleUtilityLinks, PRIMARY_HREFS } from "@/lib/nav";
 
 // App-style bottom tab bar for mobile. Black surface matching the dark
@@ -43,30 +43,12 @@ export default function BottomNav() {
 
   const isActive = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
-  // Out of the way while reading down a page; back the moment you scroll
-  // up, reach the top or the bottom, change page, or stop for a second and
-  // a half — so it is never more than a pause away. (Asked for by the owner,
-  // Oct 2026. Earlier versions of this came back only on a scroll up, or
-  // flickered during a flick; the pause timer and the 12px threshold are
-  // what is different here.)
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => { setHidden(false); }, [pathname]);
-  useEffect(() => {
-    let last = window.scrollY;
-    let idle = null;
-    const onScroll = () => {
-      const y = window.scrollY;
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      if (y < 60 || y > max - 60) setHidden(false);
-      else if (y - last > 12) setHidden(true);
-      else if (last - y > 12) setHidden(false);
-      if (Math.abs(y - last) > 12) last = y;
-      clearTimeout(idle);
-      idle = setTimeout(() => setHidden(false), 1500);
-    };
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => { window.removeEventListener("scroll", onScroll); clearTimeout(idle); };
-  }, []);
+  // Moves exactly as the top bar does: away while the page is moving, back
+  // the moment it stops. Same hook, same timing (lib/useHideOnScroll.js) —
+  // it listens on the document in the capture phase, because on a phone the
+  // page scrolls inside <body>, where a plain window scroll listener never
+  // fires (which is why the first version of this did nothing).
+  const hidden = useHideWhileScrolling({ resetKey: pathname });
 
   return (
     <nav
