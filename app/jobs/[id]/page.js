@@ -736,7 +736,7 @@ export default function JobDetailPage() {
               </button>
               {moreOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} aria-hidden />
+                  <div className="menu-backdrop fixed inset-0 z-10" onClick={() => setMoreOpen(false)} aria-hidden />
                   {/* Anchored LEFT by default, right-aligned only from sm up.
                       It was the other way round: right-0 hangs the menu off
                       the button's right edge and grows leftwards, and on a
@@ -744,7 +744,7 @@ export default function JobDetailPage() {
                       the action row — so the menu ran straight off the left
                       edge of the screen and every item was clipped to a
                       couple of letters. */}
-                  <div className="absolute left-0 top-full z-20 mt-1 min-w-[10.5rem] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg sm:left-auto sm:right-0">
+                  <div className="menu-pop absolute left-0 top-full z-20 mt-1 min-w-[10.5rem] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg sm:left-auto sm:right-0">
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" title="The engineer's own page for this job: confirm or decline, on my way, running late, arrived, finished, upload the certificate" onClick={() => {
                       setMoreOpen(false);
                       const token = job.confirmToken || Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);

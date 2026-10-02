@@ -387,8 +387,8 @@ export default function Dashboard() {
             </button>
             {customiseOpen && (
               <>
-                <div className="fixed inset-0 z-10" onClick={() => setCustomiseOpen(false)} aria-hidden />
-                <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg dark:bg-[#141414]">
+                <div className="menu-backdrop fixed inset-0 z-10" onClick={() => setCustomiseOpen(false)} aria-hidden />
+                <div className="menu-pop absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg dark:bg-[#141414]">
                   <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-navy-400">Show on my dashboard</p>
                   {DASH_PANELS.map(([k, l]) => (
                     <button key={k} type="button" className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => togglePanel(k)}>

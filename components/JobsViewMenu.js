@@ -17,8 +17,8 @@ export default function JobsViewMenu({ views, onApply, onSave, onDelete, compact
       </button>
       {open && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <div role="menu" className="absolute right-0 top-full z-20 mt-1 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg dark:bg-[#141414]">
+          <div className="menu-backdrop fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+          <div role="menu" className="menu-pop absolute right-0 top-full z-20 mt-1 w-64 max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg dark:bg-[#141414]">
             <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-navy-400">Saved views</p>
             {views.length === 0 && <p className="px-3 pb-2 text-xs text-navy-400">None yet. Set the filter, search and sort you want, then save it.</p>}
             {views.map((v) => (
