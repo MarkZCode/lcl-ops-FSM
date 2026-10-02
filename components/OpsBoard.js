@@ -23,7 +23,6 @@ export default function OpsBoard() {
   const tiles = useMemo(() => {
     const jobs = myEngId ? allJobs.filter((j) => jobBelongsToEngineer(j, myEngId)) : allJobs;
     const now = Date.now();
-    const today = ukDate(now);
     const tomorrow = ukDate(now + DAY);
     const live = jobs.filter((j) => j.status !== "cancelled");
     const real = (j) => getJobLines(j).some((l) => !isAddonCode(l.code));
@@ -36,7 +35,6 @@ export default function OpsBoard() {
     const t = (key, label, list, tone = "navy", note = "") => ({ key, label, list, tone, note });
 
     return [
-      t("today", "Today's jobs", pick((j) => j.scheduledAt && ukDate(j.scheduledAt) === today && !done(j))),
       t("tomorrow", "Tomorrow's jobs", pick((j) => j.scheduledAt && ukDate(j.scheduledAt) === tomorrow && !done(j))),
       t("engineer", "Awaiting an engineer", pick((j) => !done(j) && real(j) && !hasEng(j) && (j.acceptedAt || j.scheduledAt)), "amber"),
       t("offer", "Engineer hasn't confirmed", pick((j) => !done(j) && hasEng(j) && j.scheduledAt && blockersForScheduling(j, name).length > 0), "amber"),

@@ -22,6 +22,7 @@ import { buildInvoicePrefill, overridesKey } from "@/lib/invoiceData";
 import { toWhatsAppNumber, cleanWhatsAppText } from "@/lib/whatsapp";
 import { bankForJob } from "@/lib/bank";
 import { blockersForScheduling } from "@/lib/visits";
+import { bookingMissing } from "@/lib/gates";
 import { toast } from "@/lib/toast";
 
 const URGENCY_LINE =
@@ -151,8 +152,20 @@ export default function SendEmailModal({
   const ctx = buildContext({ job, client, property, email, bank });
   // A booking confirmation tells the client it's booked. It doesn't go until
   // every engineer on the job has actually confirmed.
-  const bookingBlockers = job && ["booking", "reminder"].includes(tplKey) ? blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer") : [];
+  const bookingBlockers = job && ["booking", "reminder"].includes(tplKey) ? [...blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer")] : [];
+  if (job && ["booking", "reminder"].includes(tplKey)) {
+    for (const m of bookingMissing(job, { client, property })) bookingBlockers.push(`missing ${m.label}`);
+  }
   const bookingBlocked = bookingBlockers.length > 0;
+  // One reason this message must not go yet, by ANY route — the email
+  // button, the WhatsApp button or the mail app. Empty when it's fine.
+  const blockedReason = bookingBlocked
+    ? `the booking isn't confirmed yet: ${bookingBlockers.join("; ")}.`
+    : isCertEmail && job && (job.amendments || []).some((a) => !a.resolvedAt)
+      ? "a correction to this certificate is still open."
+      : isCertEmail && job && !job.certCheckedAt
+        ? "the certificate hasn't been checked yet. Tick the checklist in the Certificate panel on the job first."
+        : "";
 
   // Open on the requested template (e.g. "renewal" for reminders).
   // `templates` used to sit in this effect's dependency array — that object
@@ -303,19 +316,9 @@ export default function SendEmailModal({
   };
 
   const handleSend = async () => {
-    if (isCertEmail && job && !job.certCheckedAt) {
+    if (blockedReason) {
       setStatus("error");
-      setMessage("Not sent — the certificate hasn't been checked yet. Tick the checklist in the Certificate panel on the job first.");
-      return;
-    }
-    if (isCertEmail && job && (job.amendments || []).some((a) => !a.resolvedAt)) {
-      setStatus("error");
-      setMessage("Not sent — a correction to this certificate is still open.");
-      return;
-    }
-    if (bookingBlocked) {
-      setStatus("error");
-      setMessage(`Not sent — the booking isn't confirmed yet: ${bookingBlockers.join("; ")}.`);
+      setMessage(`Not sent — ${blockedReason}`);
       return;
     }
     setStatus("sending");
@@ -496,7 +499,7 @@ export default function SendEmailModal({
           <button className="btn-outline" onClick={onClose}>
             Close
           </button>
-          {waLinks && isPhone && (
+          {waLinks && isPhone && !blockedReason && (
             <a
               className="btn bg-[#25D366] text-white hover:bg-[#1ebe5b]"
               href={waLinks.mobile}
@@ -507,7 +510,7 @@ export default function SendEmailModal({
               <FaWhatsapp /> WhatsApp
             </a>
           )}
-          {waLinks && !isPhone && (
+          {waLinks && !isPhone && !blockedReason && (
             <span className="inline-flex overflow-hidden rounded-full">
               <a
                 className="btn rounded-none bg-[#25D366] text-white hover:bg-[#1ebe5b]"
@@ -531,9 +534,9 @@ export default function SendEmailModal({
               </a>
             </span>
           )}
-          <a className="btn-outline" href={mailto}>
+{!blockedReason && (          <a className="btn-outline" href={mailto}>
             <FiExternalLink /> Mail app
-          </a>
+          </a>)}
           <button
             className="btn-primary"
             onClick={handleSend}
@@ -557,6 +560,11 @@ export default function SendEmailModal({
       }
     >
       <div className="space-y-4">
+        {blockedReason && (
+          <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm font-semibold text-rose-700">
+            This can&apos;t be sent yet — {blockedReason}
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           {JOB_TEMPLATE_PURPOSES.filter((key) => templates[key]).map((key) => (
             <button

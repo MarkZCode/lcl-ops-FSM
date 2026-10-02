@@ -117,7 +117,9 @@ export default function RemedialPanel({ job, onCreateRemedial }) {
           <button type="button" className="btn-outline py-1.5 text-xs" onClick={add}><FiPlus /> Add</button>
         </div>
       )}
-      {!isRemedialJob && !child && findings.some((f) => !f.voidedAt) && onCreateRemedial && (
+      {/* When the outcome is marked Failed/Advisory, "Outcome & follow-up"
+          above already has this button. */}
+      {!isRemedialJob && !child && !["fail", "advisory"].includes(job.outcome) && findings.some((f) => !f.voidedAt) && onCreateRemedial && (
         <button type="button" className="btn-outline mt-3" onClick={() => onCreateRemedial("remedial")}><FiPlus /> Create the remedial job</button>
       )}
 

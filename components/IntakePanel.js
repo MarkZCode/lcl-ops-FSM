@@ -39,9 +39,12 @@ export default function IntakePanel({ job, client, property }) {
 
   const intake = job.intake || {};
   const fields = intakeFieldsFor(job);
-  const needQuote = quoteMissing(job, { client, property });
+  const quoting = job.status === "quote" && !job.acceptedAt;
+  // While quoting, ask only for what changes the price; from acceptance on,
+  // everything the booking and the engineer need.
+  const needQuote = quoteMissing(job, { client, property }, { all: !quoting });
   const needBooking = bookingMissing(job, { client, property });
-  const missing = job.status === "quote" && !job.acceptedAt
+  const missing = quoting
     ? needQuote
     : [...needBooking, ...needQuote.filter((q) => !needBooking.some((b) => b.key === q.key))];
   const set = (field, value) => updateJob(job.id, { intake: { ...intake, [field]: value } });

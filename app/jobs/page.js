@@ -137,6 +137,7 @@ export default function JobsPage() {
   // disagrees with it.
   // The next step for every job, worked out once. To-do ignores the period
   // filter on purpose: an unpaid invoice from March is still today's job.
+  const clientOf = (j) => clients.find((c) => c.id === j.clientId);
   const nextByJob = useMemo(() => {
     const m = new Map();
     const byId = new Map(clients.map((c) => [c.id, c]));
@@ -165,7 +166,7 @@ export default function JobsPage() {
   const jobMatchesStatus = (job, targetStatus) => {
     if (targetStatus === "todo") return nextByJob.has(job.id);
     if (targetStatus.startsWith("todo:")) return nextByJob.get(job.id)?.group === targetStatus.slice(5);
-    if (targetStatus.startsWith("quote:")) return job.status === "quote" && quoteStage(job) === targetStatus.slice(6);
+    if (targetStatus.startsWith("quote:")) return job.status === "quote" && quoteStage(job, undefined, clientOf(job)) === targetStatus.slice(6);
     // Tabs are STAGES: "Paid" is paid-but-not-yet-certified, "Certified" the rest.
     return targetStatus === "all" || jobStage(job) === targetStatus;
   };
@@ -315,7 +316,7 @@ export default function JobsPage() {
           <div className="-mt-3 mb-5 flex flex-wrap gap-2">
             <FilterPill active={statusFilter === "quote"} onClick={() => setStatusFilter("quote")} label="All quotes" count={counts.quote || 0} />
             {QUOTE_STAGES.map((q) => {
-              const n = inPeriod.filter((j) => j.status === "quote" && quoteStage(j) === q.key).length;
+              const n = inPeriod.filter((j) => j.status === "quote" && quoteStage(j, undefined, clientOf(j)) === q.key).length;
               if (!n) return null;
               return (
                 <FilterPill key={q.key} active={statusFilter === `quote:${q.key}`} onClick={() => setStatusFilter(`quote:${q.key}`)} label={q.label} count={n} />

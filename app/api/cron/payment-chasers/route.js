@@ -33,6 +33,7 @@ export async function GET(request) {
     return NextResponse.json({ skipped: true, reason: "Automatic payment chasers are switched off" });
   }
   const emailCfg = settings.data.email || {};
+  const { data: bankRow } = await supabaseAdmin.from("app_settings").select("data").eq("id", "bank_accounts").maybeSingle();
 
   const [{ data: jobRows }, { data: clientRows }, { data: supp }] = await Promise.all([
     supabaseAdmin.from("jobs").select("id,data").eq("data->>status", "invoiced"),
@@ -62,7 +63,7 @@ export async function GET(request) {
     const ref = job.invoiceNumber ? `invoice ${job.invoiceNumber}` : `invoice ${job.id}`;
     const first = String(client.billingName || client.name || "").trim().split(/\s+/)[0] || "there";
     // The account printed on THIS job's invoice.
-    const b = bankForJob(job, settings.data.bankAccounts, settings.data.invoiceBankId);
+    const b = bankForJob(job, bankRow?.data?.accounts, bankRow?.data?.activeId);
     const text =
       `Hi ${first},\n\n` +
       (stage.n === 1

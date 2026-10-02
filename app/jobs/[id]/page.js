@@ -279,6 +279,9 @@ export default function JobDetailPage() {
       case "quote_sent":
         markQuoteSent();
         return;
+      case "certcheck":
+        scrollToId("certificate");
+        return;
       case "intake":
         scrollToId("job-details");
         return;
@@ -651,7 +654,7 @@ export default function JobDetailPage() {
           {/* Quote levels — where the quote actually is, and one-tap records
               for what happened on WhatsApp or the phone. */}
           {job.status === "quote" && (() => {
-            const stage = quoteStage(job);
+            const stage = quoteStage(job, undefined, client);
             const idx = QUOTE_STAGES.findIndex((q) => q.key === stage);
             return (
               <section className="card p-4">
@@ -1198,7 +1201,9 @@ export default function JobDetailPage() {
           </section>
           )}
 
-          <CertificateDesk job={job} />
+          <div id="certificate" className="scroll-mt-24">
+            <CertificateDesk job={job} />
+          </div>
 
           {/* Documents & photos */}
           <div id="documents" className="scroll-mt-24">

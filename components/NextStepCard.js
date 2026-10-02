@@ -29,6 +29,7 @@ const BUTTON_LABEL = {
   quote_sent: "Mark it sent",
   quote_checked: "Checked — it's right",
   intake: "Open job details",
+  certcheck: "Open the checklist",
   access: "Go to booking",
   access_confirmed: "Access is confirmed",
   payment: "Go to payment",

@@ -12,7 +12,7 @@ import { rankEngineers, engineerUnavailable, samePostcodeJobs } from "@/lib/book
 import { openWhatsAppChat } from "@/lib/whatsapp";
 import { greetingNow, firstName, jobSender } from "@/lib/email";
 import { accessPhone, windowStr } from "@/lib/jobCard";
-import { isSplit } from "@/lib/visits";
+import { isSplit, blockersForScheduling } from "@/lib/visits";
 import { fmtDate, getJobLines } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
@@ -28,7 +28,8 @@ export default function BookingAssist({ job, client, property, onReschedule }) {
   const eng = unassigned ? null : engineerById(job.engineerId);
   const off = eng ? engineerUnavailable(eng, job.scheduledAt) : null;
   const neighbours = samePostcodeJobs(job, { jobs, clients });
-  const booked = job.scheduledAt && !unassigned;
+  // Booked = a date, an engineer, and the engineer's confirmation.
+  const booked = job.scheduledAt && !unassigned && blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer").length === 0;
   const isToday = job.scheduledAt && new Date(job.scheduledAt).toDateString() === new Date().toDateString();
 
   const onTheWay = () => {
