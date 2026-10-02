@@ -54,6 +54,10 @@ export default function VisitsPanel({ job, onCancelLines }) {
 
   // Nothing to split — don't clutter a one-service job with this.
   if (!split && realLines.length < 2) return null;
+  // Splitting is for services on different DAYS (different engineers on one
+  // day are chosen in the Engineer block). Not offered before the client
+  // has accepted, or once the job is finished or cancelled.
+  if (!split && ((job.status === "quote" && !job.acceptedAt) || ["completed", "invoiced", "paid", "cancelled"].includes(job.status))) return null;
 
   const save = (nextVisits, extraPatch = {}) => {
     // Job status follows its visits — worked out by reconcileJob inside
@@ -199,8 +203,8 @@ export default function VisitsPanel({ job, onCancelLines }) {
           <div className="min-w-0">
             <span className="panel-title">Visits</span>
             <p className="panel-sub">
-              All {realLines.length} services are booked as one appointment with one
-              engineer. Split them if they need different engineers or different days.
+              All {realLines.length} services are booked as one appointment.
+              Split them only if they need to happen on different days.
             </p>
           </div>
           <button

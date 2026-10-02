@@ -602,12 +602,11 @@ function SettingsInner() {
           <ReplySettings />
           <BankAccounts />
           <CompanyDetails />
-          <RestoreBackup />
           <SettingsLog />
   {/* Configuration shortcuts */}
           <section>
             <h2 className="mb-3 section-label text-sm">
-              Configuration
+              Email
             </h2>
             <Link
               href="/settings/email"
@@ -639,98 +638,13 @@ function SettingsInner() {
         </SettingsGroup>
 
         <SettingsGroup title="Engineers" id="engineers" openOnLoad={deepLinked === "engineers"}>
-  {/* Engineers */}
-          <section>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="section-label text-sm">
-                Engineers
-              </h2>
-              <button className="btn-primary py-1.5 text-xs" onClick={openAddEngineer}>
-                <FiPlus /> Add engineer
-              </button>
+          <Link href="/engineers" className="card-hover flex items-center justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm font-semibold text-navy-900">Engineers are managed on the Engineers page</p>
+              <p className="text-xs text-navy-500">Add, edit and remove engineers, their services, areas, paperwork and pay there.</p>
             </div>
-            {engineers.length === 0 ? (
-              <div className="card p-8 text-center text-sm text-navy-500">
-                No engineers yet. Add your gas, electrical and other engineers so you
-                can assign jobs to them.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {engineers.map((e) => (
-                  <div key={e.id} className="card p-4">
-                    <div className="flex items-start gap-3">
-                      <span
-                        className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold text-white"
-                        style={{ backgroundColor: e.color }}
-                      >
-                        {e.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="flex items-center gap-2 text-sm font-semibold text-navy-900">
-                          {e.name}
-                          <span className="rounded-full bg-navy-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-navy-500">
-                            {e.type || "Individual"}
-                          </span>
-                        </p>
-                        {(e.trade || e.company) && (
-                          <p className="truncate text-xs text-navy-500">
-                            {[e.trade, e.company].filter(Boolean).join(" · ")}
-                          </p>
-                        )}
-                        {e.phone && (
-                          <p className="mt-1 flex items-center gap-1.5 text-xs text-navy-600">
-                            <FiPhone className="text-navy-400" /> {e.phone}
-                          </p>
-                        )}
-                        {(e.postcode || e.areas) && (
-                          <p className="text-xs text-navy-500">
-                            {[e.postcode, e.areas].filter(Boolean).join(" · ")}
-                          </p>
-                        )}
-                        {e.services && e.services.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {e.services.map((c) => (
-                              <span
-                                key={c}
-                                className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700"
-                              >
-                                {serviceShort(c)}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <p className="mt-2 text-xs text-navy-500">
-                          Pay:{" "}
-                          <span className="font-semibold text-navy-700">
-                            {e.payType === "weekly" ? `£${e.weeklyRate || 0}/week retainer`
-                              : e.payType === "fixed_gas" ? "Fixed rate by appliance count"
-                              : e.payType === "fixed_service" ? "Fixed rate per service"
-                              : `${e.cutPercent != null ? e.cutPercent : 40}% of job value`}
-                          </span>
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 flex-col gap-1">
-                        <button
-                          className="grid h-8 w-8 place-items-center rounded-lg border border-navy-200 text-navy-500 hover:border-brand-300 hover:text-brand-600"
-                          onClick={() => openEditEngineer(e)}
-                          aria-label={`Edit ${e.name}`}
-                        >
-                          <FiEdit2 className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          className="grid h-8 w-8 place-items-center rounded-lg border border-navy-200 text-rose-500 hover:bg-rose-50"
-                          onClick={() => setRemoveEng(e)}
-                          aria-label={`Remove ${e.name}`}
-                        >
-                          <FiTrash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+            <span className="text-sm font-semibold text-brand-600">Open →</span>
+          </Link>
         </SettingsGroup>
 
         <SettingsGroup title="Service catalogue &amp; pricing" id="services" openOnLoad={deepLinked === "services"}>
@@ -897,6 +811,7 @@ function SettingsInner() {
         </SettingsGroup>
 
         <SettingsGroup title="Data" id="data" openOnLoad={deepLinked === "data"}>
+          <RestoreBackup />
   {/* Data */}
           <section>
             <h2 className="mb-3 section-label text-sm">

@@ -980,7 +980,7 @@ export default function JobDetailPage() {
           <div id="visits" className="scroll-mt-24">
             <VisitsPanel job={job} onCancelLines={(ids) => setCancelLineIds(ids)} />
           </div>
-          <CertificationPanel job={job} />
+          {job.engineerId && job.engineerId !== "unassigned" && job.status !== "cancelled" && <CertificationPanel job={job} />}
 
           </div>
           <div className="space-y-6 empty:hidden" hidden={!on("overview", "money")}>
@@ -1315,7 +1315,9 @@ export default function JobDetailPage() {
             />
 
             {/* Mark-as actions */}
-            <div className="mt-3 flex flex-wrap gap-2">
+            {/* Nothing to invoice or be paid for on an unaccepted quote or a
+                cancelled job. */}
+            <div className={`mt-3 flex-wrap gap-2 ${(job.status === "quote" && !job.acceptedAt) || job.status === "cancelled" ? "hidden" : "flex"}`}>
               {job.status !== "invoiced" && job.status !== "paid" && (
                 <button
                   className="btn-outline flex-1"
@@ -1380,7 +1382,7 @@ export default function JobDetailPage() {
           </div>
           <div className="space-y-6 empty:hidden" hidden={!on("booking")}>
           {/* Outcome & follow-up (remedial / replacement) */}
-          <JobOutcome job={job} onCreateFollowUp={createFollowUp} />
+          {["in_progress", "completed", "invoiced", "paid"].includes(job.status) && <JobOutcome job={job} onCreateFollowUp={createFollowUp} />}
           <RemedialPanel job={job} onCreateRemedial={createFollowUp} />
 
           {/* Recurring job */}

@@ -370,31 +370,22 @@ export default function JobsPage() {
             them: the pill counts are counts WITHIN the chosen period. */}
         <PeriodControls ctl={ctl} withAll className="mb-4" />
 
-        {/* To do — every job grouped by the one thing it needs next. */}
-        <div className="mb-3 rounded-xl border border-navy-100 bg-white p-2.5 dark:bg-white/[0.03]">
-          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-navy-500">To do</p>
-          <div className="scroll-area flex gap-2 overflow-x-auto pb-0.5">
-            <FilterPill
-              active={statusFilter === "todo"}
-              onClick={() => setStatusFilter("todo")}
-              label="Everything"
-              count={todoCounts.todo || 0}
-            />
-            {ACTION_GROUPS.filter((g) => todoCounts[g.key]).map((g) => (
-              <FilterPill
-                key={g.key}
-                active={statusFilter === `todo:${g.key}`}
-                onClick={() => setStatusFilter(`todo:${g.key}`)}
-                label={g.label}
-                count={todoCounts[g.key]}
-                dot={{ rose: "bg-rose-500", amber: "bg-amber-500", blue: "bg-blue-500", purple: "bg-purple-500", green: "bg-brand-500" }[g.tone]}
-              />
-            ))}
-          </div>
-        </div>
-
         {/* Status filter pills */}
-        <div className="jobs-status-filter scroll-area mb-5 flex gap-2 overflow-x-auto pb-1">
+        <div className="jobs-status-filter scroll-area mb-5 flex items-center gap-2 overflow-x-auto pb-1">
+          {/* What needs doing — the same filter as the pills beside it, so it
+              lives in the same row instead of a second row of its own. */}
+          <select
+            className={`input h-9 w-auto shrink-0 py-0 text-xs font-semibold ${isTodo ? "border-navy-800 text-navy-900" : "text-navy-600"}`}
+            value={isTodo ? statusFilter : ""}
+            onChange={(e) => setStatusFilter(e.target.value || "quote")}
+            aria-label="Show jobs by what needs doing"
+          >
+            <option value="">Needs doing…</option>
+            <option value="todo">Anything ({todoCounts.todo || 0})</option>
+            {ACTION_GROUPS.filter((g) => todoCounts[g.key]).map((g) => (
+              <option key={g.key} value={`todo:${g.key}`}>{g.label} ({todoCounts[g.key]})</option>
+            ))}
+          </select>
           <FilterPill
             active={statusFilter === "all"}
             onClick={() => setStatusFilter("all")}
