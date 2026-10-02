@@ -6,7 +6,27 @@
 // The rules live in lib/nextAction.js; this only renders them.
 
 import { FiArrowRight, FiCheckCircle, FiAlertCircle } from "react-icons/fi";
-import { nextActions } from "@/lib/nextAction";
+import { FiClock } from "react-icons/fi";
+import { nextActions, quoteSentEvidence } from "@/lib/nextAction";
+import { quoteMissing } from "@/lib/gates";
+
+const day = (iso) => new Date(iso).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+// Nothing for the office to do — so who are we waiting for, and until when?
+function waitingOn(job, client) {
+  const now = Date.now();
+  if (job.status === "quote" && !job.acceptedAt) {
+    const property = client ? (client.properties || []).find((p) => p.id === job.propertyId) || null : null;
+    if (job.quoteHoldUntil && job.quoteHoldUntil >= new Date().toISOString().slice(0, 10)) return `Parked — the client said they\u2019d get back by ${day(job.quoteHoldUntil)}. You\u2019ll be prompted then.`;
+    const ev = quoteSentEvidence(job);
+    if (ev) return `Waiting for the client\u2019s decision — ${ev.text}. You\u2019ll be prompted to chase two days after it went.`;
+    if (job.detailsRequestedAt && client && quoteMissing(job, { client, property }).length) return `Waiting for the client — asked for the missing details on ${day(job.detailsRequestedAt)}. When they answer, fill them in below. You\u2019ll be prompted to chase after two days.`;
+    return "";
+  }
+  if (job.status === "scheduled" && job.scheduledAt && new Date(job.scheduledAt).getTime() > now) return `Booked for ${day(job.scheduledAt)} — nothing to do until nearer the day.`;
+  if (job.status === "invoiced") return "Invoice sent — waiting for payment. You\u2019ll be prompted to chase after 7 days.";
+  return "";
+}
 
 const BUTTON_LABEL = {
   "email:quote": "Send quote",
@@ -53,6 +73,15 @@ export default function NextStepCard({ job, client, clientEmail, clientPhone, en
   if (["paid", "cancelled"].includes(job.status) && !actions.length) return null;
 
   if (!actions.length) {
+    const waiting = waitingOn(job, client);
+    if (waiting) {
+      return (
+        <section className="card flex items-center gap-3 p-4 text-sm text-navy-700">
+          <FiClock className="h-5 w-5 shrink-0 text-amber-500" />
+          <span>{waiting}</span>
+        </section>
+      );
+    }
     return (
       <section className="card flex items-center gap-3 p-4 text-sm text-navy-600">
         <FiCheckCircle className="h-5 w-5 shrink-0 text-brand-500" />

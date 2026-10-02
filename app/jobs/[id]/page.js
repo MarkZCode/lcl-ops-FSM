@@ -106,6 +106,11 @@ export default function JobDetailPage() {
   }, []);
   const setTab = (t) => { setTabState(t); try { sessionStorage.setItem("lcl-job-tab", t); } catch {} };
   const on = (...keys) => tab === "all" || keys.includes(tab);
+  // What this stage is about, so the page shows that and not everything.
+  const headerDoc = job?.status === "quote" ? "quote" : ["completed", "invoiced", "paid"].includes(job?.status) ? "invoice" : null;
+  // A quote the client hasn't accepted and nobody has dated: booking tools
+  // stay on the Booking tab instead of crowding the overview.
+  const preBooking = job?.status === "quote" && !job?.acceptedAt && !job?.scheduledAt;
   // Where this job sits in the list you came from, for the ‹ › arrows.
   const [order, setOrder] = useState([]);
   useEffect(() => {
@@ -688,15 +693,18 @@ export default function JobDetailPage() {
                 <FiCheckCircle /> Accepted — booking in progress
               </span>
             )}
-            {can("invoices") && (
+            {/* One document button, and only the one this stage is about:
+                the quote while it's a quote, the invoice once the work is
+                done. The other stays under More. */}
+            {can("invoices") && headerDoc && (
               <button
-                className="btn-primary"
+                className={job.status === "completed" ? "btn-primary" : "btn-outline"}
                 onClick={() => {
-                  setInvoiceMode("invoice");
+                  setInvoiceMode(headerDoc);
                   setInvoiceOpen(true);
                 }}
               >
-                <FiDownload /> Invoice
+                {headerDoc === "quote" ? <><FiFileText /> Quote</> : <><FiDownload /> Invoice</>}
               </button>
             )}
             <button className="btn-outline" onClick={handleShare} title="Copy shareable client link">
@@ -726,9 +734,16 @@ export default function JobDetailPage() {
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setJobCardOpen(true); setMoreOpen(false); }}>
                       <FiClipboard className="h-4 w-4" /> Job card
                     </button>
-                    <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setInvoiceMode("quote"); setInvoiceOpen(true); setMoreOpen(false); }}>
-                      <FiFileText className="h-4 w-4" /> Quote
-                    </button>
+                    {headerDoc !== "quote" && (
+                      <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setInvoiceMode("quote"); setInvoiceOpen(true); setMoreOpen(false); }}>
+                        <FiFileText className="h-4 w-4" /> Quote
+                      </button>
+                    )}
+                    {headerDoc !== "invoice" && can("invoices") && (
+                      <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setInvoiceMode("invoice"); setInvoiceOpen(true); setMoreOpen(false); }}>
+                        <FiDownload className="h-4 w-4" /> Invoice
+                      </button>
+                    )}
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setEmailOpen(true); setMoreOpen(false); }}>
                       <FiSend className="h-4 w-4" /> Email
                     </button>
@@ -850,10 +865,14 @@ export default function JobDetailPage() {
 
           {/* Status workflow */}
           <section className="card p-5">
-            <h2 className="mb-3 section-label text-sm">
-              Update status
-            </h2>
-            <div className="flex flex-wrap gap-2">
+            {/* The status moves by itself as things happen (accepted,
+                confirmed, completed, paid, certificate sent). Changing it
+                by hand is the exception, so it's folded away. */}
+            <details>
+            <summary className="cursor-pointer section-label text-sm">
+              Change the status by hand <span className="ml-1 font-normal normal-case tracking-normal text-navy-400">— only to correct a mistake</span>
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-2">
               {STAGE_ORDER.map((s) => {
                 const meta = statusMeta(s);
                 const active = jobStage(job) === s;
@@ -872,6 +891,7 @@ export default function JobDetailPage() {
                 );
               })}
             </div>
+            </details>
             {/* Accepted, but a leg has lost its confirmation (an engineer was
                 swapped). The job stays Scheduled rather than falling back to
                 Quote — so say, right here, what still needs a yes. */}
@@ -1019,7 +1039,7 @@ export default function JobDetailPage() {
                       ) : (
                         <span className="font-medium text-navy-800">{gbp(lineTotal(l))}</span>
                       )}
-                      {editable && isWork && !l.cancelled && (
+                      {editable && isWork && !l.cancelled && ["scheduled", "in_progress", "completed"].includes(job.status) && (
                         <button
                           type="button"
                           onClick={() => setCancelLineIds([l.id])}
@@ -1429,7 +1449,7 @@ export default function JobDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Schedule + engineer */}
-          <section className="card p-5" hidden={!on("overview", "booking")}>
+          <section className="card p-5" hidden={preBooking ? !on("booking") : !on("overview", "booking")}>
             <h2 className="mb-3 section-label text-sm">
               Appointment
             </h2>
@@ -1446,7 +1466,7 @@ export default function JobDetailPage() {
                 {/* Moving an appointment used to mean Edit → Scheduling, which
                     overwrites the date silently — nothing recorded that the job
                     had moved, or why. Its own action, with the reason logged. */}
-                {!["completed", "invoiced", "paid", "cancelled"].includes(job.status) && (
+                {job.scheduledAt && !["completed", "invoiced", "paid", "cancelled"].includes(job.status) && (
                   <button
                     onClick={() => setRescheduleOpen(true)}
                     className="shrink-0 rounded-lg border border-navy-200 px-2 py-1 text-[11px] font-semibold text-navy-600 transition hover:border-brand-300 hover:text-brand-600"
