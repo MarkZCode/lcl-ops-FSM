@@ -1,5 +1,6 @@
 "use client";
 
+import { quoteWhatsApp } from "@/lib/enquiryMessages";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -335,10 +336,10 @@ export default function JobDetailPage() {
         return;
       case "wa_nudge": {
         if (!client?.phone) return;
-        const msg = String(rules?.quoteNudge || "").replace(/\{name\}/g, firstName(client.name));
-        if (!msg.trim() || !openWhatsAppChat(client.phone, msg)) return;
+        const msg = quoteWhatsApp({ job, client, property, sender: jobSender(job), firstName: firstName(client.name), urgencyLine: rules?.urgencyLine });
+        if (!openWhatsAppChat(client.phone, msg)) return;
         updateJob(job.id, { quoteNudgeAt: new Date().toISOString() });
-        logActivity(job.id, { type: "whatsapp", title: "Booking message sent with the quote (WhatsApp opened)", detail: msg, by: who() });
+        logActivity(job.id, { type: "whatsapp", title: "WhatsApp message sent with the quote (opened)", detail: msg, by: who() });
         return;
       }
       case "wa_nudge_done":

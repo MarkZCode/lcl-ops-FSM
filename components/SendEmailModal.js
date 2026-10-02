@@ -43,7 +43,7 @@ export default function SendEmailModal({
   property,
   defaultTemplate,
 }) {
-  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob, generateShareToken, bankAccounts, invoiceBankId, engineerById } = useStore();
+  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob, generateShareToken, bankAccounts, invoiceBankId, engineerById, rules } = useStore();
   // The account this job's invoice carries: the one already used, else the
   // one currently selected for new invoices.
   const bank = bankForJob(job, bankAccounts, invoiceBankId);
@@ -217,9 +217,12 @@ export default function SendEmailModal({
     const noAccessLine = fee > 0 && ["quote", "booking"].includes(tplKey)
       ? `\n\nPlease note: if nobody is available to give access at the booked time, a £${fee} no-access fee applies.` : "";
     // The engineer's courtesy call, when one has been arranged.
+    // The line asking them to reply soon — on every quote not yet accepted.
+    const urgencyLine = tplKey === "quote" && job?.status === "quote" && !job.acceptedAt && String(rules?.urgencyLine || "").trim()
+      ? `\n\n${String(rules.urgencyLine).trim()}` : "";
     const callLine = tplKey === "booking" && job?.callBefore && !/no call/i.test(job.callBefore)
       ? `\n\nYour engineer will ${job.callBefore.replace(/^Call/i, "call")}.` : "";
-    setBody(renderTemplate(tpl.body, ctx) + callLine + noAccessLine + acceptLine + sig);
+    setBody(renderTemplate(tpl.body, ctx) + callLine + noAccessLine + urgencyLine + acceptLine + sig);
     // Invoices go to the billing email when the client has one.
     setTo((["invoice", "job_completed"].includes(tplKey) && client?.billingEmail) || client?.email || "");
     setPhone(client?.phone || "");

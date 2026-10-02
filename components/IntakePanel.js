@@ -17,6 +17,7 @@ import { greetingNow, firstName, jobSender, SENDERS } from "@/lib/email";
 import { openWhatsAppChat } from "@/lib/whatsapp";
 import { serviceShort, isAddonCode } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { serviceSentence, staffNote } from "@/lib/enquiryMessages";
 
 export const URGENCY_REASONS = [
   "Tenant moving in",
@@ -52,9 +53,9 @@ export default function IntakePanel({ job, client, property }) {
 
   // "Could you please confirm …" — only what's missing.
   const askText = () => {
-    const what = (job.services || []).filter((c) => !isAddonCode(c)).map(serviceShort).join(" and ") || "your enquiry";
+    const what = `${serviceSentence(job) || (job.services || []).filter((c) => !isAddonCode(c)).map(serviceShort).join(" and ") || "your enquiry"}${property?.postcode ? ` at ${property.postcode}` : ""}`;
     const lines = missing.map((m) => `• ${m.label.replace(/^./, (c) => c.toUpperCase())}`);
-    return `${greetingNow()} ${firstName(client?.name)}, ${jobSender(job)} here from Landlord Compliance London. Thank you for your enquiry regarding the ${what}.\n\nWe'd be happy to arrange this for you. Could you please confirm:\n${lines.join("\n")}\n\nOnce confirmed, we can provide the quote and available appointment times.`;
+    return `${greetingNow()} ${firstName(client?.name)}, ${jobSender(job)} here from Landlord Compliance London. Thank you for your enquiry regarding ${/^your enquiry/.test(what) ? what : `a ${what}`}.\n\nWe'd be happy to arrange this for you. Could you please confirm:\n${lines.join("\n")}\n\nOnce confirmed, we can provide the exact quote and available appointment times.`;
   };
   const ask = (how) => {
     const msg = askText();
@@ -69,6 +70,11 @@ export default function IntakePanel({ job, client, property }) {
 
   return (
     <section className="card p-5">
+      {job.status === "quote" && (
+        <button type="button" className="float-right ml-3 text-xs font-semibold text-navy-500 underline" onClick={() => navigator.clipboard.writeText(staffNote({ job, client, property })).then(() => toast.success("Staff note copied.")).catch(() => {})}>
+          Copy staff note
+        </button>
+      )}
       <button type="button" className="flex w-full items-center justify-between gap-2 text-left" onClick={() => setOpen((o) => !o)}>
         <span className="section-label text-sm">Job details</span>
         <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${missing.length ? "text-amber-700" : "text-brand-700"}`}>

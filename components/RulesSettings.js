@@ -47,13 +47,13 @@ export default function RulesSettings() {
         </div>
 
         <div>
-          <label className="label">WhatsApp message sent with every quote</label>
+          <label className="label">Urgency line on every quote</label>
           <textarea
-            className="input resize-y text-sm" rows={3}
-            defaultValue={rules.quoteNudge} key={rules.quoteNudge}
-            onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== rules.quoteNudge) saveRules({ quoteNudge: v }); }}
+            className="input resize-y text-sm" rows={2}
+            defaultValue={rules.urgencyLine} key={rules.urgencyLine}
+            onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== rules.urgencyLine) saveRules({ urgencyLine: v }); }}
           />
-          <p className="mt-1 text-[11px] text-navy-400">Offered as the next step as soon as a quote has gone out. {"{name}"} is replaced with the client&apos;s first name.</p>
+          <p className="mt-1 text-[11px] text-navy-400">Added to the quote email and to the WhatsApp message sent with the quote.</p>
         </div>
 
         <div>
