@@ -154,6 +154,13 @@ function UserFooter({ user, onLogout, expanded = true, withControls = false, dar
 export default function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // While the menu is open the tab bar slides away (globals.css), so it
+  // can't sit on top of the menu's last items. Cleared on close/unmount.
+  useEffect(() => {
+    if (open) document.body.dataset.drawerOpen = "1";
+    else delete document.body.dataset.drawerOpen;
+    return () => { delete document.body.dataset.drawerOpen; };
+  }, [open]);
   const [collapsed, setCollapsed] = useState(false); // pinned-collapsed (auto-hide)
   const [hover, setHover] = useState(false);
   const { user, can, logout } = useAuth();
@@ -277,15 +284,15 @@ export default function Sidebar() {
           borderBottom: "1px solid color-mix(in srgb, var(--hairline) 60%, transparent)",
         }}
       >
-        <Link href="/" className="text-[15px] font-semibold tracking-tight text-navy-900">
+        <Link href="/" className="text-[17px] font-semibold tracking-tight text-navy-900">
           LCL Ops
         </Link>
-        <div className="flex items-center gap-2">
-          <ThemeToggle className="grid h-9 w-9 place-items-center rounded-lg border border-navy-200 text-navy-700 dark:border-white/10 dark:text-slate-300" />
+        <div className="flex items-center gap-1">
+          <ThemeToggle className="grid h-9 w-9 place-items-center rounded-full text-navy-700 active:bg-navy-100 dark:text-slate-300 dark:active:bg-white/10" />
           <NotificationBell />
           <button
             onClick={() => setOpen(true)}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-navy-200 text-navy-700 dark:border-white/10 dark:text-slate-300"
+            className="grid h-9 w-9 place-items-center rounded-full text-navy-700 active:bg-navy-100 dark:text-slate-300 dark:active:bg-white/10"
             aria-label="Open menu"
           >
             <FiMenu />

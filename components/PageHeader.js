@@ -65,7 +65,7 @@ export default function PageHeader({ title, subtitle, actions, icon: Icon, meta,
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             {Icon && (
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-navy-50 text-navy-700 ring-1 ring-navy-200 sm:h-10 sm:w-10">
+              <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl bg-navy-50 text-navy-700 ring-1 ring-navy-200 sm:grid">
                 <Icon className="h-5 w-5" />
               </span>
             )}
@@ -73,11 +73,11 @@ export default function PageHeader({ title, subtitle, actions, icon: Icon, meta,
               <p className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-navy-400 sm:block dark:text-navy-500">
                 Landlord Compliance London
               </p>
-              <h1 className="mt-0.5 truncate text-lg font-bold tracking-tight text-navy-900 sm:text-2xl">
+              <h1 className="mt-0.5 truncate text-[28px] font-bold leading-tight tracking-[-0.02em] text-navy-900 sm:text-2xl">
                 {title}
               </h1>
               {subtitle && (
-                <p className="mt-0.5 truncate text-sm text-navy-500">{subtitle}</p>
+                <p className="mt-0.5 truncate text-[13px] text-navy-500 sm:text-sm">{subtitle}</p>
               )}
               {meta && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>

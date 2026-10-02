@@ -356,11 +356,11 @@ export default function Dashboard() {
 
       {/* ── HEADER — flat page chrome, single hairline, no colour slab ── */}
       <div className="bar-navy">
-        <div className="flex items-center gap-4 px-5 pb-1 pt-7 sm:px-8">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 pb-1 pt-6 sm:flex-nowrap sm:px-8 sm:pt-7">
+          <div className="min-w-0 flex-1 basis-full sm:basis-auto">
             {/* Big, confident greeting with a quiet subtitle under it — the
                 reference leads with this rather than a bordered header bar. */}
-            <h1 className="truncate text-[1.5rem] font-bold tracking-[-0.028em] text-navy-900 sm:text-[2rem] sm:font-extrabold sm:tracking-[-0.03em]">
+            <h1 className="truncate text-[28px] font-bold tracking-[-0.028em] text-navy-900 sm:text-[2rem] sm:font-extrabold sm:tracking-[-0.03em]">
               {greeting}{displayName ? `, ${displayName}` : ""}
             </h1>
             {/* On a phone the date alone is the useful half — the "Here's your
