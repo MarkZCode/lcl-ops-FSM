@@ -63,6 +63,8 @@ import PaymentLedger from "@/components/PaymentLedger";
 import ClientQuickActions from "@/components/ClientQuickActions";
 import CongestionAuto from "@/components/CongestionAuto";
 import IntakePanel from "@/components/IntakePanel";
+import CertificateDesk from "@/components/CertificateDesk";
+import RemedialPanel from "@/components/RemedialPanel";
 import { bookingMissing, closingMissing, appointmentCertainty, priceCertainty } from "@/lib/gates";
 import { greetingNow, firstName, jobSender } from "@/lib/email";
 import { FaWhatsapp } from "react-icons/fa";
@@ -1196,6 +1198,8 @@ export default function JobDetailPage() {
           </section>
           )}
 
+          <CertificateDesk job={job} />
+
           {/* Documents & photos */}
           <div id="documents" className="scroll-mt-24">
             <JobAttachments job={job} onSave={updateJob} />
@@ -1203,6 +1207,7 @@ export default function JobDetailPage() {
 
           {/* Outcome & follow-up (remedial / replacement) */}
           <JobOutcome job={job} onCreateFollowUp={createFollowUp} />
+          <RemedialPanel job={job} onCreateRemedial={createFollowUp} />
 
           {/* Recurring job */}
           {["completed","invoiced","paid"].includes(job.status) && can("invoices") && (
@@ -1346,6 +1351,7 @@ export default function JobDetailPage() {
                       <option key={e.id} value={e.id}>
                         {e.name}
                         {e.trade ? ` · ${e.trade}` : ""}
+                        {e.availability === "unavailable" ? ` — not available${e.availabilityNote ? ` (${e.availabilityNote})` : ""}` : ""}
                       </option>
                     ))}
                   </select>
@@ -1466,7 +1472,7 @@ export default function JobDetailPage() {
                 >
                   <FiMail className="text-navy-400" /> {client.email}
                 </a>
-                <ClientQuickActions job={job} client={client} property={property} />
+                <ClientQuickActions job={job} client={client} property={property} engineerConfirmed={blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer").length === 0} />
                 {property && (
                   <div className="border-t border-navy-100 pt-2.5">
                     <p className="flex items-start gap-2 text-navy-600">

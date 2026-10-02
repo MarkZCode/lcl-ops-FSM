@@ -73,11 +73,37 @@ export async function POST(req, { params }) {
   if (["completed", "invoiced", "paid", "cancelled"].includes(job.status)) {
     return NextResponse.json({ error: "This job is already closed." }, { status: 409 });
   }
+  const now = new Date().toISOString();
+  const who = engineerById(sc.engineerId)?.name || "Engineer";
+
+  // "I can't do this" — before accepting it's a decline, after accepting
+  // it's a cancellation. Either way the job goes back to needing an
+  // engineer and the office is told at once, whatever the hour.
+  if (body.action === "decline") {
+    const was = scopeAccepted(job, sc);
+    const patch = was ? setScopeConfirmed(job, sc.key, false, engineerById) : {};
+    if (sc.key === "job") patch.engineerId = "unassigned";
+    else if (String(sc.key).startsWith("visit:")) {
+      patch.visits = (patch.visits || job.visits || []).map((v) => (`visit:${v.id}` === sc.key ? { ...v, engineerId: "unassigned", engineerConfirmedAt: null } : v));
+    }
+    patch.offerLog = [...(job.offerLog || []), { engineerId: sc.engineerId, key: sc.key, status: was ? "cancelled" : "declined", at: now }];
+    patch.activity = [
+      ...(job.activity || []),
+      { id: "act-" + Date.now().toString(36), at: now, by: who, type: "status", title: `${who} ${was ? "pulled out of" : "declined"} the job${sc.sub ? ` — ${sc.sub}` : ""}`, detail: String(body.reason || "").slice(0, 300) },
+    ];
+    const nextJob = reconcileJob(job, { ...job, ...patch, updatedAt: now }, patch);
+    const { error: dErr } = await supabaseAdmin.from("jobs").upsert({ id: row.id, data: nextJob });
+    if (dErr) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
+    await pushToAll({ title: was ? "Engineer pulled out" : "Engineer declined", body: `${who} can't do ${job.id}${sc.sub ? ` · ${sc.sub}` : ""} — it needs another engineer.`, url: `/jobs/${job.id}` }, { kind: "engineer_cancelled" });
+    await runTaskSync({ force: true });
+    return NextResponse.json({ ok: true, declined: true });
+  }
+
   if (scopeAccepted(job, sc)) return NextResponse.json({ ok: true, already: true });
 
-  const now = new Date().toISOString();
   const patch = setScopeConfirmed(job, sc.key, true, engineerById);
   if (patch.engineerConfirmed && job.status === "quote") patch.status = "scheduled";
+  patch.offerLog = [...(job.offerLog || []), { engineerId: sc.engineerId, key: sc.key, status: "accepted", at: now }];
   const name = engineerById(sc.engineerId)?.name || "Engineer";
   patch.activity = [
     ...(job.activity || []),

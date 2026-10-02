@@ -93,7 +93,7 @@ function ReportsInner() {
   // engineer pay. Lock them to that one tab instead of hiding-then-showing
   // the rest, which would leak state (period/range) built for a fuller view.
   const expensesOnly = !can("reports") && can("expenses");
-  const { jobs, engineers, expenses, engineerPayments, addExpense, updateExpense, removeExpense, addEngineerPayment, removeEngineerPayment } = useStore();
+  const { jobs, clients, engineers, expenses, engineerPayments, addExpense, updateExpense, removeExpense, addEngineerPayment, removeEngineerPayment } = useStore();
   // Holds just the engineer id, not the row object itself — the row is
   // re-derived from `pay.rows` on every render below. Storing the object
   // directly used to freeze it at click-time: editing a job's payable
@@ -281,7 +281,7 @@ function ReportsInner() {
         )}
 
         {view === "pipeline" && <PipelineView pipeline={pipeline} />}
-        {view === "insights" && <ReportInsights jobs={pipelineJobs} engineerById={(id) => engineers.find((e) => e.id === id)} label={range.label} />}
+        {view === "insights" && <ReportInsights jobs={pipelineJobs} engineerById={(id) => engineers.find((e) => e.id === id)} label={range.label} clients={clients} engineers={engineers} />}
 
         {/* Shared period controls — apply to every financial tab except Pipeline */}
         {view !== "pipeline" && view !== "insights" && <>

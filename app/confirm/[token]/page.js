@@ -12,6 +12,7 @@ export default function ConfirmPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [done, setDone] = useState({});
 
   const load = () =>
     fetch(`/api/confirm/${encodeURIComponent(token)}`)
@@ -20,6 +21,28 @@ export default function ConfirmPage() {
       .catch(() => { setData(null); setLoading(false); });
 
   useEffect(() => { if (token) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token]);
+
+  const decline = async (key, confirmed) => {
+    const reason = window.prompt(confirmed ? "You've already confirmed this job. Why can't you do it now?" : "Not able to take it? Add a short reason (optional).");
+    if (reason === null) return;
+    setBusy(key);
+    setError("");
+    try {
+      const r = await fetch(`/api/confirm/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, action: "decline", reason }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Something went wrong — please message the office.");
+      setDone((x) => ({ ...x, [key]: true }));
+      await load();
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setBusy("");
+    }
+  };
 
   const confirm = async (key) => {
     setBusy(key);
@@ -63,18 +86,24 @@ export default function ConfirmPage() {
           </div>
         </div>
         {!data.open && <div className="card p-4 text-sm text-navy-600">This job is already closed.</div>}
-        {data.scopes.length === 0 && <div className="card p-4 text-sm text-navy-600">Nothing on this job is waiting for a confirmation.</div>}
+        {data.scopes.length === 0 && <div className="card p-4 text-sm text-navy-600">{Object.keys(done).length ? "Thanks for letting us know — the office has been told." : "Nothing on this job is waiting for a confirmation."}</div>}
         {data.scopes.map((s) => (
           <div key={s.key} className="card p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">{s.engineer}</p>
             <p className="mt-1 text-base font-bold text-navy-900">{s.services}</p>
             <p className="mt-0.5 text-sm text-navy-600">{s.when || "Date to be agreed"}</p>
             {s.confirmed ? (
-              <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700">Confirmed — thank you. The full job card will follow.</p>
+              <>
+                <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700">Confirmed — thank you. The full job card will follow.</p>
+                {data.open && <button type="button" className="mt-2 text-xs font-semibold text-navy-500 underline" disabled={busy === s.key} onClick={() => decline(s.key, true)}>I can no longer do this job</button>}
+              </>
             ) : data.open ? (
-              <button type="button" className="btn-primary mt-3 w-full justify-center" disabled={busy === s.key} onClick={() => confirm(s.key)}>
-                {busy === s.key ? "Saving…" : "Yes, I can take this job"}
-              </button>
+              <>
+                <button type="button" className="btn-primary mt-3 w-full justify-center" disabled={busy === s.key} onClick={() => confirm(s.key)}>
+                  {busy === s.key ? "Saving…" : "Yes, I can take this job"}
+                </button>
+                <button type="button" className="btn-outline mt-2 w-full justify-center" disabled={busy === s.key} onClick={() => decline(s.key, false)}>I can&rsquo;t take this one</button>
+              </>
             ) : null}
           </div>
         ))}

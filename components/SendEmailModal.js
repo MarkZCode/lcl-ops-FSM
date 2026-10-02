@@ -19,7 +19,7 @@ import { renderTemplate, buildContext } from "@/lib/email";
 import { JOB_TEMPLATE_PURPOSES } from "@/lib/templates";
 import { fileSrc, uploadFile } from "@/lib/uploads";
 import { buildInvoicePrefill, overridesKey } from "@/lib/invoiceData";
-import { toWhatsAppNumber } from "@/lib/whatsapp";
+import { toWhatsAppNumber, cleanWhatsAppText } from "@/lib/whatsapp";
 import { bankForJob } from "@/lib/bank";
 import { blockersForScheduling } from "@/lib/visits";
 import { toast } from "@/lib/toast";
@@ -75,6 +75,14 @@ export default function SendEmailModal({
   const saveEdits = ({ invNo, ...details }) => {
     if (!job?.id) return;
     const patch = { [overridesKey(docType)]: details };
+    // Changing an invoice that has already gone out is a correction, and a
+    // correction is recorded: what was changed and why.
+    if (docType === "invoice" && job.invoicedAt) {
+      const why = window.prompt("This invoice has already been sent. What is being corrected, and why?");
+      if (!why || why.trim().length < 3) return;
+      patch.invoiceCorrections = [...(job.invoiceCorrections || []), { at: new Date().toISOString(), reason: why.trim() }];
+      logActivity(job.id, { type: "payment", title: "Invoice corrected", detail: why.trim() });
+    }
     if (docType === "invoice" && invNo && String(invNo) !== String(job.invoiceNumber || "")) {
       patch.invoiceNumber = String(invNo);
       patch.invoiceNumberAt = new Date().toISOString();
@@ -231,7 +239,7 @@ export default function SendEmailModal({
   //   computer → WhatsApp Web (works in any browser, and opens in the
   //              installed WhatsApp web app) or the desktop app
   const waNum = toWhatsAppNumber(phone);
-  const waText = encodeURIComponent(body);
+  const waText = encodeURIComponent(cleanWhatsAppText(body));
   const waLinks = waNum
     ? {
         mobile: `https://wa.me/${waNum}?text=${waText}`,
@@ -295,6 +303,16 @@ export default function SendEmailModal({
   };
 
   const handleSend = async () => {
+    if (isCertEmail && job && !job.certCheckedAt) {
+      setStatus("error");
+      setMessage("Not sent — the certificate hasn't been checked yet. Tick the checklist in the Certificate panel on the job first.");
+      return;
+    }
+    if (isCertEmail && job && (job.amendments || []).some((a) => !a.resolvedAt)) {
+      setStatus("error");
+      setMessage("Not sent — a correction to this certificate is still open.");
+      return;
+    }
     if (bookingBlocked) {
       setStatus("error");
       setMessage(`Not sent — the booking isn't confirmed yet: ${bookingBlockers.join("; ")}.`);

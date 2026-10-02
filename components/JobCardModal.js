@@ -149,8 +149,19 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
   const shownLines = lines.filter((l) => !isAddonCode(l.code));
   const gas = shownLines.find((l) => l.code === "GAS");
 
+  // An offer going out is recorded against the engineer it went to, so
+  // "sent, no answer" is something the app can see.
+  const recordOffer = () => {
+    if (assigned || !cardEngId || cardEngId === "unassigned") return;
+    const log = job.offerLog || [];
+    const key = currentScope?.key || "job";
+    if (log.some((o) => o.engineerId === cardEngId && o.key === key && o.status === "sent")) return;
+    updateJob(job.id, { offerLog: [...log, { engineerId: cardEngId, key, status: "sent", at: new Date().toISOString() }] });
+  };
+
   const copy = async () => {
     try {
+      recordOffer();
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
@@ -160,6 +171,7 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
   };
 
   const sendWhatsApp = () => {
+    recordOffer();
     window.open(
       `https://wa.me/?text=${encodeURIComponent(text)}`,
       "_blank",

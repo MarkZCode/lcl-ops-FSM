@@ -20,6 +20,7 @@ import { usePeriodRange, REPORTS_STORAGE_KEY } from "@/lib/usePeriodRange";
 import PeriodControls from "@/components/PeriodControls";
 import { isToday, parseISO } from "date-fns";
 import DailyActivityPanel from "@/components/DailyActivityPanel";
+import OpsBoard from "@/components/OpsBoard";
 import NeedsDecisionPanel from "@/components/NeedsDecisionPanel";
 import CoverageMap from "@/components/CoverageMap";
 import RevenueChart from "@/components/RevenueChart";
@@ -728,6 +729,7 @@ export default function Dashboard() {
         })()}
 
         {/* ── ACTIVITY + AT RISK + 7-DAY ── */}
+        <OpsBoard />
         <DailyActivityPanel />
 
         {/* ── MAIN GRID: recent jobs + right rail ── */}

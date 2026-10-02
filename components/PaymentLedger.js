@@ -22,6 +22,7 @@ export default function PaymentLedger({ job, client, property, onPaidInFull }) {
   const [date, setDate] = useState(today());
   const [method, setMethod] = useState(METHODS[0]);
   const [note, setNote] = useState("");
+  const [mismatch, setMismatch] = useState(false);
   const who = user?.name || user?.username || "";
 
   const payments = job.payments || [];
@@ -33,7 +34,17 @@ export default function PaymentLedger({ job, client, property, onPaidInFull }) {
     const amt = Math.round((Number(amount) || 0) * 100) / 100;
     if (!(amt > 0)) return;
     const next = [...payments, { id: "pay-" + Date.now().toString(36), amount: amt, date, method, ref: note.trim(), by: who }];
-    updateJob(job.id, { payments: next });
+    const patch = { payments: next };
+    // More than was owed, or flagged by hand as not matching the invoice.
+    const over = amt - balance > 0.005;
+    if (over || mismatch) {
+      patch.paymentMismatch = {
+        at: new Date().toISOString(), expected: balance, received: amt, by: who,
+        note: over ? `Received ${gbp(amt)} against ${gbp(balance)} owed — overpaid by ${gbp(amt - balance)}.` : `Received ${gbp(amt)} against ${gbp(balance)} owed${note.trim() ? ` — ${note.trim()}` : ""}.`,
+      };
+    }
+    updateJob(job.id, patch);
+    setMismatch(false);
     logActivity(job.id, { type: "payment", title: `Payment received · ${gbp(amt)} (${method.toLowerCase()})`, detail: note.trim(), by: who });
     setMode(null);
     const left = jobBalance({ ...job, payments: next });
@@ -75,6 +86,15 @@ export default function PaymentLedger({ job, client, property, onPaidInFull }) {
         <span className={`border-t border-navy-100 pt-1 text-right font-bold ${balance > 0 ? "text-navy-900" : "text-brand-700"}`}>{gbp(balance)}</span>
       </div>
 
+      {job.paymentMismatch && !job.paymentMismatch.resolvedAt && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-rose-700">
+          <span><strong>Payment mismatch.</strong> {job.paymentMismatch.note}</span>
+          <button type="button" className="font-semibold underline" onClick={() => { updateJob(job.id, { paymentMismatch: { ...job.paymentMismatch, resolvedAt: new Date().toISOString(), resolvedBy: who } }); logActivity(job.id, { type: "payment", title: "Payment mismatch resolved", by: who }); }}>Resolved</button>
+        </div>
+      )}
+      {(job.invoiceCorrections || []).length > 0 && (
+        <p className="mt-2 text-navy-500">Invoice corrected {job.invoiceCorrections.length} time{job.invoiceCorrections.length === 1 ? "" : "s"} — last: {job.invoiceCorrections[job.invoiceCorrections.length - 1].reason}</p>
+      )}
       {(payments.length > 0 || credits.length > 0) && (
         <ul className="mt-2 space-y-1 border-t border-navy-100 pt-2">
           {payments.map((p) => (
@@ -107,6 +127,12 @@ export default function PaymentLedger({ job, client, property, onPaidInFull }) {
             )}
             <input className={`input ${mode === "pay" ? "" : "col-span-2"}`} placeholder={mode === "pay" ? "Reference (optional)" : "Reason — shown on the credit note"} value={note} onChange={(e) => setNote(e.target.value)} />
           </div>
+          {mode === "pay" && (
+            <label className="flex items-center gap-2 text-navy-600">
+              <input type="checkbox" checked={mismatch} onChange={(e) => setMismatch(e.target.checked)} />
+              This payment doesn&apos;t match the invoice (wrong amount or reference)
+            </label>
+          )}
           <div className="flex gap-2">
             <button type="button" className="btn-primary py-1.5 text-xs" onClick={mode === "pay" ? savePayment : saveCredit}>{mode === "pay" ? "Save payment" : "Save and download"}</button>
             <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => setMode(null)}>Cancel</button>

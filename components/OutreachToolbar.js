@@ -13,7 +13,7 @@
 //     stage just because I clicked message" feedback).
 
 import { FiPhone, FiPhoneCall, FiMail, FiMessageCircle } from "react-icons/fi";
-import { waLink } from "@/lib/whatsapp";
+import { waLink, allowOutreachWhatsApp } from "@/lib/whatsapp";
 
 // Strip honorific titles (Mr / Mrs / Ms / Miss / Dr / Mx) before computing
 // the first name. Without this, "Mr. Khan" rendered as "Hi Mr.," which felt
@@ -119,7 +119,7 @@ export default function OutreachToolbar({
           </Btn>
         )}
         {phone && (
-          <Btn as="a" href={wa} target="_blank" rel="noreferrer" title="WhatsApp" isCompleted={completed.whatsapp} onClick={() => onChannelClick?.("whatsapp")}>
+          <Btn as="a" href={wa} target="_blank" rel="noreferrer" title="WhatsApp" isCompleted={completed.whatsapp} onClick={(e) => { if (!allowOutreachWhatsApp()) { e.preventDefault(); return; } onChannelClick?.("whatsapp"); }}>
             <FiMessageCircle className={iconSize} />
           </Btn>
         )}

@@ -39,8 +39,8 @@ function Table({ title, note, head, rows, empty }) {
   );
 }
 
-export default function ReportInsights({ jobs, engineerById, label }) {
-  const d = useMemo(() => insights(jobs, engineerById), [jobs, engineerById]);
+export default function ReportInsights({ jobs, engineerById, label, clients = [], engineers = [] }) {
+  const d = useMemo(() => insights(jobs, engineerById, { clients, engineers }), [jobs, engineerById, clients, engineers]);
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -67,6 +67,26 @@ export default function ReportInsights({ jobs, engineerById, label }) {
         head={["Source", "Enquiries", "Won", "Lost", "Win rate", "Value won"]}
         rows={d.sources.map((r) => [r.source, r.enquiries, r.won, r.lost, `${r.rate}%`, gbp(r.value)])}
         empty="No jobs in this period."
+      />
+      <Table
+        title="Enquiries by service"
+        head={["Service", "Enquiries", "Won", "Win rate", "Value won"]}
+        rows={d.services.map((r) => [r.key, r.enquiries, r.won, `${r.rate}%`, gbp(r.value)])}
+        empty="No jobs in this period."
+      />
+      <Table
+        title="Enquiries by area"
+        note="By postcode district — the top twenty."
+        head={["Area", "Enquiries", "Won", "Win rate", "Value won"]}
+        rows={d.areas.map((r) => [r.key, r.enquiries, r.won, `${r.rate}%`, gbp(r.value)])}
+        empty="No jobs in this period."
+      />
+      <Table
+        title="Engineers"
+        note="Offers are counted from the day offer tracking was switched on."
+        head={["Engineer", "Jobs done", "Offers accepted", "Declined", "Pulled out", "No-access visits", "Avg days to finish"]}
+        rows={d.engineers.map((r) => [r.name, r.done, r.accepted, r.declined, r.cancelled, r.noAccess, r.avgDays ?? "—"])}
+        empty="No engineer activity in this period."
       />
       <Table
         title="Quotes by person"

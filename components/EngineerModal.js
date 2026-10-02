@@ -39,6 +39,16 @@ const empty = {
   documents: [],
   // Days off / holidays: [{ id, from, to, note }] — see lib/booking.js.
   unavailable: [],
+  // Not taking work at all for now (illness, away) — and why.
+  availability: "available",
+  availabilityNote: "",
+  // Paperwork: where the agreement stands, and when the rate card was agreed.
+  agreementStatus: "",
+  tcsSigned: false,
+  rateCardAcceptedAt: "",
+  // Rates quoted per unit rather than per job.
+  circuitRate: "",
+  pointRate: "",
 };
 
 export default function EngineerModal({ open, onClose, engineer, prefill, onSaved }) {
@@ -90,6 +100,13 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
             bankAccountNumber: seed.bankAccountNumber || "",
             notes: seed.notes || "",
             unavailable: Array.isArray(seed.unavailable) ? seed.unavailable : [],
+            availability: seed.availability || "available",
+            availabilityNote: seed.availabilityNote || "",
+            agreementStatus: seed.agreementStatus || "",
+            tcsSigned: !!seed.tcsSigned,
+            rateCardAcceptedAt: seed.rateCardAcceptedAt || "",
+            circuitRate: seed.circuitRate ?? "",
+            pointRate: seed.pointRate ?? "",
           }
         : empty
     );
@@ -276,6 +293,44 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
               placeholder="e.g. South & West London"
               onChange={(e) => set({ areas: e.target.value })}
             />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Taking work?</label>
+            <select className="input" value={form.availability} onChange={(e) => set({ availability: e.target.value })}>
+              <option value="available">Available</option>
+              <option value="unavailable">Not available for now</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Why / until when</label>
+            <input className="input" value={form.availabilityNote} placeholder="e.g. unwell — back next week" onChange={(e) => set({ availabilityNote: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Agreement</label>
+            <select className="input" value={form.agreementStatus} onChange={(e) => set({ agreementStatus: e.target.value })}>
+              <option value="">Not sent</option>
+              <option value="sent">Sent — waiting for signature</option>
+              <option value="signed">Signed</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Rate card agreed on</label>
+            <input type="date" className="input" value={form.rateCardAcceptedAt} onChange={(e) => set({ rateCardAcceptedAt: e.target.value })} />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-navy-700 sm:col-span-2">
+            <input type="checkbox" checked={!!form.tcsSigned} onChange={(e) => set({ tcsSigned: e.target.checked })} />
+            Terms &amp; conditions signed
+          </label>
+          <div>
+            <label className="label">Rate per circuit £ (commercial EICR)</label>
+            <input type="number" min="0" step="0.01" className="input" value={form.circuitRate} onChange={(e) => set({ circuitRate: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Rate per point £ (alarm installs)</label>
+            <input type="number" min="0" step="0.01" className="input" value={form.pointRate} onChange={(e) => set({ pointRate: e.target.value })} />
           </div>
         </div>
 

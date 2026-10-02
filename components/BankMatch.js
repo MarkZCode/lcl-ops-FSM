@@ -31,7 +31,10 @@ export default function BankMatch() {
     const job = r.match.job;
     const payments = [...(job.payments || []), { id: "pay-" + Date.now().toString(36), amount: r.line.amount, date: today, method: "Bank transfer", ref: "Matched from bank statement", by: who }];
     const left = jobBalance({ ...job, payments });
-    updateJob(job.id, left <= 0 ? { payments, status: "paid", paidAt: new Date().toISOString() } : { payments });
+    const mismatch = r.match.exact ? {} : {
+      paymentMismatch: { at: new Date().toISOString(), expected: jobBalance(job), received: r.line.amount, by: who, note: `Bank line of ${gbp(r.line.amount)} against ${gbp(jobBalance(job))} owed — ${r.match.why}.` },
+    };
+    updateJob(job.id, left <= 0 && r.match.exact ? { payments, status: "paid", paidAt: new Date().toISOString() } : { payments, ...mismatch });
     logActivity(job.id, { type: "payment", title: `${left <= 0 ? "Paid in full" : "Part payment"} · ${gbp(r.line.amount)} (matched from bank statement)`, detail: r.line.text, by: who });
     setDone((d) => ({ ...d, [r.line.id]: left <= 0 ? "paid" : "part" }));
   };
