@@ -5,14 +5,14 @@
 // what else is open at the same postcode, how to get in, and the two
 // on-the-day buttons — "on the way" and "no access".
 import Link from "next/link";
-import { FiNavigation, FiSlash, FiKey, FiUsers, FiAlertTriangle, FiMapPin } from "react-icons/fi";
+import { FiNavigation, FiSlash, FiKey, FiAlertTriangle, FiMapPin } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
-import { rankEngineers, engineerUnavailable, samePostcodeJobs } from "@/lib/booking";
+import { engineerUnavailable, samePostcodeJobs } from "@/lib/booking";
 import { openWhatsAppChat } from "@/lib/whatsapp";
 import { greetingNow, firstName, jobSender } from "@/lib/email";
 import { accessPhone, windowStr } from "@/lib/jobCard";
-import { isSplit, blockersForScheduling } from "@/lib/visits";
+import { blockersForScheduling } from "@/lib/visits";
 import { fmtDate, getJobLines } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
@@ -24,7 +24,6 @@ export default function BookingAssist({ job, client, property, onReschedule }) {
 
   const who = user?.name || user?.username || "";
   const unassigned = !job.engineerId || job.engineerId === "unassigned";
-  const suggestions = !isSplit(job) && unassigned ? rankEngineers(job, { engineers, jobs, property, client, rules }) : [];
   const eng = unassigned ? null : engineerById(job.engineerId);
   const off = eng ? engineerUnavailable(eng, job.scheduledAt) : null;
   const neighbours = samePostcodeJobs(job, { jobs, clients });
@@ -65,7 +64,7 @@ export default function BookingAssist({ job, client, property, onReschedule }) {
     onReschedule?.();
   };
 
-  const show = suggestions.length || off || neighbours.length || property?.accessNotes || booked;
+  const show = off || neighbours.length || property?.accessNotes || booked;
   if (!show) return null;
 
   return (
@@ -82,29 +81,6 @@ export default function BookingAssist({ job, client, property, onReschedule }) {
             })()}
           </span>
         </p>
-      )}
-
-      {suggestions.length > 0 && (
-        <div>
-          <p className="mb-1.5 flex items-center gap-1.5 font-semibold uppercase tracking-wide text-navy-500"><FiUsers /> Suggested engineer</p>
-          <ul className="space-y-1.5">
-            {suggestions.map((s, i) => (
-              <li key={s.engineer.id} className="flex items-center justify-between gap-2 rounded-lg border border-navy-100 px-2.5 py-1.5">
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold text-navy-800">{s.engineer.name}{i === 0 ? " · best fit" : ""}</span>
-                  <span className="block truncate text-navy-500">{s.reasons.join(" · ")}</span>
-                </span>
-                <button
-                  type="button"
-                  className="shrink-0 font-semibold text-brand-600 hover:text-brand-700"
-                  onClick={() => updateJob(job.id, { engineerId: s.engineer.id })}
-                >
-                  Assign
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
 
       {property?.accessNotes && (

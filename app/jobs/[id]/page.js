@@ -50,6 +50,7 @@ import JobOutcome from "@/components/JobOutcome";
 import Modal from "@/components/Modal";
 import AutoEmailConfirm from "@/components/AutoEmailConfirm";
 import VisitsPanel from "@/components/VisitsPanel";
+import EngineerBlock from "@/components/EngineerBlock";
 import CertificationPanel from "@/components/CertificationPanel";
 import CancelJobModal from "@/components/CancelJobModal";
 import CancelServiceModal from "@/components/CancelServiceModal";
@@ -1482,115 +1483,8 @@ export default function JobDetailPage() {
                 </p>
               )}
               <BookingAssist job={job} client={client} property={property} onReschedule={() => setRescheduleOpen(true)} />
-              <div id="booking" className="scroll-mt-24">
-                <label className="label">Assigned engineer</label>
-                {isSplit(job) ? (
-                  <div className="space-y-2 rounded-lg bg-navy-50 p-3 text-xs text-navy-700">
-                    <p className="font-semibold text-navy-800">Assigned per visit ({getVisits(job).length} visits):</p>
-                    {getVisits(job).map((v, idx) => {
-                      const eng = engineers.find((e) => e.id === v.engineerId);
-                      const lines = visitLines(job, v);
-                      const lineNames = lines.map((l) => certLabel(l.code) || l.name).join(", ");
-                      return (
-                        <div key={v.id} className="flex items-center justify-between border-b border-navy-100/60 pb-1.5 last:border-0 last:pb-0">
-                          <span className="truncate pr-2">
-                            Visit {idx + 1}{lineNames ? ` (${lineNames})` : ""}:
-                          </span>
-                          <span className="shrink-0 font-semibold text-navy-900">
-                            {eng ? eng.name : "Unassigned"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    <p className="pt-1 text-[11px] text-navy-400">
-                      Manage engineer assignments per visit in the Visits panel.
-                    </p>
-                  </div>
-                ) : (
-                  <select
-                    className="input"
-                    value={job.engineerId}
-                    onChange={(e) => {
-                      const nextEngineerId = e.target.value;
-                      const oldEngineerId = job.engineerId;
-                      const lineItems = Array.isArray(job.lineItems)
-                        ? job.lineItems.map((l) =>
-                            l.engineerId === oldEngineerId
-                              ? { ...l, engineerId: nextEngineerId }
-                              : l
-                          )
-                        : job.lineItems;
-                      updateJob(job.id, { engineerId: nextEngineerId, lineItems });
-                    }}
-                  >
-                    {engineerOptions.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}
-                        {e.trade ? ` · ${e.trade}` : ""}
-                        {e.availability === "unavailable" ? ` — not available${e.availabilityNote ? ` (${e.availabilityNote})` : ""}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-              {/* Engineer confirmation — the SAME record the Visits panel
-                  and the job card write (visit.engineerConfirmedAt on a split
-                  job, the job's own flag otherwise), so marking it here, there
-                  or from the card can never disagree. */}
-              {!["completed", "invoiced", "paid", "cancelled"].includes(job.status) && (() => {
-                const { scopes, done, total } = acceptanceProgress(job, engineerById);
-                if (!scopes.length) return null;
-                return (
-                  <div className="space-y-1.5">
-                    <p className="label">
-                      Engineer confirmation{total > 1 ? ` · ${done} of ${total}` : ""}
-                    </p>
-                    {scopes.map((sc) => {
-                      const hasEng = sc.engineerId && sc.engineerId !== "unassigned";
-                      const v = sc.visitId ? (job.visits || []).find((x) => x.id === sc.visitId) : null;
-                      const hasDate = v ? !!v.scheduledAt : !!job.scheduledAt;
-                      const ok = scopeAccepted(job, sc);
-                      const started = v && ["in_progress", "completed"].includes(v.status);
-                      return (
-                        <div
-                          key={sc.key}
-                          className="flex items-center justify-between gap-2 rounded-lg border border-navy-100 bg-white px-2.5 py-2 text-xs dark:bg-white/[0.03]"
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate font-semibold text-navy-800">
-                              {hasEng ? engineerById(sc.engineerId)?.name || sc.label : "No engineer yet"}
-                            </span>
-                            {sc.sub && <span className="block truncate text-navy-500">{sc.sub}</span>}
-                          </span>
-                          {!hasEng ? (
-                            <span className="shrink-0 text-navy-400">Assign first</span>
-                          ) : !hasDate ? (
-                            <span className="shrink-0 text-navy-400">Needs a date</span>
-                          ) : ok ? (
-                            <button
-                              type="button"
-                              disabled={started}
-                              onClick={() => updateJob(job.id, setScopeConfirmed(job, sc.key, false, engineerById))}
-                              className="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 font-semibold text-brand-700 disabled:cursor-default"
-                              title={started ? "" : "Click to undo"}
-                            >
-                              ✓ Confirmed
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => updateJob(job.id, setScopeConfirmed(job, sc.key, true, engineerById))}
-                              className="shrink-0 rounded-full bg-amber-500 px-2.5 py-1 font-semibold text-white hover:bg-amber-600"
-                            >
-                              Mark confirmed
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              {/* Who is doing it and whether they have said yes — one block. */}
+              <EngineerBlock job={job} client={client} property={property} />
               {job.certExpiry && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                   Certificate expires {fmtDate(job.certExpiry)}
@@ -1666,9 +1560,9 @@ export default function JobDetailPage() {
                   <div className="border-t border-navy-100 pt-2.5">
                     <p className="flex items-start gap-2 text-navy-600">
                       <FiMapPin className="mt-0.5 shrink-0 text-navy-400" />
-                      {property.label}, {property.postcode}
+                      {String(property.label || "").toUpperCase().includes(String(property.postcode || "").toUpperCase()) ? property.label : `${property.label}, ${property.postcode}`}
                     </p>
-                    {(job.accessName || job.accessPhone) && (
+                    {(job.accessName || job.accessPhone) && !((job.accessName || client.name) === client.name && String(job.accessPhone || client.phone || "").replace(/\D/g, "") === String(client.phone || "").replace(/\D/g, "")) && (
                       <div className="ml-6 mt-1.5 border-l-2 border-brand-200 pl-2.5 text-xs text-navy-500">
                         <p className="font-semibold text-brand-700">Access contact</p>
                         {job.accessName && <p className="mt-0.5 text-navy-700">{job.accessName}</p>}

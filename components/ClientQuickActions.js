@@ -128,6 +128,20 @@ export default function ClientQuickActions({ job, client, property, engineerConf
           {WA_REPLIES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
         </select>
       </label>
+      <details>
+        <summary className="cursor-pointer font-semibold text-navy-600 hover:text-brand-600">Log a call</summary>
+        <input className="input mb-1.5 mt-1.5 h-8 py-0 text-xs" placeholder="What was said (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <div className="flex flex-wrap gap-1.5">
+          {CALLS.map((c) => (
+            <button key={c.key} type="button" onClick={() => logCall(c)} className="inline-flex items-center gap-1 rounded-lg border border-navy-200 px-2 py-1 font-semibold text-navy-600 hover:border-brand-300 hover:text-brand-600">
+              <c.icon className="h-3 w-3" /> {c.label}
+            </button>
+          ))}
+        </div>
+      </details>
+      <details>
+        <summary className="cursor-pointer font-semibold text-navy-600 hover:text-brand-600">More — handle a problem, draft a reply, message record</summary>
+        <div className="mt-1.5 space-y-2">
       <label className="flex items-center gap-2">
         <FiLifeBuoy className="shrink-0 text-navy-400" />
         <select className="input h-8 min-w-0 flex-1 py-0 text-xs" value="" onChange={(e) => { setBook(PLAYBOOKS.find((p) => p.key === e.target.value) || null); e.target.value = ""; }} aria-label="Handle a problem">
@@ -141,15 +155,6 @@ export default function ClientQuickActions({ job, client, property, engineerConf
           <FiList /> Message record
         </button>
       </div>
-      <details>
-        <summary className="cursor-pointer font-semibold text-navy-600 hover:text-brand-600">Log a call</summary>
-        <input className="input mb-1.5 mt-1.5 h-8 py-0 text-xs" placeholder="What was said (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
-        <div className="flex flex-wrap gap-1.5">
-          {CALLS.map((c) => (
-            <button key={c.key} type="button" onClick={() => logCall(c)} className="inline-flex items-center gap-1 rounded-lg border border-navy-200 px-2 py-1 font-semibold text-navy-600 hover:border-brand-300 hover:text-brand-600">
-              <c.icon className="h-3 w-3" /> {c.label}
-            </button>
-          ))}
         </div>
       </details>
 

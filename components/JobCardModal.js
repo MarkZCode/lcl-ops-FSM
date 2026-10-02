@@ -194,6 +194,7 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
   };
 
   const setConfirmed = (key, on) => {
+    if (on && !window.confirm("Has the engineer actually agreed to attend? Only press OK if they have said yes — this is what lets the client be told it's booked.")) return;
     const patch = setScopeConfirmed(job, key, on, engineerById);
 
     // Confirmation means an engineer accepted the work, so once every card is

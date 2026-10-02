@@ -317,6 +317,7 @@ export default function VisitsPanel({ job, onCancelLines }) {
                 v={v}
                 engineerName={engineers.find((e) => e.id === v.engineerId)?.name}
                 onConfirm={(on) =>
+                  window.confirm(on ? "Has the engineer actually agreed to attend this visit? Only press OK if they have said yes." : "Undo this engineer's confirmation?") &&
                   patchVisit(v.id, on
                     ? { engineerConfirmedAt: new Date().toISOString(), status: "scheduled" }
                     : { engineerConfirmedAt: null, status: "pending" })
