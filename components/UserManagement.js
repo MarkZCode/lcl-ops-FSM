@@ -217,6 +217,7 @@ export default function UserManagement() {
         name: editUser.name,
         username: editUser.username,
         avatar_url: editUser.avatarUrl,
+        away_until: editUser.awayUntil || "",
       }),
     });
     setBusy(false);
@@ -335,6 +336,7 @@ export default function UserManagement() {
                   </p>
                   <p className="text-xs capitalize text-navy-400">
                     {u.role === "admin" ? "Administrator" : u.role === "engineer" ? "Engineer (Portal only)" : "Engineer / Agent"}
+                    {u.away_until && u.away_until >= new Date().toISOString().slice(0, 10) ? ` · away until ${u.away_until}` : ""}
                   </p>
                 </div>
               </div>
@@ -354,7 +356,7 @@ export default function UserManagement() {
                   <div className="grid grid-cols-2 gap-2 sm:ml-auto sm:flex sm:w-auto sm:shrink-0 sm:flex-nowrap sm:items-center">
                     <button
                       onClick={() => {
-                        setEditUser({ id: u.id, name: u.name || "", username: u.username || "", avatarUrl: u.avatar_url || "" });
+                        setEditUser({ id: u.id, name: u.name || "", username: u.username || "", avatarUrl: u.avatar_url || "", awayUntil: u.away_until || "" });
                         setError("");
                       }}
                       className="btn-outline justify-center py-1.5 text-xs sm:flex-initial"
@@ -533,6 +535,23 @@ export default function UserManagement() {
             />
             <p className="mt-1 text-[11px] text-navy-400">
               They can sign in with this username or their email.
+            </p>
+          </div>
+          <div>
+            <label className="label">Away until</label>
+            <div className="flex gap-2">
+              <input
+                type="date"
+                className="input"
+                value={editUser?.awayUntil || ""}
+                onChange={(e) => setEditUser((u) => ({ ...u, awayUntil: e.target.value }))}
+              />
+              {editUser?.awayUntil && (
+                <button type="button" className="btn-outline shrink-0" onClick={() => setEditUser((u) => ({ ...u, awayUntil: "" }))}>Back in</button>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-navy-400">
+              While away, no new tasks are given to them. Leave empty if they&apos;re in.
             </p>
           </div>
           {error && <p className="text-sm text-rose-600">{error}</p>}

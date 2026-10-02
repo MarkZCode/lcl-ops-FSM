@@ -25,7 +25,8 @@ const CODES = [
 const isPdf = (f) => f?.type === "application/pdf" || /\.pdf$/i.test(f?.name || "");
 
 export default function RemedialPanel({ job, onCreateRemedial }) {
-  const { jobs, updateJob, logActivity } = useStore();
+  const { jobs, updateJob, logActivity, rules } = useStore();
+  const defaultMargin = Number(rules?.remedialMargin ?? 30);
   const { user, can } = useAuth();
   const [code, setCode] = useState("C2");
   const [text, setText] = useState("");
@@ -54,7 +55,7 @@ export default function RemedialPanel({ job, onCreateRemedial }) {
   // The remedial job's money: engineer's cost + our margin = the quote.
   const rem = job.remedial || {};
   const cost = Number(rem.engineerCost) || 0;
-  const margin = rem.marginPct === undefined || rem.marginPct === "" ? 30 : Number(rem.marginPct) || 0;
+  const margin = rem.marginPct === undefined || rem.marginPct === "" ? defaultMargin : Number(rem.marginPct) || 0;
   const suggested = Math.round(cost * (1 + margin / 100) * 100) / 100;
   const setRem = (patch) => updateJob(job.id, { remedial: { ...rem, ...patch } });
   const usePrice = () => {
@@ -133,7 +134,7 @@ export default function RemedialPanel({ job, onCreateRemedial }) {
             </div>
             <div>
               <label className="label">Our margin %</label>
-              <input type="number" min="0" step="1" className="input" defaultValue={rem.marginPct ?? 30} onBlur={(e) => setRem({ marginPct: e.target.value === "" ? "" : Number(e.target.value) })} />
+              <input type="number" min="0" step="1" className="input" defaultValue={rem.marginPct ?? defaultMargin} onBlur={(e) => setRem({ marginPct: e.target.value === "" ? "" : Number(e.target.value) })} />
             </div>
             <div className="col-span-2 flex items-end sm:col-span-1">
               <button type="button" className="btn-primary w-full justify-center" disabled={!(cost > 0)} onClick={usePrice}>Quote {gbp(suggested)}</button>

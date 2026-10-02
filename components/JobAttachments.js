@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import {
   FiUploadCloud,
   FiTrash2,
@@ -136,11 +136,15 @@ export default function JobAttachments({ job, onSave }) {
         </button>
       ) : (
         <ul className="space-y-2">
-          {files.map((f) => {
+          {/* Certificates and paperwork first, site photos after — a
+              certificate shouldn't have to be found among twenty photos. */}
+          {[...files.filter((f) => !f.type?.startsWith("image/")), ...files.filter((f) => f.type?.startsWith("image/"))].map((f, idx, arr) => {
             const isImg = f.type?.startsWith("image/");
+            const firstPhoto = isImg && (idx === 0 || !arr[idx - 1].type?.startsWith("image/"));
             return (
+              <Fragment key={f.id}>
+              {firstPhoto && idx > 0 && <li className="pt-2 text-[11px] font-semibold uppercase tracking-wide text-navy-400">Photos</li>}
               <li
-                key={f.id}
                 className="flex items-center gap-3 rounded-lg border border-navy-100 bg-white p-2"
               >
                 <button
@@ -189,6 +193,7 @@ export default function JobAttachments({ job, onSave }) {
                   <FiTrash2 className="h-3.5 w-3.5" />
                 </button>
               </li>
+              </Fragment>
             );
           })}
         </ul>

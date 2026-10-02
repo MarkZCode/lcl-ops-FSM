@@ -48,6 +48,7 @@ export async function GET(request) {
     avatar_url: u.user_metadata?.avatar_url || "",
     role: normRole(u.app_metadata?.role),
     permissions: u.user_metadata?.permissions || {},
+    away_until: typeof u.user_metadata?.away_until === "string" ? u.user_metadata.away_until : "",
     is_super_admin: u.id === rootId,
   }));
   return NextResponse.json({ users });
@@ -79,14 +80,14 @@ export async function PATCH(request) {
   const admin = await requireAdmin(request);
   if (!admin) return forbidden();
 
-  const { id, password, role, name, username, avatar_url, permissions } = (await request.json()) || {};
+  const { id, password, role, name, username, avatar_url, permissions, away_until } = (await request.json()) || {};
   if (!id) return NextResponse.json({ error: "Missing user id." }, { status: 400 });
   const rootId = await getRootAdminId();
   if (id === rootId && admin.id !== rootId) return rootLocked();
   const patch = {};
   if (password) patch.password = password;
   if (role) patch.app_metadata = { role: normRole(role) };
-  if (name != null || username != null || avatar_url != null || permissions != null) {
+  if (name != null || username != null || avatar_url != null || permissions != null || away_until != null) {
     // Supabase replaces user_metadata wholesale, so start from the
     // existing record and merge our changes in to avoid wiping fields
     // (e.g. avatar) that aren't part of this particular update.
@@ -97,6 +98,8 @@ export async function PATCH(request) {
     if (username != null) patch.user_metadata.username = (username || "").trim().replace(/\s+/g, ""); // preserve case for display
     if (avatar_url != null) patch.user_metadata.avatar_url = avatar_url;
     if (permissions != null) patch.user_metadata.permissions = permissions;
+    // Away through this date: no new tasks are given to them (lib/taskSync.js).
+    if (away_until != null) patch.user_metadata.away_until = /^\d{4}-\d{2}-\d{2}$/.test(String(away_until)) ? String(away_until) : "";
   }
   const { error } = await supabaseAdmin.auth.admin.updateUserById(id, patch);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

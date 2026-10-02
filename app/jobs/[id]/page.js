@@ -54,6 +54,8 @@ import CancelJobModal from "@/components/CancelJobModal";
 import CancelServiceModal from "@/components/CancelServiceModal";
 import RescheduleModal from "@/components/RescheduleModal";
 import NextStepCard from "@/components/NextStepCard";
+import { nextAction } from "@/lib/nextAction";
+import { markJobSeen } from "@/lib/jobsView";
 import { toast } from "@/lib/toast";
 import { openWhatsAppChat } from "@/lib/whatsapp";
 import { quoteChecks } from "@/lib/quoteChecks";
@@ -72,7 +74,7 @@ import { FaWhatsapp } from "react-icons/fa";
 export default function JobDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { jobs, clients, updateJob, removeJob, mergeBackToParentJob, cancelServices, restoreService, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
+  const { addJob, jobs, clients, updateJob, removeJob, mergeBackToParentJob, cancelServices, restoreService, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
     useStore();
   const { can, user } = useAuth();
   const { bankAccounts, invoiceBankId } = useStore();
@@ -95,6 +97,19 @@ export default function JobDetailPage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [emailTemplateOverride, setEmailTemplateOverride] = useState(null);
+  // The page is split into tabs so it shows what you came for instead of
+  // everything at once. "all" is the old single long page.
+  const [tab, setTabState] = useState("overview");
+  useEffect(() => {
+    try { const t = sessionStorage.getItem("lcl-job-tab"); if (t) setTabState(t); } catch {}
+  }, []);
+  const setTab = (t) => { setTabState(t); try { sessionStorage.setItem("lcl-job-tab", t); } catch {} };
+  const on = (...keys) => tab === "all" || keys.includes(tab);
+  // Where this job sits in the list you came from, for the ‹ › arrows.
+  const [order, setOrder] = useState([]);
+  useEffect(() => {
+    try { setOrder(JSON.parse(sessionStorage.getItem("lcl-jobs-order") || "[]")); } catch {}
+  }, [id]);
 
   // On mount, pull the freshest version of this job from Supabase so activity
   // written by the webhook (while the app was closed/idle) is visible immediately.
@@ -124,6 +139,11 @@ export default function JobDetailPage() {
   }, [id]);
 
   const job = jobs.find((j) => j.id === id);
+  // Opening a job marks it as seen at its current version, so the list's
+  // "changed since you last looked" dot means changes by someone else.
+  useEffect(() => {
+    if (job?.id) markJobSeen(job.id, job.updatedAt || new Date().toISOString());
+  }, [job?.id, job?.updatedAt]);
 
   // Share link and handler — defined AFTER job so no temporal dead zone.
   const handleShare = () => {
@@ -214,8 +234,14 @@ export default function JobDetailPage() {
   // lib/nextAction.js carries a `do` key, and this is the one place that
   // turns it into the real control, so the suggestion and the fix are the
   // same click.
-  const scrollToId = (id) =>
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Which tab each scroll target lives on — a Next step button has to switch
+  // to it before it can scroll there.
+  const TAB_OF = { communication: "messages", visits: "booking", documents: "documents", certificate: "documents", payment: "money", "job-details": "overview", booking: "overview" };
+  const scrollToId = (id) => {
+    const need = TAB_OF[id];
+    if (need && tab !== "all" && !(id === "booking" && tab === "booking") && tab !== need) setTab(need);
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  };
   const handleNextStep = (what, action) => {
     if (!job) return;
     if (what.startsWith("email:")) {
@@ -342,6 +368,52 @@ export default function JobDetailPage() {
     updateJob(job.id, { acceptedAt, quoteHoldUntil: null });
     toast.success(`Quote accepted. Next: ${b[0]}.`, { duration: 7000 });
   };
+  const pinNote = () => {
+    const text = window.prompt("Note to pin to the top of this job (leave empty to remove):", job.pinnedNote || "");
+    if (text === null) return;
+    updateJob(job.id, { pinnedNote: text.trim() });
+  };
+  // A new quote for the same client and property with the same services —
+  // no dates, no engineer, nothing carried over from this job's history.
+  const duplicateJob = () => {
+    const stamp = Date.now().toString(36);
+    const lines = getJobLines(job).filter((l) => !l.cancelled).map((l, i) => ({ id: `ln-${l.code}-${stamp}-${i}`, code: l.code, name: l.name, unit: l.unit, qty: l.qty || 1, ...(l.tier ? { tier: l.tier } : {}), ...(l.total != null ? { total: l.total } : {}) }));
+    const made = addJob({
+      clientId: job.clientId, propertyId: job.propertyId,
+      lineItems: lines, services: lines.map((l) => l.code),
+      quantities: Object.fromEntries(lines.map((l) => [l.code, l.qty || 1])),
+      ...(job.gasAppliances ? { gasAppliances: job.gasAppliances } : {}),
+      price: jobPayable({ lineItems: lines }),
+      nameOnCert: job.nameOnCert || "", accessName: job.accessName || "", accessPhone: job.accessPhone || "",
+      accessContacts: job.accessContacts || [], intake: job.intake || {},
+      notes: `Copied from ${job.id}.`,
+    });
+    if (made?.id) router.push(`/jobs/${made.id}`);
+  };
+  // One printable page: who, where, what, when, how much.
+  const printSummary = () => {
+    const esc = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const rows = [
+      ["Job", job.id], ["Stage", statusMeta(jobStage(job))?.label || job.status],
+      ["Client", client?.name], ["Phone", client?.phone], ["Email", client?.email],
+      ["Property", [property?.label, property?.postcode].filter(Boolean).join(", ")],
+      ["Access", [job.accessName, job.accessPhone].filter(Boolean).join(" · ")],
+      ["Access notes", property?.accessNotes],
+      ["Name on certificate", job.nameOnCert || client?.name],
+      ["Appointment", job.scheduledAt ? dateLine(job) : "Not scheduled"],
+      ["Engineer", job.engineerId && job.engineerId !== "unassigned" ? engineerById(job.engineerId)?.name : "Unassigned"],
+      ["Services", getJobLines(job).filter((l) => !l.cancelled).map((l) => `${l.code === "CUSTOM" ? l.name : certLabel(l.code)}${l.tier ? ` (${l.tier})` : ""} — ${gbp(lineTotal(l))}`).join("<br>")],
+      ["Total", gbp(job.price)],
+      ["Notes", job.notes],
+    ].filter(([, v]) => v);
+    const w = window.open("", "_blank", "width=720,height=900");
+    if (!w) return;
+    w.document.write(`<title>${esc(job.id)}</title><body style="font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;padding:32px;color:#14213D"><h1 style="font-size:20px;margin:0 0 4px">Landlord Compliance London</h1><p style="margin:0 0 20px;color:#555">Job summary · printed ${new Date().toLocaleDateString("en-GB")}</p><table style="border-collapse:collapse;width:100%">${rows.map(([k, v]) => `<tr><td style="padding:7px 12px 7px 0;border-bottom:1px solid #ddd;color:#555;vertical-align:top;width:170px">${esc(k)}</td><td style="padding:7px 0;border-bottom:1px solid #ddd;white-space:pre-wrap">${k === "Services" ? v : esc(v)}</td></tr>`).join("")}</table></body>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  };
+
   // Step 2 of an enquiry quote: the "we've got it" WhatsApp. Opens the
   // client's chat with the message already typed — nothing is sent until
   // they press send in WhatsApp.
@@ -541,13 +613,34 @@ export default function JobDetailPage() {
   return (
     <>
       <TaskCompletionBanner />
-      <div className="border-b border-navy-100 bg-white px-4 py-4 sm:px-8">
-        <Link
-          href="/jobs"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800"
-        >
-          <FiArrowLeft /> Back to jobs
-        </Link>
+      <div className="relative border-b border-navy-100 bg-white px-4 py-4 sm:px-8 lg:sticky lg:top-0 lg:z-20">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <Link
+            href="/jobs"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800"
+          >
+            <FiArrowLeft /> Back to jobs
+          </Link>
+          {(() => {
+            const i = order.indexOf(job.id);
+            if (i === -1 || order.length < 2) return null;
+            const prev = order[i - 1], next = order[i + 1];
+            const cls = "grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-500 hover:border-brand-300 hover:text-brand-600";
+            return (
+              <span className="flex items-center gap-1.5 text-xs text-navy-500">
+                {prev ? <Link href={`/jobs/${prev}`} className={cls} aria-label="Previous job in the list" title={prev}>‹</Link> : <span className={`${cls} opacity-30`}>‹</span>}
+                <span className="tnum">{i + 1} of {order.length}</span>
+                {next ? <Link href={`/jobs/${next}`} className={cls} aria-label="Next job in the list" title={next}>›</Link> : <span className={`${cls} opacity-30`}>›</span>}
+              </span>
+            );
+          })()}
+        </div>
+        {/* Where the job is, at a glance: one segment per stage. */}
+        <div className="absolute inset-x-0 bottom-0 flex h-[3px]" aria-hidden>
+          {STAGE_ORDER.filter((s) => s !== "cancelled").map((s, i, arr) => (
+            <span key={s} className={`flex-1 ${job.status === "cancelled" ? "bg-rose-300" : i <= arr.indexOf(jobStage(job)) ? "bg-brand-500" : "bg-navy-100"}`} />
+          ))}
+        </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-navy-900">{job.id}</h1>
@@ -629,6 +722,15 @@ export default function JobDetailPage() {
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setEditOpen(true); setMoreOpen(false); }}>
                       <FiEdit2 className="h-4 w-4" /> Edit
                     </button>
+                    <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setMoreOpen(false); pinNote(); }}>
+                      <FiFileText className="h-4 w-4" /> {job.pinnedNote ? "Change pinned note" : "Pin a note"}
+                    </button>
+                    <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setMoreOpen(false); duplicateJob(); }}>
+                      <FiClipboard className="h-4 w-4" /> Duplicate
+                    </button>
+                    <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setMoreOpen(false); printSummary(); }}>
+                      <FiDownload className="h-4 w-4" /> Print summary
+                    </button>
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50" onClick={() => { setConfirmDel(true); setMoreOpen(false); }}>
                       <FiTrash2 className="h-4 w-4" /> Delete
                     </button>
@@ -640,9 +742,40 @@ export default function JobDetailPage() {
         </div>
       </div>
 
-      <div className="page grid grid-cols-1 gap-6 overflow-x-hidden lg:grid-cols-[minmax(0,900px)_380px]">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-navy-100 bg-white px-4 py-2 sm:px-8">
+        <div className="scroll-area flex gap-1 overflow-x-auto" role="tablist">
+          {[["overview", "Overview"], ["booking", "Booking"], ["money", "Money"], ["documents", "Documents"], ["messages", "Messages"], ["all", "Everything"]].map(([k, l]) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={tab === k}
+              onClick={() => setTab(k)}
+              className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition ${tab === k ? "bg-navy-800 text-white" : "text-navy-600 hover:bg-navy-50"}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-navy-500">
+          <strong className="tnum text-navy-900">{gbp(job.price)}</strong>
+          {(() => {
+            const a = nextAction(job, { client, clientEmail: client?.email || "", clientPhone: client?.phone || "", engineerName: (eid) => engineerById(eid)?.name || "the engineer", engineerExists: (eid) => engineers.some((e) => e.id === eid), engineerById: (eid) => engineers.find((e) => e.id === eid) });
+            return a ? <> · Next: <span className="font-semibold text-navy-800">{a.title}</span></> : null;
+          })()}
+        </p>
+      </div>
+
+      {job.pinnedNote && (
+        <div className="flex items-start justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 sm:px-8 dark:bg-amber-500/10 dark:text-amber-100">
+          <p className="min-w-0 whitespace-pre-wrap"><strong>Pinned:</strong> {job.pinnedNote}</p>
+          <button type="button" className="shrink-0 text-xs font-semibold underline" onClick={() => updateJob(job.id, { pinnedNote: "" })}>Unpin</button>
+        </div>
+      )}
+
+      <div className={`page grid grid-cols-1 gap-6 overflow-x-hidden ${tab === "messages" ? "lg:max-w-3xl" : "lg:grid-cols-[minmax(0,900px)_380px]"}`}>
         {/* Main */}
-        <div className="min-w-0 space-y-6">
+        <div className="min-w-0 space-y-6" hidden={tab === "messages"}>
+          <div className="space-y-6 empty:hidden" hidden={!on("overview")}>
           {/* Quote levels — where the quote actually is, and one-tap records
               for what happened on WhatsApp or the phone. */}
           {job.status === "quote" && (() => {
@@ -754,6 +887,8 @@ export default function JobDetailPage() {
             )}
           </section>
 
+          </div>
+          <div className="space-y-6 empty:hidden" hidden={!on("booking")}>
           {/* Split Job Parent/Child Banners */}
           {(job.relatedJobId || job.parentJobId) && (
             <div className="rounded-xl border border-blue-200 bg-blue-50/90 p-4 text-blue-900 flex flex-wrap items-center justify-between gap-3 shadow-sm">
@@ -813,6 +948,8 @@ export default function JobDetailPage() {
           </div>
           <CertificationPanel job={job} />
 
+          </div>
+          <div className="space-y-6 empty:hidden" hidden={!on("overview", "money")}>
           {/* Services */}
           <section className="card p-5">
             <h2 className="mb-3 section-label text-sm">
@@ -943,6 +1080,8 @@ export default function JobDetailPage() {
             })()}
           </section>
 
+          </div>
+          <div className="space-y-6 empty:hidden" hidden={!on("money")}>
           {/* Parking receipt — always on job detail when engineer assigned */}
           {job.engineerId && job.engineerId !== "unassigned" && (
             <ParkingReceipt job={job} onSave={updateJob} />
@@ -1193,6 +1332,8 @@ export default function JobDetailPage() {
           </section>
           )}
 
+          </div>
+          <div className="space-y-6 empty:hidden" hidden={!on("documents")}>
           <div id="certificate" className="scroll-mt-24">
             <CertificateDesk job={job} />
           </div>
@@ -1202,6 +1343,8 @@ export default function JobDetailPage() {
             <JobAttachments job={job} onSave={updateJob} />
           </div>
 
+          </div>
+          <div className="space-y-6 empty:hidden" hidden={!on("booking")}>
           {/* Outcome & follow-up (remedial / replacement) */}
           <JobOutcome job={job} onCreateFollowUp={createFollowUp} />
           <RemedialPanel job={job} onCreateRemedial={createFollowUp} />
@@ -1256,6 +1399,8 @@ export default function JobDetailPage() {
             </section>
           )}
 
+          </div>
+          <div className="space-y-6 empty:hidden" hidden={!on("overview")}>
           {/* Notes */}
           <section className="card p-5">
             <h2 className="mb-2 section-label text-sm">
@@ -1265,12 +1410,13 @@ export default function JobDetailPage() {
               {job.notes || "No notes added."}
             </p>
           </section>
+          </div>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Schedule + engineer */}
-          <section className="card p-5">
+          <section className="card p-5" hidden={!on("overview", "booking")}>
             <h2 className="mb-3 section-label text-sm">
               Appointment
             </h2>
@@ -1469,6 +1615,19 @@ export default function JobDetailPage() {
                 >
                   <FiMail className="text-navy-400" /> {client.email}
                 </a>
+                {(() => {
+                  const others = jobs.filter((j) => j.clientId === client.id && j.id !== job.id && !["paid", "cancelled"].includes(j.status));
+                  if (!others.length) return null;
+                  return (
+                    <p className="text-xs text-navy-500">
+                      Also open for this client:{" "}
+                      {others.slice(0, 5).map((j, i) => (
+                        <span key={j.id}>{i > 0 && ", "}<Link href={`/jobs/${j.id}`} className="font-semibold text-brand-600 hover:underline">{j.id}</Link></span>
+                      ))}
+                      {others.length > 5 ? ` and ${others.length - 5} more` : ""}
+                    </p>
+                  );
+                })()}
                 <ClientQuickActions job={job} client={client} property={property} engineerConfirmed={blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer").length === 0} />
                 {property && (
                   <div className="border-t border-navy-100 pt-2.5">
@@ -1501,13 +1660,13 @@ export default function JobDetailPage() {
           </section>
 
           {/* Communication thread */}
-          <div id="communication" className="scroll-mt-24">
+          <div id="communication" className="scroll-mt-24" hidden={!on("overview", "messages")}>
             <ActivityThread job={job} client={client} />
           </div>
 
           {/* Change history — who changed the price, date, engineer or status */}
           {(job.changeLog || []).length > 0 && (
-            <details className="card p-5">
+            <details className="card p-5" hidden={!on("messages")}>
               <summary className="cursor-pointer section-label text-sm">Change history ({job.changeLog.length})</summary>
               <ul className="mt-3 space-y-2 text-xs">
                 {[...job.changeLog].reverse().slice(0, 60).map((c, i) => {

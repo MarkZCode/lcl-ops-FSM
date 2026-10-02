@@ -23,7 +23,7 @@ const STATUS_ACCENT = {
 import { nextAction } from "@/lib/nextAction";
 import { enquiryWaitMs, waitLabel } from "@/lib/quoteChecks";
 
-export default function JobCard({ job, onJobCard }) {
+export default function JobCard({ job, onJobCard, compact = false, owner, unseen = false, highlighted = false, selecting = false, selected = false, onToggle }) {
   const { clientById, engineerById, updateJob } = useStore();
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
@@ -73,11 +73,17 @@ export default function JobCard({ job, onJobCard }) {
   return (
     <Link
       href={`/jobs/${job.id}`}
-      className={`card block min-w-0 border-l-4 p-4 transition hover:shadow-md hover:-translate-y-px ${accent}`}
+      id={`job-row-${job.id}`}
+      onClick={(e) => { if (selecting) { e.preventDefault(); onToggle?.(job.id); } }}
+      className={`card block min-w-0 border-l-4 transition hover:shadow-md hover:-translate-y-px ${compact ? "p-3" : "p-4"} ${accent} ${selected ? "ring-2 ring-brand-400" : highlighted ? "ring-2 ring-navy-300" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-bold uppercase tracking-wider text-navy-400">{job.id}</p>
+          <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-navy-400">
+            {selecting && <input type="checkbox" readOnly checked={selected} aria-label={`Select ${job.id}`} />}
+            {unseen && <span className="h-2 w-2 rounded-full bg-blue-500" title="Changed since you last opened it" />}
+            {job.id}
+          </p>
           <p className="mt-0.5 truncate text-sm font-bold text-navy-900">{client?.name || "Unknown client"}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 justify-end">
@@ -118,7 +124,7 @@ export default function JobCard({ job, onJobCard }) {
       </div>
 
       {/* Details */}
-      <div className="mt-3 space-y-1.5 text-xs text-navy-500">
+      <div className={`mt-3 space-y-1.5 text-xs text-navy-500 ${compact ? "hidden" : ""}`}>
         {property && (
           <p className="flex items-center gap-2 min-w-0">
             <FiMapPin className="shrink-0 text-brand-400" />
@@ -151,7 +157,9 @@ export default function JobCard({ job, onJobCard }) {
 
       {/* Footer */}
       <div className="mt-3 flex items-center justify-between border-t border-navy-100 pt-3">
-        <span className="text-xs text-navy-400">{tags.length} service{tags.length !== 1 ? "s" : ""}</span>
+        <span className="min-w-0 truncate text-xs text-navy-400">
+          {compact && property?.postcode ? `${property.postcode} · ` : ""}{tags.length} service{tags.length !== 1 ? "s" : ""}{owner ? ` · ${owner}` : ""}
+        </span>
         <span className="text-base font-black text-navy-900">{gbp(job.price)}</span>
       </div>
 
@@ -168,12 +176,12 @@ export default function JobCard({ job, onJobCard }) {
             <span className="shrink-0">Next:</span>
             <span className="truncate">{next.title}</span>
           </p>
-          {next.detail && <p className="mt-0.5 line-clamp-2 opacity-80">{next.detail}</p>}
+          {next.detail && !compact && <p className="mt-0.5 line-clamp-2 opacity-80">{next.detail}</p>}
         </div>
       )}
       {/* Note — reads/writes job.notes directly, so it's the exact same note
           the job detail page shows, editable here without opening the job. */}
-      <div className="mt-2 border-t border-navy-100 pt-2 dark:border-white/10">
+      <div className={`mt-2 border-t border-navy-100 pt-2 dark:border-white/10 ${compact ? "hidden" : ""}`}>
         {editingNote ? (
           <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="space-y-1.5">
             <textarea

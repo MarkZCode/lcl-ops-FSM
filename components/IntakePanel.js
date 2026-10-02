@@ -32,7 +32,8 @@ const sentence = (items) =>
   items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 
 export default function IntakePanel({ job, client, property }) {
-  const { updateJob, logActivity } = useStore();
+  const { updateJob, logActivity, rules } = useStore();
+  const feeDefault = Number(rules?.noAccessFee) || NO_ACCESS_FEE_DEFAULT;
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   if (!job || ["paid", "cancelled"].includes(job.status)) return null;
@@ -155,12 +156,12 @@ export default function IntakePanel({ job, client, property }) {
           </div>
 
           <label className="flex flex-wrap items-center gap-2 text-xs text-navy-700">
-            <input type="checkbox" checked={!!job.noAccessFee} onChange={(e) => updateJob(job.id, { noAccessFee: e.target.checked ? NO_ACCESS_FEE_DEFAULT : 0 })} />
+            <input type="checkbox" checked={!!job.noAccessFee} onChange={(e) => updateJob(job.id, { noAccessFee: e.target.checked ? feeDefault : 0 })} />
             A no-access fee applies to this job
             {!!job.noAccessFee && (
               <>
                 : £
-                <input type="number" min="0" className="input h-8 w-20 py-0 text-xs" defaultValue={job.noAccessFee} onBlur={(e) => Number(e.target.value) !== job.noAccessFee && updateJob(job.id, { noAccessFee: Number(e.target.value) || NO_ACCESS_FEE_DEFAULT })} />
+                <input type="number" min="0" className="input h-8 w-20 py-0 text-xs" defaultValue={job.noAccessFee} onBlur={(e) => Number(e.target.value) !== job.noAccessFee && updateJob(job.id, { noAccessFee: Number(e.target.value) || feeDefault })} />
                 <span className="text-navy-500">— stated on the quote</span>
               </>
             )}

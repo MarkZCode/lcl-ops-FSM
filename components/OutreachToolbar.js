@@ -13,6 +13,7 @@
 //     stage just because I clicked message" feedback).
 
 import { FiPhone, FiPhoneCall, FiMail, FiMessageCircle } from "react-icons/fi";
+import { useStore } from "@/lib/store";
 import { waLink, allowOutreachWhatsApp } from "@/lib/whatsapp";
 
 // Strip honorific titles (Mr / Mrs / Ms / Miss / Dr / Mx) before computing
@@ -57,6 +58,7 @@ export default function OutreachToolbar({
   hideAiCall = false,
   contactLog = [],   // array of { channel, at, note }
 }) {
+  const { rules } = useStore();
   if (!contact) return null;
   const { phone, email } = contact;
   const size = compact ? "h-7 w-7" : "h-9 w-9";
@@ -119,7 +121,7 @@ export default function OutreachToolbar({
           </Btn>
         )}
         {phone && (
-          <Btn as="a" href={wa} target="_blank" rel="noreferrer" title="WhatsApp" isCompleted={completed.whatsapp} onClick={(e) => { if (!allowOutreachWhatsApp()) { e.preventDefault(); return; } onChannelClick?.("whatsapp"); }}>
+          <Btn as="a" href={wa} target="_blank" rel="noreferrer" title="WhatsApp" isCompleted={completed.whatsapp} onClick={(e) => { if (!allowOutreachWhatsApp(rules?.outreachWaCap)) { e.preventDefault(); return; } onChannelClick?.("whatsapp"); }}>
             <FiMessageCircle className={iconSize} />
           </Btn>
         )}

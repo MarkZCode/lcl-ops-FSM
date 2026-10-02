@@ -27,6 +27,7 @@ import { supabase } from "@/lib/supabase";
 import { serviceShort } from "@/lib/format";
 import { AUTO_NOTIFY_LABELS } from "@/lib/settings";
 import BankAccounts from "@/components/BankAccounts";
+import RulesSettings from "@/components/RulesSettings";
 import { PUSH_KINDS } from "@/lib/pushKinds";
 import { useAuth } from "@/lib/auth";
 import {
@@ -543,6 +544,7 @@ function SettingsInner() {
         />
         <div className="space-y-2.5 sm:space-y-6">
         <SettingsGroup title="Configuration" id="config">
+          <RulesSettings />
           <BankAccounts />
   {/* Configuration shortcuts */}
           <section>
