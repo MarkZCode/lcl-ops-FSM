@@ -50,56 +50,32 @@ export default function BottomNav() {
   // fires (which is why the first version of this did nothing).
   const hidden = useHideWhileScrolling({ resetKey: pathname });
 
+  // A floating glass capsule, the way current iOS apps draw their tab bar:
+  // inset from the edges, sitting just above the home indicator, the page
+  // showing softly through it. The background is mostly opaque on its own,
+  // so if a phone ever fails to apply the blur the bar is still solid enough
+  // to read — earlier fully-transparent blurred bars could vanish entirely.
   return (
     <nav
       data-bottom-nav
-      className="fixed inset-x-0 bottom-0 z-30 lg:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 lg:hidden"
       style={{
-        // Force this element onto its own GPU compositing layer,
-        // permanently. Confirmed reproducible: the bar was still present
-        // and clickable on the Dashboard even while completely invisible —
-        // it was hit-testing correctly but not being PAINTED, which is a
-        // real, well-documented iOS Safari bug where a fixed element can
-        // silently fail to get composited when something else nearby is
-        // under heavy GPU load (the Dashboard mounts a dozen-plus
-        // simultaneous Framer Motion counter animations on every load; no
-        // other page does this). translateZ(0) is the classic, direct fix —
-        // it forces its own persistent layer, independent of what else is
-        // animating. This bar used to carry will-change:transform for an
-        // unrelated reason (a slide animation, removed along with the
-        // conditional visibility it supported) and losing that side effect
-        // is almost certainly why this specific bug reappeared right after
-        // that pass.
-        transform: hidden ? "translate3d(0, 110%, 0)" : "translate3d(0, 0, 0)",
-        transition: "transform 260ms cubic-bezier(0.22, 0.8, 0.24, 1)",
+        // Its own compositing layer, always (see the iOS paint bug this
+        // guards against: a fixed bar that hit-tests but isn't drawn).
+        transform: hidden ? "translate3d(0, 130%, 0)" : "translate3d(0, 0, 0)",
+        transition: "transform 280ms cubic-bezier(0.22, 0.8, 0.24, 1)",
         willChange: "transform",
-        // Back to the ORIGINAL value this bar shipped with (env(safe-area-
-        // inset-bottom), full, not zero) — checked against git history after
-        // being told this genuinely worked correctly before. Padding is
-        // INSIDE this element's own box, so the background already reaches
-        // the true bottom edge at any padding value; the padding only
-        // decides how far the tap targets sit above the home indicator,
-        // which is what every well-built iOS app reserves this exact amount
-        // of room for. Zero was wrong — it was based on a theory (that
-        // window.innerHeight already excludes the safe area in standalone
-        // mode) that never should have overridden a value already proven
-        // correct in production before anything here was touched.
-        paddingBottom: "env(safe-area-inset-bottom)",
-        // Solid, not translucent. This used backdrop-blur-md over a
-        // color-mix(...,transparent) background for a "content reads as one
-        // continuous surface" effect — but backdrop-filter on a fixed,
-        // always-on-screen element is a well-documented WebKit compositing
-        // trap on iOS: it can silently drop out of the render tree after a
-        // scroll, a theme change, or seemingly nothing, and the fix isn't a
-        // CSS tweak, it's not using backdrop-filter there at all. This bar
-        // has now failed three different ways (sliding away mid-scroll, a
-        // gap below it, and outright not rendering on some screens) — a
-        // primary nav needs to just always be there over looking fancy.
-        backgroundColor: "var(--surface-card)",
-        borderTop: "1px solid var(--hairline)",
+        paddingBottom: "max(12px, calc(env(safe-area-inset-bottom) - 8px))",
       }}
     >
-      <div className="grid h-[60px]" style={{ gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))` }}>
+      <div
+        className="pointer-events-auto mx-auto grid h-[62px] max-w-md items-center gap-1 rounded-full border border-black/[0.06] bg-white/75 p-1.5 shadow-[0_10px_34px_-6px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.6)] dark:border-white/[0.12] dark:bg-[#1c1c1e]/75 dark:shadow-[0_10px_34px_-6px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.08)]"
+        style={{
+          gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))`,
+          backdropFilter: "blur(22px) saturate(180%)",
+          WebkitBackdropFilter: "blur(22px) saturate(180%)",
+        }}
+      >
         {primary.map((link) => {
           const Icon = link.icon;
           const active = isActive(link.href);
@@ -108,16 +84,17 @@ export default function BottomNav() {
               key={link.href}
               href={link.href}
               aria-current={active ? "page" : undefined}
-              className="flex flex-col items-center justify-center gap-0.5 active:opacity-70"
+              className={`flex h-full flex-col items-center justify-center gap-0.5 rounded-full transition-colors duration-200 active:opacity-70 ${
+                active ? "bg-black/[0.07] dark:bg-white/[0.14]" : ""
+              }`}
             >
-              <span
-                className={`grid h-8 w-14 place-items-center rounded-full transition-colors duration-200 ${
-                  active ? "bg-brand-500/15 text-brand-600 dark:bg-brand-400/20 dark:text-brand-300" : "text-navy-400 dark:text-slate-400"
-                }`}
-              >
-                {Icon && <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.3 : 1.9} />}
-              </span>
-              <span className={`text-[11px] ${active ? "font-semibold text-brand-600 dark:text-brand-300" : "font-medium text-navy-500 dark:text-slate-500"}`}>
+              {Icon && (
+                <Icon
+                  className={`h-[22px] w-[22px] ${active ? "text-brand-600 dark:text-brand-300" : "text-navy-600 dark:text-slate-300"}`}
+                  strokeWidth={active ? 2.3 : 1.9}
+                />
+              )}
+              <span className={`text-[10.5px] leading-none ${active ? "font-semibold text-brand-700 dark:text-brand-300" : "font-medium text-navy-600 dark:text-slate-300"}`}>
                 {link.label}
               </span>
             </Link>

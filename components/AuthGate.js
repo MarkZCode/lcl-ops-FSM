@@ -155,7 +155,7 @@ export default function AuthGate({ children }) {
                 pb-16 on a theory that the safe area was being reserved
                 twice — it wasn't; the bottom nav's own padding is what
                 actually needed restoring, see BottomNav.js). */}
-            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(4rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
+            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
             <div className="flex min-h-full flex-col">
               <main className="flex-1 min-w-0"><PageTransition>{children}</PageTransition></main>
               <footer className="bar-navy border-t border-white/[0.06] px-5 py-3 sm:px-8">
@@ -179,7 +179,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v143</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v144</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed
