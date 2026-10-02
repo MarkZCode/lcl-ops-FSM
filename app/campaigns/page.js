@@ -241,24 +241,6 @@ function CampaignsInner() {
     return logRecruitContact(id, entry, stage);
   };
 
-  // ---- Test data seeding ----
-  const [seeding, setSeeding] = useState(false);
-  const seedTestData = async () => {
-    if (!await ask("Add a batch of TEST records (5 prospects · 5 agents · 5 cold leads · 5 recruits) into the database?\n\nThey'll be tagged source='test' so you can clear them later.")) return;
-    setSeeding(true);
-    try {
-      importProspects(makeTestProspects(5));
-      importAgents(makeTestAgents(5));
-      importColdLeads(makeTestColdLeads(5));
-      importRecruits(makeTestRecruits(5));
-      toast.success("Seeded 20 test records. Switch audience to view them.");
-    } catch (e) {
-      toast.error("Seeding failed: " + (e.message || e));
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   const clearTestData = async () => {
     const pIds = prospects.filter((p) => p.source === "test").map((p) => p.id);
     const aIds = agents.filter((a) => a.source === "test").map((a) => a.id);
@@ -284,11 +266,6 @@ function CampaignsInner() {
             <Link href="/email-log" className="btn-secondary flex items-center gap-2" title="See every send, per-recipient status, replies, and scheduled chases">
               <FiMail /> Email log
             </Link>
-            {can("importData") && (
-              <button className="btn-secondary flex items-center gap-2" onClick={seedTestData} disabled={seeding} title="Add 20 fake records so you can dry-run a campaign without touching real data.">
-                <FiActivity /> Seed test data
-              </button>
-            )}
           </>
         }
       />
@@ -446,7 +423,7 @@ function CampaignsInner() {
 
         {/* Test-data quick action */}
         {can("importData") && (
-          <TestDataPanel onSeed={seedTestData} seeding={seeding} onClear={clearTestData}
+          <TestDataPanel onClear={clearTestData}
             counts={{
               p: prospects.filter((x) => x.source === "test").length,
               a: agents.filter((x) => x.source === "test").length,
@@ -702,8 +679,11 @@ function Row({ r, audience }) {
   );
 }
 
-function TestDataPanel({ onSeed, onClear, counts, seeding }) {
+// Only shown while old test records are still in the lists, so they can be
+// cleared. Seeding new ones was removed once the app went live.
+function TestDataPanel({ onClear, counts }) {
   const total = counts.p + counts.a + counts.l + counts.r;
+  if (!total) return null;
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-navy-200 bg-navy-50/50 p-3 text-sm dark:border-white/10 dark:bg-white/5">
       <FiActivity className="text-brand-600 dark:text-brand-400" />
@@ -711,12 +691,9 @@ function TestDataPanel({ onSeed, onClear, counts, seeding }) {
       <span className="text-navy-500 dark:text-slate-400">
         {total > 0
           ? `Currently ${counts.p} prospects · ${counts.a} agents · ${counts.l} leads · ${counts.r} recruits tagged source='test'.`
-          : "No test records loaded. Seed some so you can dry-run a campaign safely."}
+          : ""}
       </span>
       <div className="ml-auto flex gap-1.5">
-        <button className="btn-secondary text-xs" onClick={onSeed} disabled={seeding}>
-          {seeding ? "Seeding…" : <><FiPlay className="h-3.5 w-3.5" /> Seed 20</>}
-        </button>
         {total > 0 && (
           <button className="btn-secondary text-xs text-rose-600" onClick={onClear}>
             <FiTrash2 className="h-3.5 w-3.5" /> Clear test data
