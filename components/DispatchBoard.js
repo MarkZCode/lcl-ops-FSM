@@ -11,7 +11,8 @@ import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { UNASSIGNED_ENGINEER } from "@/lib/constants";
 import { fmtTime, gbp, jobTags } from "@/lib/format";
 import { detectConflicts, isFromOutreach } from "@/lib/dispatch";
-import { visitEntries } from "@/lib/visits";
+import { visitEntries, isVisitConfirmed, isSplit } from "@/lib/visits";
+import { ukDateTimeToUtcIso } from "@/lib/ukTime";
 import StatusBadge from "./StatusBadge";
 import { jobStage } from "@/lib/stages";
 import JobCardModal from "./JobCardModal";
@@ -20,7 +21,7 @@ import JobCardModal from "./JobCardModal";
 // Drag a job card onto another engineer's column to reassign it.
 // (Job-card button per card opens the offer/assigned card modal.)
 export default function DispatchBoard({ day }) {
-  const { jobs, clients, updateJob, engineers } = useStore();
+  const { jobs, clients, updateJob, engineers, rules, logActivity } = useStore();
   const myEngId = useMyEngineerId();
   const [dragId, setDragId] = useState(null);
   const [overCol, setOverCol] = useState(null);
@@ -52,7 +53,15 @@ export default function DispatchBoard({ day }) {
       const pts = withPc.map((x, i) => ({ id: x.id, lat: d.result?.[i]?.result?.latitude, lng: d.result?.[i]?.result?.longitude }));
       const order = routeOrder(pts);
       if (order.length < 2) throw new Error("no coordinates");
-      setRoutes((prev) => ({ ...prev, [engId]: Object.fromEntries(order.map((id, i) => [id, i + 1])) }));
+      // Straight-line miles between consecutive stops — a guide to the gaps
+      // in the day, not a sat-nav figure.
+      const at = Object.fromEntries(pts.map((p) => [p.id, p]));
+      const miles = (a, b) => {
+        const R = 3958.8, rad = Math.PI / 180;
+        const h = Math.sin(((b.lat - a.lat) * rad) / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(((b.lng - a.lng) * rad) / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(h));
+      };
+      setRoutes((prev) => ({ ...prev, [engId]: Object.fromEntries(order.map((id, i) => [id, { stop: i + 1, miles: i > 0 ? miles(at[order[i - 1]], at[id]) : null }])) }));
     } catch {
       toast.error("Couldn't look those postcodes up — check they're complete.");
     } finally {
@@ -100,7 +109,22 @@ export default function DispatchBoard({ day }) {
   // `dragId` is a card id, which for a split job is "JOB-x:vis-y". Resolve it
   // back to the real record and move the VISIT's engineer, not the job's —
   // moving the job would silently reassign every other visit on it too.
+  // Accepted work with no date yet — the tray on the left. Dropping one on
+  // an engineer books it for this day, morning window, to be confirmed.
+  const tray = myEngId ? [] : jobs.filter((j) => j.status === "quote" && j.acceptedAt && !j.scheduledAt && !isSplit(j));
   const reassign = (cardId, engineerId) => {
+    if (String(cardId).startsWith("tray:")) {
+      const jobId = cardId.slice(5);
+      if (engineerId === "unassigned") return;
+      updateJob(jobId, {
+        engineerId,
+        scheduledAt: ukDateTimeToUtcIso(format(day, "yyyy-MM-dd"), "08:00"),
+        windowPart: "Morning", windowFrom: "08:00", windowTo: "13:00",
+        engineerConfirmed: false,
+      });
+      logActivity(jobId, { type: "status", title: `Put on the board for ${format(day, "EEE d MMM")} (morning) — ${engineers.find((e) => e.id === engineerId)?.name || "engineer"} to confirm` });
+      return;
+    }
     const card = dayJobs.find((j) => j.id === cardId);
     if (!card) return;
     if (card.visitId) {
@@ -181,6 +205,33 @@ export default function DispatchBoard({ day }) {
 
     <div className="scroll-area hidden overflow-x-auto pb-2 lg:block">
       <div className="flex w-full gap-4" style={{ minWidth: "min-content" }}>
+        {tray.length > 0 && (
+          <div className="flex w-56 shrink-0 flex-col rounded-xl border border-dashed border-navy-200 bg-white/60 dark:bg-white/[0.02]">
+            <div className="border-b border-navy-100 p-3">
+              <p className="text-sm font-semibold text-navy-800">To book <span className="font-normal text-navy-500">· {tray.length}</span></p>
+              <p className="text-[11px] text-navy-500">Accepted, no date. Drag onto an engineer.</p>
+            </div>
+            <div className="max-h-[70vh] space-y-2 overflow-y-auto p-2">
+              {tray.slice(0, 30).map((j) => {
+                const c = clients.find((x) => x.id === j.clientId);
+                const p = c?.properties?.find((x) => x.id === j.propertyId);
+                return (
+                  <div
+                    key={j.id}
+                    draggable
+                    onDragStart={() => setDragId(`tray:${j.id}`)}
+                    onDragEnd={() => setDragId(null)}
+                    className={`cursor-grab rounded-lg border border-navy-100 bg-white p-2.5 text-xs shadow-card active:cursor-grabbing ${dragId === `tray:${j.id}` ? "opacity-50" : ""}`}
+                  >
+                    <Link href={`/jobs/${j.id}`} className="block truncate font-bold text-navy-900 hover:text-brand-600">{c?.name || j.id}</Link>
+                    <p className="truncate text-navy-500">{jobTags(j).map((t) => t.label).join(", ")}</p>
+                    <p className="truncate text-navy-400">{p?.postcode || "No postcode"}{j.deadline ? ` · needed by ${j.deadline}` : j.preferredDate ? ` · wants ${j.preferredDate}` : ""}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {columns.map((eng) => {
           const colJobs = dayJobs
             .filter((j) => j.engineerId === eng.id)
@@ -195,9 +246,9 @@ export default function DispatchBoard({ day }) {
               }}
               onDragLeave={() => setOverCol((c) => (c === eng.id ? null : c))}
               onDrop={() => onDrop(eng.id)}
-              className={`flex flex-1 min-w-[18rem] flex-col rounded-xl border bg-navy-50/50 transition ${
-                isOver ? "border-brand-400 ring-2 ring-brand-400/30" : "border-navy-100"
-              }`}
+              className={`flex flex-1 min-w-[18rem] flex-col rounded-xl border transition ${
+                eng.id !== "unassigned" && engineerUnavailable(eng, day) ? "bg-navy-100/70 opacity-70" : "bg-navy-50/50"
+              } ${isOver ? "border-brand-400 ring-2 ring-brand-400/30" : "border-navy-100"}`}
             >
               {/* Column header */}
               <div className="flex items-center justify-between gap-2 border-b border-navy-100 p-3">
@@ -226,11 +277,19 @@ export default function DispatchBoard({ day }) {
                       <FiNavigation className="h-3 w-3" /> {routing === eng.id ? "…" : "Route"}
                     </button>
                   )}
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-navy-500">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${eng.id !== "unassigned" && colJobs.length > (Number(eng.dailyJobs) || Number(rules?.engineerDailyJobs) || 5) ? "bg-amber-100 text-amber-800" : "bg-white text-navy-500"}`}
+                    title={eng.id !== "unassigned" && colJobs.length > (Number(eng.dailyJobs) || Number(rules?.engineerDailyJobs) || 5) ? `More than ${Number(eng.dailyJobs) || Number(rules?.engineerDailyJobs) || 5} jobs in one day` : undefined}
+                  >
                     {colJobs.length}
                   </span>
                 </span>
               </div>
+              {colJobs.length > 0 && eng.id !== "unassigned" && (
+                <p className="border-b border-navy-100 px-3 py-1 text-[11px] text-navy-500">
+                  {fmtTime(colJobs[0].scheduledAt)} first{colJobs.length > 1 ? ` · ${fmtTime(colJobs[colJobs.length - 1].scheduledAt)} last` : ""}
+                </p>
+              )}
               {eng.id !== "unassigned" && engineerUnavailable(eng, day) && (
                 <p className="border-b border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-semibold text-rose-700">
                   Off this day{engineerUnavailable(eng, day).note ? ` — ${engineerUnavailable(eng, day).note}` : ""}
@@ -250,9 +309,13 @@ export default function DispatchBoard({ day }) {
                     (p) => p.id === job.propertyId
                   );
                   const conflicted = conflicts.has(job.id);
+                  const visit = job.visitId ? (jobs.find((x) => x.id === job.jobId)?.visits || []).find((v) => v.id === job.visitId) : null;
+                  const confirmed = eng.id !== "unassigned" && (visit ? isVisitConfirmed(visit) : !!job.engineerConfirmed);
                   return (
                     <div
                       key={job.id}
+                      title={eng.id === "unassigned" ? undefined : confirmed ? "Engineer has confirmed" : "Engineer hasn't confirmed yet"}
+                      style={eng.id === "unassigned" ? undefined : { borderLeftWidth: 3, borderLeftColor: confirmed ? "#3FA34D" : "#f59e0b" }}
                       draggable
                       onDragStart={() => setDragId(job.id)}
                       onDragEnd={() => setDragId(null)}
@@ -270,8 +333,8 @@ export default function DispatchBoard({ day }) {
                           <FiClock className="h-3 w-3" />
                           {fmtTime(job.scheduledAt)}
                           {routes[eng.id]?.[job.id] && (
-                            <span className="rounded-full bg-brand-100 px-1.5 text-[10px] font-bold text-brand-700" title="Suggested visiting order">
-                              Stop {routes[eng.id][job.id]}
+                            <span className="rounded-full bg-brand-100 px-1.5 text-[10px] font-bold text-brand-700" title="Suggested visiting order, and the straight-line distance from the stop before">
+                              Stop {routes[eng.id][job.id].stop}{routes[eng.id][job.id].miles != null ? ` · ${routes[eng.id][job.id].miles.toFixed(1)} mi` : ""}
                             </span>
                           )}
                           {isFromOutreach(job) && (

@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import Modal from "./Modal";
 import EngineerDocuments from "./EngineerDocuments";
+import { useAuth } from "@/lib/auth";
+import { QUALIFICATIONS, rateSummary, rateFingerprint } from "@/lib/engineerProfile";
 import { useStore } from "@/lib/store";
 import { ENGINEER_TYPES, ENGINEER_PAY_TYPES, DEFAULT_ENGINEER_CUT, DEFAULT_GAS_BASE_RATE, DEFAULT_GAS_EXTRA_RATE, DEFAULT_SERVICE_RATES } from "@/lib/constants";
 
@@ -49,10 +51,14 @@ const empty = {
   // Rates quoted per unit rather than per job.
   circuitRate: "",
   pointRate: "",
+  qualifications: [],
+  dailyJobs: "",      // most jobs in a day; blank = the default in Settings → Rules
+  backupId: "",       // who covers when this engineer is off
 };
 
 export default function EngineerModal({ open, onClose, engineer, prefill, onSaved }) {
-  const { addEngineer, updateEngineer, catalog } = useStore();
+  const { addEngineer, updateEngineer, catalog, engineers: allEngineers } = useStore();
+  const { user } = useAuth();
   const [form, setForm] = useState(empty);
   // Only treat as an edit when we have an actual saved engineer (id present).
   // `prefill` populates the new-engineer form (used by recruitment onboarding).
@@ -107,6 +113,9 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
             rateCardAcceptedAt: seed.rateCardAcceptedAt || "",
             circuitRate: seed.circuitRate ?? "",
             pointRate: seed.pointRate ?? "",
+            qualifications: Array.isArray(seed.qualifications) ? seed.qualifications : [],
+            dailyJobs: seed.dailyJobs ?? "",
+            backupId: seed.backupId || "",
           }
         : empty
     );
@@ -181,6 +190,11 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
       serviceRates: cleanedRates,
       inspectionRates: cleanedInspRates,
     };
+    // A change to how they're paid goes on the record: what it became, when,
+    // and who changed it.
+    if (!isEdit || rateFingerprint(payload) !== rateFingerprint(engineer)) {
+      payload.rateHistory = [...((isEdit && engineer.rateHistory) || []), { at: new Date().toISOString(), by: user?.name || user?.username || "", summary: rateSummary(payload) }].slice(-40);
+    }
     if (isEdit) updateEngineer(engineer.id, payload);
     else addEngineer(payload);
     onSaved?.(payload);
@@ -331,6 +345,29 @@ export default function EngineerModal({ open, onClose, engineer, prefill, onSave
           <div>
             <label className="label">Rate per point £ (alarm installs)</label>
             <input type="number" min="0" step="0.01" className="input" value={form.pointRate} onChange={(e) => set({ pointRate: e.target.value })} />
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Qualifications</label>
+          <div className="flex flex-wrap gap-1.5">
+            {QUALIFICATIONS.map((q) => {
+              const on = (form.qualifications || []).includes(q);
+              return <button key={q} type="button" onClick={() => set({ qualifications: on ? form.qualifications.filter((x) => x !== q) : [...(form.qualifications || []), q] })} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${on ? "border-brand-400 bg-brand-50 text-brand-700" : "border-navy-200 text-navy-600"}`}>{q}</button>;
+            })}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Most jobs in a day</label>
+            <input type="number" min="1" className="input" value={form.dailyJobs} placeholder="Use the default" onChange={(e) => set({ dailyJobs: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Who covers when they&apos;re off</label>
+            <select className="input" value={form.backupId} onChange={(e) => set({ backupId: e.target.value })}>
+              <option value="">Nobody set</option>
+              {(allEngineers || []).filter((e) => e.id !== engineer?.id).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
           </div>
         </div>
 

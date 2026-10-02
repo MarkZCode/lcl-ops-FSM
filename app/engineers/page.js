@@ -13,6 +13,9 @@ import PageHeader from "@/components/PageHeader";
 import EngineerModal from "@/components/EngineerModal";
 import CoverageMap from "@/components/CoverageMap";
 import EngineerRecruitsTab from "@/components/EngineerRecruitsTab";
+import EngineerProfile from "@/components/EngineerProfile";
+import EngineerPaperwork from "@/components/EngineerPaperwork";
+import { reliability } from "@/lib/engineerProfile";
 import RequirePermission from "@/components/RequirePermission";
 import { toast } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -40,6 +43,7 @@ function EngineersInner() {
   const { engineers, removeEngineer, jobs, coldLeads, recruits, addEngineer, updateColdLead, requestBigTables } = useStore();
   const [addOpen, setAddOpen] = useState(false);
   const [editEng, setEditEng] = useState(null);
+  const [profileEng, setProfileEng] = useState(null);
   const [tab, setTab] = useState("roster"); // 'roster' | 'sourcing' | 'payments'
   // Deep link: /engineers?tab=sourcing lands on the recruitment pipeline. The
   // global search links engineer recruits here, and without this the link
@@ -47,7 +51,7 @@ function EngineersInner() {
   const engParams = useSearchParams();
   useEffect(() => {
     const t = engParams.get("tab");
-    if (["roster", "sourcing", "payments"].includes(t)) setTab(t);
+    if (["roster", "sourcing", "payments", "paperwork"].includes(t)) setTab(t);
   }, [engParams]);
   const [prefillFromLead, setPrefillFromLead] = useState(null);
 
@@ -128,6 +132,7 @@ function EngineersInner() {
             ["roster",   `Active roster (${engineers.length})`],
             ["sourcing", `Sourcing pipeline (${recruits.length})`],
             ["payments", "Payments"],
+            ["paperwork", "Paperwork"],
           ].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
               className={`relative -mb-px border-b-2 px-3 py-3 text-sm font-semibold transition-colors ${
@@ -142,6 +147,8 @@ function EngineersInner() {
       <div className="page">
         {tab === "sourcing" ? (
           <EngineerRecruitsTab />
+        ) : tab === "paperwork" ? (
+          <EngineerPaperwork onOpen={setProfileEng} />
         ) : tab === "payments" ? (
           <PaymentsTab />
         ) : engineers.length === 0 ? (
@@ -217,8 +224,19 @@ function EngineersInner() {
                         {(eng.name || "?").slice(0, 2).toUpperCase()}
                       </span>
                       <div className="min-w-0">
-                        <p className="truncate font-semibold text-navy-900">{eng.name}</p>
+                        <button type="button" onClick={() => setProfileEng(eng)} className="block max-w-full truncate text-left font-semibold text-navy-900 hover:text-brand-600" title="Open profile">{eng.name}</button>
                         {eng.company && <p className="truncate text-xs text-navy-400">{eng.company}</p>}
+                        {(() => {
+                          const r = reliability(eng, jobs);
+                          const off = eng.availability === "unavailable";
+                          if (!off && r.score == null) return null;
+                          return (
+                            <p className="mt-0.5 flex flex-wrap gap-1 text-[10px] font-semibold">
+                              {off && <span className="rounded bg-rose-50 px-1.5 py-0.5 text-rose-700">Not available</span>}
+                              {r.score != null && <span className={`rounded px-1.5 py-0.5 ${r.score >= 80 ? "bg-brand-50 text-brand-700" : r.score >= 50 ? "bg-amber-100 text-amber-800" : "bg-rose-50 text-rose-700"}`}>{r.score}% reliable</span>}
+                            </p>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -313,6 +331,7 @@ function EngineersInner() {
         )}
       </div>
 
+      <EngineerProfile engineer={profileEng} onClose={() => setProfileEng(null)} onEdit={setEditEng} />
       {/* Add modal */}
       <EngineerModal open={addOpen} onClose={() => setAddOpen(false)} />
       {/* Edit modal */}

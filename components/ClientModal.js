@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { FiPlus, FiTrash2 } from "react-icons/fi";
 import Modal from "./Modal";
 import { useStore } from "@/lib/store";
-import { CONTACT_METHODS } from "@/lib/clients";
+import { CONTACT_METHODS, CLIENT_TAGS, CONTACT_ROLES } from "@/lib/clients";
 import PostcodeInput from "./PostcodeInput";
 import { formatPostcode } from "@/lib/enquiry";
 
@@ -21,12 +21,15 @@ const emptyForm = {
   billingName: "",
   billingEmail: "",
   billingAddress: "",
+  tags: [],
+  contacts: [],
+  preferredEngineerId: "",
 };
 
 const TYPES = ["Landlord", "Managing agent", "Commercial", "Housing association"];
 
 export default function ClientModal({ open, onClose, client }) {
-  const { addClient, updateClient } = useStore();
+  const { addClient, updateClient, engineers } = useStore();
   const [form, setForm] = useState(emptyForm);
   const isEdit = Boolean(client);
   const initRef = useRef(null);
@@ -54,6 +57,9 @@ export default function ClientModal({ open, onClose, client }) {
         billingName: client.billingName || "",
         billingEmail: client.billingEmail || "",
         billingAddress: client.billingAddress || "",
+        tags: Array.isArray(client.tags) ? client.tags : [],
+        contacts: Array.isArray(client.contacts) ? client.contacts : [],
+        preferredEngineerId: client.preferredEngineerId || "",
       });
     } else {
       setForm(emptyForm);
@@ -108,6 +114,7 @@ export default function ClientModal({ open, onClose, client }) {
     const payload = {
       ...form,
       discountPercent: Math.max(0, Math.min(100, Number(form.discountPercent) || 0)) || "",
+      contacts: (form.contacts || []).filter((c) => (c.name || "").trim() || (c.phone || "").trim() || (c.email || "").trim()),
       // Keep a property if it has EITHER an address or a postcode. Filtering
       // on the label alone silently deleted postcode-only rows on save —
       // which at quote stage is often all the client has given us. Only a
@@ -183,6 +190,48 @@ export default function ClientModal({ open, onClose, client }) {
             <input className="input" type="number" min="0" max="100" step="0.5" value={form.discountPercent} onChange={set("discountPercent")} placeholder="0" />
           </div>
         </div>
+
+        <div>
+          <label className="label">Usual engineer</label>
+          <select className="input" value={form.preferredEngineerId} onChange={set("preferredEngineerId")}>
+            <option value="">No preference</option>
+            {(engineers || []).map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">Tags</label>
+          <div className="flex flex-wrap gap-1.5">
+            {CLIENT_TAGS.map((t) => {
+              const on = (form.tags || []).includes(t);
+              return (
+                <button key={t} type="button" onClick={() => setForm((f) => ({ ...f, tags: on ? f.tags.filter((x) => x !== t) : [...(f.tags || []), t] }))} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${on ? "border-brand-400 bg-brand-50 text-brand-700" : "border-navy-200 text-navy-600"}`}>{t}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        <details className="rounded-lg border border-navy-100 p-3" open={(form.contacts || []).length > 0}>
+          <summary className="cursor-pointer text-sm font-semibold text-navy-700">Other contacts ({(form.contacts || []).length})</summary>
+          <p className="mt-1 text-xs text-navy-500">The agent, the accounts department, a tenant — anyone else you deal with for this client.</p>
+          <div className="mt-2 space-y-2">
+            {(form.contacts || []).map((c) => {
+              const patch = (p) => setForm((f) => ({ ...f, contacts: f.contacts.map((x) => (x.id === c.id ? { ...x, ...p } : x)) }));
+              return (
+                <div key={c.id} className="grid grid-cols-2 gap-2 sm:grid-cols-[1.2fr,0.9fr,1fr,1.3fr,auto]">
+                  <input className="input" placeholder="Name" value={c.name || ""} onChange={(e) => patch({ name: e.target.value })} />
+                  <select className="input" value={c.role || ""} onChange={(e) => patch({ role: e.target.value })}>
+                    <option value="">Role</option>
+                    {CONTACT_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <input className="input" placeholder="Phone" value={c.phone || ""} onChange={(e) => patch({ phone: e.target.value })} />
+                  <input className="input" placeholder="Email" value={c.email || ""} onChange={(e) => patch({ email: e.target.value })} />
+                  <button type="button" className="rounded-lg border border-navy-200 px-2 text-rose-500 hover:bg-rose-50" aria-label="Remove contact" onClick={() => setForm((f) => ({ ...f, contacts: f.contacts.filter((x) => x.id !== c.id) }))}><FiTrash2 /></button>
+                </div>
+              );
+            })}
+            <button type="button" className="text-xs font-semibold text-brand-600" onClick={() => setForm((f) => ({ ...f, contacts: [...(f.contacts || []), { id: "ct-" + Date.now().toString(36), name: "", role: "", phone: "", email: "" }] }))}>+ Add a contact</button>
+          </div>
+        </details>
 
         {/* Who pays — an agent often books for a landlord, and the invoice
             has to be made out to whoever is actually paying it. */}

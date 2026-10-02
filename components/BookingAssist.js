@@ -18,13 +18,13 @@ import { toast } from "@/lib/toast";
 
 
 export default function BookingAssist({ job, client, property, onReschedule }) {
-  const { jobs, clients, engineers, engineerById, updateJob, logActivity } = useStore();
+  const { jobs, clients, engineers, engineerById, updateJob, logActivity, rules } = useStore();
   const { user, can } = useAuth();
   if (!job || ["completed", "invoiced", "paid", "cancelled"].includes(job.status)) return null;
 
   const who = user?.name || user?.username || "";
   const unassigned = !job.engineerId || job.engineerId === "unassigned";
-  const suggestions = !isSplit(job) && unassigned ? rankEngineers(job, { engineers, jobs, property }) : [];
+  const suggestions = !isSplit(job) && unassigned ? rankEngineers(job, { engineers, jobs, property, client, rules }) : [];
   const eng = unassigned ? null : engineerById(job.engineerId);
   const off = eng ? engineerUnavailable(eng, job.scheduledAt) : null;
   const neighbours = samePostcodeJobs(job, { jobs, clients });
@@ -73,7 +73,14 @@ export default function BookingAssist({ job, client, property, onReschedule }) {
       {off && (
         <p className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 font-semibold text-rose-700">
           <FiAlertTriangle className="mt-0.5 shrink-0" />
-          <span>{eng.name} is off that day{off.note ? ` (${off.note})` : ""} — reassign or reschedule.</span>
+          <span>
+            {eng.name} is off that day{off.note ? ` (${off.note})` : ""} — reassign or reschedule.
+            {(() => {
+              const backup = eng.backupId ? engineers.find((e) => e.id === eng.backupId) : null;
+              if (!backup || engineerUnavailable(backup, job.scheduledAt)) return null;
+              return <> Their cover is <button type="button" className="underline" onClick={() => updateJob(job.id, { engineerId: backup.id, engineerConfirmed: false })}>{backup.name} — assign</button>.</>;
+            })()}
+          </span>
         </p>
       )}
 

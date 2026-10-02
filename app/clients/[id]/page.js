@@ -19,6 +19,8 @@ import { useStore } from "@/lib/store";
 import { gbp, fmtDateTime, serviceShort, fmtDate } from "@/lib/format";
 import { getRenewals, renewalTone } from "@/lib/renewals";
 import { clientTimeline } from "@/lib/clients";
+import ClientExtras from "@/components/ClientExtras";
+import { makeServiceLine } from "@/lib/format";
 import { pickBank } from "@/lib/bank";
 import { toast } from "@/lib/toast";
 import { jobBalance, jobReceived } from "@/lib/payments";
@@ -35,7 +37,7 @@ import TaskCompletionBanner from "@/components/team/TaskCompletionBanner";
 export default function ClientDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { clients, jobs, removeClient, updateClient, hydrated, bankAccounts, invoiceBankId } = useStore();
+  const { clients, jobs, removeClient, updateClient, addJob, hydrated, bankAccounts, invoiceBankId } = useStore();
   const [editOpen, setEditOpen] = useState(false);
   const [jobOpen, setJobOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -114,6 +116,41 @@ export default function ClientDetailPage() {
         })),
     });
   };
+
+  // Certificates running out in the next 90 days, with no renewal already
+  // open for that property and service — and one button to raise a quote
+  // for each.
+  const renewalsDue = [];
+  for (const { prop, certMap } of portfolio) {
+    for (const [code, j] of Object.entries(certMap)) {
+      if (!j?.certExpiry) continue;
+      const days = Math.ceil((new Date(j.certExpiry) - new Date()) / 86400000);
+      if (days > 90) continue;
+      const already = clientJobs.some((o) => ["quote", "scheduled", "in_progress"].includes(o.status) && o.propertyId === prop.id && (o.services || []).includes(code));
+      if (!already) renewalsDue.push({ prop, code, job: j, days });
+    }
+  }
+  const bookRenewals = () => {
+    if (!window.confirm(`Create ${renewalsDue.length} renewal quote${renewalsDue.length === 1 ? "" : "s"} for ${client.name}? They're created as quotes — nothing is sent.`)) return;
+    const stamp = Date.now().toString(36);
+    renewalsDue.forEach((r, i) => {
+      const old = (r.job.lineItems || []).find((l) => l.code === r.code);
+      const line = old ? { id: `ln-${r.code}-${stamp}-${i}`, code: old.code, name: old.name, unit: old.unit, qty: old.qty || 1, ...(old.tier ? { tier: old.tier } : {}) } : makeServiceLine(r.code, `ln-${r.code}-${stamp}-${i}`);
+      const lines = [line, makeServiceLine("PARKING", `ln-PARKING-${stamp}-${i}`)];
+      addJob({
+        clientId: client.id, propertyId: r.prop.id,
+        lineItems: lines, services: lines.map((l) => l.code),
+        quantities: Object.fromEntries(lines.map((l) => [l.code, l.qty || 1])),
+        price: Math.round(lines.reduce((s, l) => s + (Number(l.unit) || 0) * (l.qty || 1), 0) * 100) / 100,
+        source: "renewal", recurringFromId: r.job.id, nameOnCert: r.job.nameOnCert || "",
+        notes: `Renewal of the ${serviceShort(r.code)} certificate from ${r.job.id} (expires ${fmtDate(r.job.certExpiry)}).`,
+      });
+    });
+    toast.success(`${renewalsDue.length} renewal quote${renewalsDue.length === 1 ? "" : "s"} created.`);
+  };
+  // A portfolio discount agreed once and never looked at again is how a
+  // client ends up on last year's deal for ever.
+  const discountStale = Number(client?.discountPercent) > 0 && (!client.discountReviewedAt || Date.now() - new Date(client.discountReviewedAt).getTime() > 365 * 86400_000);
 
   // One link the client can keep: all their certificates, always current.
   const copyCertLink = () => {
@@ -211,6 +248,17 @@ export default function ClientDetailPage() {
                 {client.preferredContact && <span className="inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">Prefers {client.preferredContact}</span>}
                 {Number(client.discountPercent) > 0 && <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{client.discountPercent}% portfolio discount</span>}
               </p>
+              {(client.tags || []).length > 0 && (
+                <p className="flex flex-wrap gap-1.5">
+                  {client.tags.map((t) => <span key={t} className={`rounded-full px-2 py-0.5 text-xs font-semibold ${t === "Slow payer" || t === "Do not chase" ? "bg-rose-50 text-rose-700" : "bg-navy-100 text-navy-600"}`}>{t}</span>)}
+                </p>
+              )}
+              {discountStale && (
+                <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-100">
+                  The {client.discountPercent}% discount hasn&apos;t been reviewed in over a year.{" "}
+                  <button type="button" className="font-semibold underline" onClick={() => updateClient(client.id, { discountReviewedAt: new Date().toISOString() })}>Reviewed — keep it</button>
+                </p>
+              )}
               {(client.billingName || client.billingEmail) && (
                 <p className="text-xs text-navy-500">Invoices to: <strong className="text-navy-700">{[client.billingName, client.billingEmail].filter(Boolean).join(" · ")}</strong></p>
               )}
@@ -249,6 +297,8 @@ export default function ClientDetailPage() {
             </ul>
           </section>
 
+          <ClientExtras client={client} />
+
           <section className="card p-5">
             <div className="flex items-center justify-between">
               <span className="text-sm text-navy-500">Lifetime value</span>
@@ -270,6 +320,9 @@ export default function ClientDetailPage() {
               ))}
             </div>
             <span className="flex gap-2">
+              {view === "portfolio" && renewalsDue.length > 0 && (
+                <button className="btn-outline" onClick={bookRenewals} title="Create a renewal quote for every certificate expiring in the next 90 days">Quote {renewalsDue.length} renewal{renewalsDue.length === 1 ? "" : "s"}</button>
+              )}
               {view === "portfolio" && portfolio.length > 0 && (
                 <button className="btn-outline" onClick={exportPortfolio}>Export</button>
               )}

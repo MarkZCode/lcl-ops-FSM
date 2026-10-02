@@ -3,8 +3,8 @@
 // The dashboard's operations board: every pile of work that is waiting on
 // someone, as a number you can open. Answers "what is waiting, and on whom"
 // without going through the job list.
-import { useMemo, useState } from "react";
-import Link from "next/link";
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { blockersForScheduling } from "@/lib/visits";
@@ -16,9 +16,9 @@ const isPdf = (f) => f?.type === "application/pdf" || f?.contentType === "applic
 const ukDate = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date(d));
 
 export default function OpsBoard() {
-  const { jobs: allJobs, clients, engineerById } = useStore();
+  const { jobs: allJobs, engineerById } = useStore();
   const myEngId = useMyEngineerId();
-  const [openKey, setOpenKey] = useState(null);
+  const router = useRouter();
 
   const tiles = useMemo(() => {
     const jobs = myEngId ? allJobs.filter((j) => jobBelongsToEngineer(j, myEngId)) : allJobs;
@@ -50,8 +50,11 @@ export default function OpsBoard() {
     ];
   }, [allJobs, myEngId, engineerById]);
 
-  const open = tiles.find((x) => x.key === openKey);
-  const clientName = (id) => clients.find((c) => c.id === id)?.name || "";
+  // A tile opens the Jobs list showing exactly that pile.
+  const openPile = (x) => {
+    try { sessionStorage.setItem("lcl-jobs-pile", JSON.stringify({ label: x.label, ids: x.list.map((j) => j.id) })); } catch {}
+    router.push("/jobs?pile=1");
+  };
   const tone = { navy: "text-navy-900", amber: "text-amber-700", rose: "text-rose-600" };
 
   return (
@@ -62,8 +65,9 @@ export default function OpsBoard() {
           <button
             key={x.key}
             type="button"
-            onClick={() => setOpenKey(openKey === x.key ? null : x.key)}
-            className={`rounded-lg border p-3 text-left transition ${openKey === x.key ? "border-brand-400 bg-brand-50/60" : "border-navy-100 hover:border-navy-300"}`}
+            disabled={!x.list.length}
+            onClick={() => openPile(x)}
+            className="rounded-lg border border-navy-100 p-3 text-left transition enabled:hover:border-brand-300 disabled:cursor-default"
           >
             <span className={`block text-2xl font-bold tnum ${x.list.length ? tone[x.tone] : "text-navy-300"}`}>{x.list.length}</span>
             <span className="block text-xs font-semibold text-navy-600">{x.label}</span>
@@ -71,25 +75,6 @@ export default function OpsBoard() {
           </button>
         ))}
       </div>
-      {open && (
-        <div className="mt-3 rounded-lg border border-navy-100">
-          <p className="border-b border-navy-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-navy-500">{open.label}</p>
-          {open.list.length === 0 ? (
-            <p className="px-3 py-3 text-sm text-navy-500">Nothing here.</p>
-          ) : (
-            <ul className="max-h-72 divide-y divide-navy-100 overflow-auto">
-              {open.list.slice(0, 50).map((j) => (
-                <li key={j.id}>
-                  <Link href={`/jobs/${j.id}`} className="flex items-center justify-between gap-3 px-3 py-2 text-sm hover:bg-navy-50">
-                    <span className="min-w-0 truncate"><strong className="text-navy-900">{j.id}</strong> <span className="text-navy-600">· {clientName(j.clientId)}</span></span>
-                    <span className="shrink-0 text-xs text-navy-500">{j.scheduledAt ? new Date(j.scheduledAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" }) : ""}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
     </section>
   );
 }

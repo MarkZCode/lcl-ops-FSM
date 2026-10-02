@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   startOfWeek, endOfWeek, eachDayOfInterval,
@@ -8,10 +8,33 @@ import {
 } from "date-fns";
 import { useStore } from "@/lib/store";
 import { serviceShort, gbp } from "@/lib/format";
+import { isSplit } from "@/lib/visits";
+import { engineerUnavailable } from "@/lib/booking";
+import { ukDateTimeToUtcIso } from "@/lib/ukTime";
+import { toast } from "@/lib/toast";
 import StatusBadge from "./StatusBadge";
 
 export default function WeekCapacity({ weekRef, onPickDay }) {
-  const { jobs, clients, engineers } = useStore();
+  const { jobs, clients, engineers, updateJob, logActivity, rules } = useStore();
+  const [dragId, setDragId] = useState(null);
+  const [over, setOver] = useState("");
+  const cap = Number(rules?.engineerDailyJobs) || 5;
+
+  // Drop a job on another day (or another engineer's row): the date moves,
+  // the arrival window stays, and the engineer has to confirm the new slot.
+  const move = (jobId, eng, day) => {
+    const job = jobs.find((j) => j.id === jobId);
+    if (!job) return;
+    if (isSplit(job)) { toast.error("This job is split into visits — move the visit from the job page."); return; }
+    if (["completed", "invoiced", "paid", "cancelled"].includes(job.status)) { toast.error("That job is finished — it can't be moved."); return; }
+    const sameDay = isSameDay(parseISO(job.scheduledAt), day);
+    if (sameDay && job.engineerId === eng.id) return;
+    const patch = { engineerId: eng.id, engineerConfirmed: false, confirmedAt: null, accessConfirmedAt: null };
+    if (!sameDay) patch.scheduledAt = ukDateTimeToUtcIso(format(day, "yyyy-MM-dd"), job.windowFrom || "08:00");
+    updateJob(job.id, patch);
+    logActivity(job.id, { type: "status", title: `Moved on the week board to ${format(day, "EEE d MMM")}${job.engineerId !== eng.id ? ` · ${eng.name}` : ""} — engineer to confirm` });
+    toast(`${job.id} moved to ${format(day, "EEE d MMM")}. The engineer needs to confirm the new slot.`);
+  };
 
   const days = useMemo(() => {
     const start = startOfWeek(weekRef, { weekStartsOn: 1 });
@@ -70,11 +93,18 @@ export default function WeekCapacity({ weekRef, onPickDay }) {
                   <span className="font-medium text-navy-800">{eng.name.split(" ")[0]}</span>
                 </div>
               </td>
-              {row.map(({ day, jobs: cellJobs }) => (
+              {row.map(({ day, jobs: cellJobs }) => {
+                const key = `${eng.id}|${day.toISOString()}`;
+                const off = engineerUnavailable(eng, day);
+                return (
                 <td
                   key={day.toISOString()}
+                  onDragOver={(e) => { e.preventDefault(); setOver(key); }}
+                  onDragLeave={() => setOver((o) => (o === key ? "" : o))}
+                  onDrop={() => { if (dragId) move(dragId, eng, day); setDragId(null); setOver(""); }}
+                  title={off ? `Off${off.note ? ` — ${off.note}` : ""}` : cellJobs.length > cap ? `More than ${cap} jobs` : undefined}
                   className={`min-w-[90px] border-b border-l border-navy-100 p-1 align-top ${
-                    isToday(day) ? "bg-brand-50/40" : "bg-white"
+                    over === key ? "bg-brand-100/70" : off ? "bg-navy-100/80" : cellJobs.length > cap ? "bg-amber-50" : isToday(day) ? "bg-brand-50/40" : "bg-white"
                   }`}
                 >
                   {cellJobs.length === 0 ? (
@@ -87,7 +117,11 @@ export default function WeekCapacity({ weekRef, onPickDay }) {
                           <Link
                             key={j.id}
                             href={`/jobs/${j.id}`}
-                            className="block rounded bg-white p-1 shadow-sm border border-navy-100 hover:border-brand-300 transition"
+                            draggable
+                            onDragStart={() => setDragId(j.id)}
+                            onDragEnd={() => setDragId(null)}
+                            style={{ borderLeftWidth: 3, borderLeftColor: j.engineerConfirmed ? "#3FA34D" : "#f59e0b" }}
+                            className={`block rounded bg-white p-1 shadow-sm border border-navy-100 hover:border-brand-300 transition ${dragId === j.id ? "opacity-50" : ""}`}
                           >
                             <p className="font-semibold text-navy-800 truncate">{client?.name || j.id}</p>
                             <p className="text-navy-400 truncate">{(j.services || []).map(serviceShort).join(", ")}</p>
@@ -97,7 +131,8 @@ export default function WeekCapacity({ weekRef, onPickDay }) {
                     </div>
                   )}
                 </td>
-              ))}
+                );
+              })}
             </tr>
           ))}
         </tbody>

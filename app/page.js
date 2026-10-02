@@ -8,7 +8,7 @@ import {
   FiDollarSign, FiBell, FiFileText, FiCheckCircle,
   FiAlertCircle, FiTrendingUp, FiPhone, FiClock,
   FiLayers, FiCreditCard, FiInbox, FiActivity, FiTarget, FiUser, FiChevronRight,
-  FiBarChart2, FiPieChart, FiUsers,
+  FiBarChart2, FiPieChart, FiUsers, FiSliders, FiCheck,
 } from "react-icons/fi";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +21,7 @@ import PeriodControls from "@/components/PeriodControls";
 import { isToday, parseISO } from "date-fns";
 import DailyActivityPanel from "@/components/DailyActivityPanel";
 import OpsBoard from "@/components/OpsBoard";
+import DashboardBrief from "@/components/DashboardBrief";
 import NeedsDecisionPanel from "@/components/NeedsDecisionPanel";
 import CoverageMap from "@/components/CoverageMap";
 import RevenueChart from "@/components/RevenueChart";
@@ -75,6 +76,12 @@ function CostFigure({ ready, children }) {
   );
 }
 
+// Panels a person can switch off for themselves (Customise).
+const DASH_PANELS = [
+  ["brief", "Briefing strip"], ["revenue", "Revenue and today"], ["performance", "Performance"],
+  ["pipeline", "Job pipeline"], ["ops", "Operations — what's waiting"], ["activity", "Daily activity"], ["recent", "Recent jobs and renewals"],
+];
+
 export default function Dashboard() {
   const { jobs: allJobs, clients, hydrated, engineers, expenses, engineerPayments, financeReady, retryHydrate } = useStore();
 
@@ -123,6 +130,19 @@ export default function Dashboard() {
     [allJobs, myEngId]
   );
   const [modalOpen, setModalOpen] = useState(false);
+  // Which panels this person wants on their dashboard (remembered on this
+  // device). Everything is on until it's switched off.
+  const [hiddenPanels, setHiddenPanels] = useState([]);
+  const [customiseOpen, setCustomiseOpen] = useState(false);
+  useEffect(() => {
+    try { const h = JSON.parse(localStorage.getItem("lcl-dash-hidden") || "[]"); if (Array.isArray(h)) setHiddenPanels(h); } catch {}
+  }, []);
+  const show = (k) => !hiddenPanels.includes(k);
+  const togglePanel = (k) => setHiddenPanels((prev) => {
+    const next = prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k];
+    try { localStorage.setItem("lcl-dash-hidden", JSON.stringify(next)); } catch {}
+    return next;
+  });
 
   // Same shared period state Reports uses — same storage key, same hook —
   // so picking a period on either page is instantly reflected on the other.
@@ -357,6 +377,27 @@ export default function Dashboard() {
           <button className="btn-primary shrink-0" onClick={() => setModalOpen(true)}>
             <FiPlus /> <span className="hidden sm:inline">New job</span><span className="sm:hidden">New</span>
           </button>
+          <Link href="/clients?new=1" className="btn-outline hidden shrink-0 lg:inline-flex" title="Add a client">
+            <FiPlus /> Client
+          </Link>
+          <div className="relative shrink-0">
+            <button type="button" className="btn-outline" onClick={() => setCustomiseOpen((o) => !o)} aria-expanded={customiseOpen} title="Choose which panels you see">
+              <FiSliders /> <span className="hidden sm:inline">Customise</span>
+            </button>
+            {customiseOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setCustomiseOpen(false)} aria-hidden />
+                <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg dark:bg-[#141414]">
+                  <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-navy-400">Show on my dashboard</p>
+                  {DASH_PANELS.map(([k, l]) => (
+                    <button key={k} type="button" className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => togglePanel(k)}>
+                      {l} {show(k) && <FiCheck className="text-brand-600" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           {/* The whole period laid out end to end — see app/summary. */}
           <Link href="/summary" className="btn-outline shrink-0" title="Full breakdown of this period — finances, engineer pay, funnel, expenses">
             <FiPieChart /> <span className="hidden sm:inline">Summary</span>
@@ -380,6 +421,7 @@ export default function Dashboard() {
 
         {/* Same period control Reports uses, same shared state — changing it
             here changes what Reports shows too, and vice versa. */}
+        {hydrated && show("brief") && <DashboardBrief />}
         {hydrated && <PeriodControls ctl={ctl} />}
 
         {/* ── HEADLINE KPIs — icon square, figure, change pill ── */}
@@ -589,7 +631,7 @@ export default function Dashboard() {
             a narrow live list beside it, rather than two full-width bands
             stacked. Keeps the fold useful instead of spending all of it on
             one graph. */}
-        {hydrated && (
+        {hydrated && show("revenue") && (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2"><RevenueChart jobs={jobs} days={30} /></div>
             <div className="panel flex flex-col">
@@ -618,7 +660,9 @@ export default function Dashboard() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-navy-900">{client?.name || "—"}</p>
                           <p className="truncate text-xs text-navy-500">
-                            {job.id}{eng && eng.id !== "unassigned" ? ` · ${eng.name}` : ""}
+                            {job.id}{eng && eng.id !== "unassigned" ? ` · ${eng.name}` : " · no engineer"}
+                            {eng && eng.id !== "unassigned" && !job.engineerConfirmed && !(job.visits || []).length && <span className="font-semibold text-amber-700"> · not confirmed</span>}
+                            {!job.accessConfirmedAt && <span className="text-navy-400"> · access not confirmed</span>}
                           </p>
                         </div>
                         <span className={`pill ${STATUS_PILL[job.status] || "pill-neutral"}`}>
@@ -637,7 +681,7 @@ export default function Dashboard() {
             90-day window so each rate has enough jobs behind it to mean
             something. Anything with too little data shows a dash rather
             than a misleading 0%. */}
-        {hydrated && (
+        {hydrated && show("performance") && (
           <div>
             <div className="mb-3 flex items-baseline justify-between">
               <h2 className="text-[13px] font-semibold tracking-tight text-navy-900">Performance</h2>
@@ -684,7 +728,7 @@ export default function Dashboard() {
             bar shows it in a glance where five separate rows made you read
             and compare. Segments are proportional to VALUE, not count, so a
             stage full of small jobs can't visually outweigh a big one. */}
-        {hydrated && (() => {
+        {hydrated && show("pipeline") && (() => {
           const segs = PIPELINE.map((s) => ({ ...s, ...(stats.pipeline[s.key] || { count: 0, value: 0 }) }));
           const totalValue = segs.reduce((a, s) => a + s.value, 0);
           const totalCount = segs.reduce((a, s) => a + s.count, 0);
@@ -729,11 +773,11 @@ export default function Dashboard() {
         })()}
 
         {/* ── ACTIVITY + AT RISK + 7-DAY ── */}
-        <OpsBoard />
-        <DailyActivityPanel />
+        {show("ops") && <OpsBoard />}
+        {show("activity") && <DailyActivityPanel />}
 
         {/* ── MAIN GRID: recent jobs + right rail ── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3" hidden={!show("recent")}>
 
           {/* Recent jobs — dense list */}
           <div className="lg:col-span-2">

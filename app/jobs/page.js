@@ -81,6 +81,13 @@ export default function JobsPage() {
   const [selected, setSelected] = useState(() => new Set());
   const [cursor, setCursor] = useState(-1);
   const [owners, setOwners] = useState(() => new Map());
+  // A "pile" from the dashboard's operations board: a named set of jobs
+  // (access not confirmed, corrections open…) shown on its own until cleared.
+  const [pile, setPile] = useState(null);
+  useEffect(() => {
+    if (searchParams?.get("pile") !== "1") { setPile(null); return; }
+    try { const p = JSON.parse(sessionStorage.getItem("lcl-jobs-pile") || "null"); if (p?.ids) setPile(p); } catch {}
+  }, [searchParams]);
   useEffect(() => {
     try {
       setCompactState(localStorage.getItem("lcl-jobs-compact") === "1");
@@ -216,9 +223,10 @@ export default function JobsPage() {
 
   const filteredBase = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (isTodo ? jobs : inPeriod)
+    const pileIds = pile ? new Set(pile.ids) : null;
+    return (pileIds || isTodo ? jobs : inPeriod)
       .filter((j) => {
-        if (!jobMatchesStatus(j, statusFilter)) return false;
+        if (pileIds ? !pileIds.has(j.id) : !jobMatchesStatus(j, statusFilter)) return false;
         if (!q) return true;
         // Finds a job by reference, invoice number, name, phone, address
         // or postcode — however it was typed.
@@ -241,7 +249,7 @@ export default function JobsPage() {
         return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inPeriod, jobs, clients, query, statusFilter, nextByJob]);
+  }, [inPeriod, jobs, clients, query, statusFilter, nextByJob, pile]);
   const filtered = useMemo(() => sortJobs(filteredBase, sort), [filteredBase, sort]);
   const unseen = useMemo(() => unseenIds(filtered), [filtered]);
 
@@ -420,7 +428,13 @@ export default function JobsPage() {
           </div>
         )}
 
-        {statusFilter === "invoiced" && <BankMatch />}
+        {pile && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-navy-200 bg-navy-50 px-3 py-2 text-sm dark:bg-white/[0.04]">
+            <span className="text-navy-700">Showing <strong className="text-navy-900">{pile.label}</strong> — {filtered.length} job{filtered.length === 1 ? "" : "s"}</span>
+            <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => { setPile(null); router.replace("/jobs"); }}>Show all jobs</button>
+          </div>
+        )}
+        {statusFilter === "invoiced" && !pile && <BankMatch />}
 
         {selecting && (
           <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-brand-200 bg-brand-50/60 px-3 py-2 text-sm dark:bg-white/[0.04]">

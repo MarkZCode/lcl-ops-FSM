@@ -5,6 +5,7 @@ import { FiPlus, FiColumns, FiCalendar, FiUser, FiChevronLeft, FiChevronRight } 
 import { format, isToday, isSameDay, parseISO, startOfWeek, addWeeks, subWeeks, addDays } from "date-fns";
 import { useStore } from "@/lib/store";
 import PageHeader from "@/components/PageHeader";
+import DaySheets from "@/components/DaySheets";
 import DispatchBoard from "@/components/DispatchBoard";
 import MiniCalendar from "@/components/MiniCalendar";
 import WeekCapacity from "@/components/WeekCapacity";
@@ -16,6 +17,7 @@ export default function DispatchPage() {
   const { jobs } = useStore();
   const [day, setDay] = useState(new Date());
   const [view, setView] = useState("day"); // "day" | "week" | "engineer"
+  const [sheetsOpen, setSheetsOpen] = useState(false);
   const [weekRef, setWeekRef] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -61,9 +63,14 @@ export default function DispatchPage() {
         title="Dispatch Board"
         subtitle="Schedule and assign jobs across your engineers"
         actions={
-          <button className="btn-primary shrink-0" onClick={() => setModalOpen(true)}>
-            <FiPlus /> <span className="hidden sm:inline">New job</span><span className="sm:hidden">New</span>
-          </button>
+          <>
+            <button className="btn-outline shrink-0" onClick={() => setSheetsOpen(true)} title="Each engineer's jobs for the chosen day, to send or print">
+              <FiCalendar /> <span className="hidden sm:inline">Day sheets</span>
+            </button>
+            <button className="btn-primary shrink-0" onClick={() => setModalOpen(true)}>
+              <FiPlus /> <span className="hidden sm:inline">New job</span><span className="sm:hidden">New</span>
+            </button>
+          </>
         }
       />
 
@@ -163,6 +170,7 @@ export default function DispatchPage() {
       )}
 
       <JobModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <DaySheets open={sheetsOpen} onClose={() => setSheetsOpen(false)} day={day} />
     </>
   );
 }
