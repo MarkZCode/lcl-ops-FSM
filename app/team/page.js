@@ -33,6 +33,7 @@ import WeekSummary from "@/components/team/WeekSummary";
 import TaskBoard from "@/components/team/TaskBoardGrouped";
 import TaskList from "@/components/team/TaskList";
 import NewTaskModal from "@/components/team/NewTaskModal";
+import TeamOverview from "@/components/team/TeamOverview";
 import TaskDetailPanel from "@/components/team/TaskDetailPanel";
 import SuggestedTasks from "@/components/team/SuggestedTasks";
 import BulkActionsBar from "@/components/team/BulkActionsBar";
@@ -63,7 +64,7 @@ async function authedFetch(url, options = {}) {
 }
 
 const TABS = [
-  { key: "myday",    label: "My day",   icon: FiCheckSquare },
+  { key: "people",   label: "People",   icon: FiUsers },
   { key: "board",    label: "Board",    icon: FiGrid },
   { key: "list",     label: "List",     icon: FiList },
   { key: "activity", label: "Activity", icon: FiActivity },
@@ -74,7 +75,8 @@ function TeamInner() {
   const { user } = useAuth();
   const search = useSearchParams();
   const router = useRouter();
-  const tab = TABS.some((t) => t.key === search.get("tab")) ? search.get("tab") : "board";
+  // "myday" was the old name of the default view — old links still land here.
+  const tab = TABS.some((t) => t.key === search.get("tab")) ? search.get("tab") : "people";
   const openTaskId = search.get("task");
 
   const [tasks, setTasks] = useState([]);
@@ -101,7 +103,8 @@ function TeamInner() {
       supabase.from("tasks").select("id,data").order("updated_at", { ascending: false }),
       authedFetch("/api/team/list").then((r) => r.json()).catch(() => ({ users: [] })),
     ]);
-    setTasks((rows || []).map((r) => r.data));
+    // The retired one-per-prospect renewal chases are not shown anywhere.
+    setTasks((rows || []).map((r) => r.data).filter((t) => t && t.source !== "prospect_renewal"));
     setTeam(teamRes.users || []);
     setLoading(false);
   }, []);
@@ -343,51 +346,37 @@ function TeamInner() {
       <PageHeader
         icon={FiCheckSquare}
         title="Team"
-        subtitle="Assign, track and nudge — nothing drops through"
+        subtitle="Who is doing what"
         actions={
           <button className="btn-primary" onClick={openNew}>
-            <FiPlus /> New task
+            <FiPlus /> Assign a task
           </button>
         }
       />
 
-      <div className="border-b border-navy-100 bg-white px-4 dark:border-white/10 dark:bg-navy-950 sm:px-8">
-        <nav className="flex gap-1 overflow-x-auto">
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const active = tab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${
-                  active
-                    ? "border-brand-500 text-navy-900 dark:text-white"
-                    : "border-transparent text-navy-500 hover:text-navy-800 dark:text-slate-500 dark:hover:text-slate-200"
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="whitespace-nowrap">{t.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-
-      <div className="page space-y-6">
-        {/* KPI strip — always visible so the top of the page tells the whole state */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <Kpi label="My open"    value={counts.mine}    icon={FiUser}  tone="navy" />
-          <Kpi label="All open"   value={counts.open}    icon={FiUsers} tone="blue" />
-          <Kpi label="Overdue"    value={counts.overdue} icon={FiAlertTriangle} tone={counts.overdue ? "rose" : "navy"} />
-          <Kpi label="Urgent"     value={counts.urgent}  icon={FiFlag}  tone={counts.urgent ? "amber" : "navy"} />
-          <Kpi label="Completed"  value={counts.done}    icon={FiCheckSquare} tone="brand" />
+      <div className="page space-y-5">
+        <div className="scroll-area flex overflow-x-auto">
+          <div className="inline-flex rounded-full border border-navy-200 bg-white p-1 text-sm dark:border-white/10 dark:bg-white/[0.04]">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setTab(t.key)}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 font-semibold transition ${active ? "bg-navy-900 text-white dark:bg-white dark:text-navy-900" : "text-navy-500 hover:text-navy-800 dark:text-slate-400 dark:hover:text-slate-200"}`}
+                >
+                  <Icon className="h-4 w-4" />{t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {tab === "activity" ? (
           <AgentActivity />
-        ) : tab === "myday" ? (
-          <MyDay tasks={tasks} userId={user?.id} onOpen={setOpenTask} onDone={toggleDone} />
+        ) : tab === "people" ? (
+          <TeamOverview tasks={tasks} team={team} userId={user?.id} onOpen={setOpenTask} onDone={toggleDone} loading={loading} />
         ) : (
           <>
             {/* Filter bar shared by Board + List */}
@@ -408,29 +397,10 @@ function TeamInner() {
               </div>
             )}
 
-            {tab === "board" && (
-              <>
-                <WorkloadPanel
-                  tasks={tasks}
-                  team={team}
-                  currentAssignee={filters.assignee}
-                  onSelectAssignee={(id) => setFilters((f) => ({ ...f, assignee: id }))}
-                />
-                <WeekSummary tasks={tasks} team={team} />
-                <SuggestedTasks onPromote={promoteSuggestion} />
-                <label className="flex w-max items-center gap-2 text-xs font-semibold text-navy-600">
-                  <input type="checkbox" checked={grouped} onChange={(e) => { setGrouped(e.target.checked); try { localStorage.setItem("lcl-tasks-grouped", e.target.checked ? "1" : "0"); } catch {} }} />
-                  Keep each job&apos;s tasks together
-                </label>
-              </>
-            )}
-
             {loading ? (
               <div className="card p-8 text-center text-sm text-navy-400">Loading tasks…</div>
             ) : tab === "board" ? (
-              grouped
-                ? <TaskBoardGrouped tasks={filtered} onOpen={setOpenTask} onStatusChange={setStatus} />
-                : <TaskBoard tasks={filtered} onOpen={setOpenTask} onStatusChange={setStatus} />
+              <TaskBoard tasks={filtered} onOpen={setOpenTask} onStatusChange={setStatus} />
             ) : (
               <TaskList
                 tasks={filtered}

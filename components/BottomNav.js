@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -42,6 +43,31 @@ export default function BottomNav() {
 
   const isActive = (href) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
+  // Out of the way while reading down a page; back the moment you scroll
+  // up, reach the top or the bottom, change page, or stop for a second and
+  // a half — so it is never more than a pause away. (Asked for by the owner,
+  // Oct 2026. Earlier versions of this came back only on a scroll up, or
+  // flickered during a flick; the pause timer and the 12px threshold are
+  // what is different here.)
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => { setHidden(false); }, [pathname]);
+  useEffect(() => {
+    let last = window.scrollY;
+    let idle = null;
+    const onScroll = () => {
+      const y = window.scrollY;
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      if (y < 60 || y > max - 60) setHidden(false);
+      else if (y - last > 12) setHidden(true);
+      else if (last - y > 12) setHidden(false);
+      if (Math.abs(y - last) > 12) last = y;
+      clearTimeout(idle);
+      idle = setTimeout(() => setHidden(false), 1500);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); clearTimeout(idle); };
+  }, []);
+
   return (
     <nav
       data-bottom-nav
@@ -62,7 +88,8 @@ export default function BottomNav() {
         // conditional visibility it supported) and losing that side effect
         // is almost certainly why this specific bug reappeared right after
         // that pass.
-        transform: "translateZ(0)",
+        transform: hidden ? "translate3d(0, 110%, 0)" : "translate3d(0, 0, 0)",
+        transition: "transform 260ms cubic-bezier(0.22, 0.8, 0.24, 1)",
         willChange: "transform",
         // Back to the ORIGINAL value this bar shipped with (env(safe-area-
         // inset-bottom), full, not zero) — checked against git history after
@@ -90,7 +117,7 @@ export default function BottomNav() {
         borderTop: "1px solid var(--hairline)",
       }}
     >
-      <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))` }}>
+      <div className="grid h-[60px]" style={{ gridTemplateColumns: `repeat(${primary.length}, minmax(0, 1fr))` }}>
         {primary.map((link) => {
           const Icon = link.icon;
           const active = isActive(link.href);
@@ -98,16 +125,17 @@ export default function BottomNav() {
             <Link
               key={link.href}
               href={link.href}
-              className="flex flex-col items-center justify-center gap-1"
+              aria-current={active ? "page" : undefined}
+              className="flex flex-col items-center justify-center gap-0.5 active:opacity-70"
             >
               <span
-                className={`grid h-8 w-12 place-items-center rounded-xl transition ${
-                  active ? "bg-brand-500 text-white shadow-sm shadow-brand-500/40" : "text-navy-400 dark:text-slate-400"
+                className={`grid h-8 w-14 place-items-center rounded-full transition-colors duration-200 ${
+                  active ? "bg-brand-500/15 text-brand-600 dark:bg-brand-400/20 dark:text-brand-300" : "text-navy-400 dark:text-slate-400"
                 }`}
               >
-                {Icon && <Icon className="h-[18px] w-[18px]" />}
+                {Icon && <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.3 : 1.9} />}
               </span>
-              <span className={`text-[10px] font-semibold ${active ? "text-brand-400" : "text-navy-500 dark:text-slate-500"}`}>
+              <span className={`text-[11px] ${active ? "font-semibold text-brand-600 dark:text-brand-300" : "font-medium text-navy-500 dark:text-slate-500"}`}>
                 {link.label}
               </span>
             </Link>

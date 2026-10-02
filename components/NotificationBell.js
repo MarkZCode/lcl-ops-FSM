@@ -38,6 +38,7 @@ import { supabase } from "@/lib/supabase";
 import { fmtDate } from "@/lib/format";
 import { daysUntilDue, priorityMeta, taskDeepLink } from "@/lib/tasks";
 import { playPing } from "@/lib/sound";
+import { NotifyGroup, NotifyRow, TaskNotifyRow, relTime, replyPreview as previewLine } from "@/components/notify/Rows";
 
 const SEEN_KEY = "lcl-seen-activity";
 // Backstop only — the live subscription below is what makes an assignment
@@ -330,10 +331,10 @@ export default function NotificationBell() {
         // was right when the bell lived in the sidebar rail, and wrong the
         // moment it moved to the top bar, where the button already sits at
         // the right edge of the window. The panel simply ran off the screen.
-        <div className="fixed right-4 top-[3.75rem] z-[9998] w-[min(calc(100vw-2rem),22rem)] overflow-hidden rounded-2xl border border-navy-200 bg-white shadow-2xl lg:absolute lg:right-0 lg:left-auto lg:top-full lg:mt-2 lg:w-96 dark:border-navy-700 dark:bg-navy-900">
+        <div className="fixed right-4 top-[3.75rem] z-[9998] w-[min(calc(100vw-1.5rem),24rem)] overflow-hidden rounded-3xl border border-navy-200 bg-white shadow-2xl lg:absolute lg:right-0 lg:left-auto lg:top-full lg:mt-2 lg:w-96 dark:border-navy-700 dark:bg-navy-900">
           <div className="flex items-center justify-between border-b border-navy-100 px-4 py-3 dark:border-navy-700">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-bold text-navy-900 dark:text-white">Notifications</p>
+              <p className="text-[15px] font-bold tracking-tight text-navy-900 dark:text-white">Notifications</p>
               {unreadCount > 0 && <span className="rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{unreadCount}</span>}
             </div>
             <div className="flex items-center gap-1">
@@ -349,90 +350,40 @@ export default function NotificationBell() {
 
           <div className="scroll-area max-h-[70vh] overflow-y-auto">
             {!anything ? (
-              <p className="px-4 py-10 text-center text-xs text-navy-500 dark:text-navy-400">You&apos;re all clear.</p>
+              <div className="px-6 py-12 text-center">
+                <p className="text-sm font-semibold text-navy-800 dark:text-white">You&apos;re all caught up</p>
+                <p className="mt-1 text-xs text-navy-500 dark:text-slate-400">New tasks and client replies show here.</p>
+              </div>
             ) : (
-              <>
-                {/* What a colleague asked you to do — always first. */}
+              <div className="divide-y divide-navy-100 dark:divide-white/10">
                 {fromTeam.length > 0 && (
-                  <Section title="From your team" count={fromTeam.length}>
-                    {fromTeam.map((t) => (
-                      <TaskRow key={t.id} task={{ ...t, notes: `From ${t.createdBy?.name || "a colleague"}${t.notes ? ` — ${t.notes}` : ""}` }} kind="upcoming" isNew={isNew(`task-as-${t.id}-${t.assigneeId}`)} onClose={() => setOpen(false)} />
-                    ))}
-                  </Section>
+                  <NotifyGroup title="From your team" count={fromTeam.length}>
+                    {fromTeam.map((t) => <TaskNotifyRow key={t.id} task={t} userId={user?.id} unread={isNew(`task-as-${t.id}-${t.assigneeId}`)} onClick={() => setOpen(false)} />)}
+                  </NotifyGroup>
                 )}
-
-                {/* Replies */}
                 {replies.length > 0 && (
-                  <Section title="Client replies" count={replies.length}>
+                  <NotifyGroup title="Client replies" count={replies.length}>
                     {replies.map((a) => (
-                      <Link
-                        key={a.id}
-                        href={`/jobs/${a.jobId}`}
-                        onClick={() => setOpen(false)}
-                        className="flex items-start gap-3 border-b border-navy-100 px-4 py-3 hover:bg-navy-50 dark:border-navy-800 dark:hover:bg-navy-800"
-                      >
-                        <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400">
-                          <FiCornerDownLeft className="h-3.5 w-3.5" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline justify-between gap-1">
-                            <p className="truncate text-xs font-semibold text-navy-900 dark:text-white">{a.clientName}</p>
-                            <span className="shrink-0 text-[10px] text-navy-400">{fmtDate(a.at)}</span>
-                          </div>
-                          <p className="text-[11px] text-navy-500 dark:text-navy-400">
-                            {a.jobId}
-                            {a.replyCount > 1 && (
-                              <span className="ml-1.5 rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-semibold text-navy-600 dark:bg-navy-800 dark:text-navy-300">
-                                {a.replyCount} replies
-                              </span>
-                            )}
-                          </p>
-                          {/* First NON-EMPTY line. Leading with line one gave
-                              a wall of rows reading "Hi" and "Hi Lisa" — the
-                              greeting, never the message. */}
-                          <p className="mt-0.5 text-xs text-navy-600 line-clamp-2 dark:text-navy-300">{replyPreview(a.detail)}</p>
-                        </div>
-                        {isNew(a.id) && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-400" />}
-                      </Link>
-                    ))}
-                  </Section>
-                )}
-                {/* Needs you now */}
-                {totalMine > 0 && (
-                  <Section title="Needs you now" count={totalMine}>
-                    {myBuckets.overdue.length > 0 && (
-                      <SubHead icon={FiAlertTriangle} tone="rose" label={`Overdue (${myBuckets.overdue.length})`} />
-                    )}
-                    {myBuckets.overdue.map((t) => (
-                      <TaskRow key={t.id} task={t} kind="overdue" isNew={isNew(`task-od-${t.id}`)} onClose={() => setOpen(false)} />
-                    ))}
-                    {myBuckets.dueToday.length > 0 && (
-                      <SubHead icon={FiClock} tone="amber" label={`Due today (${myBuckets.dueToday.length})`} />
-                    )}
-                    {myBuckets.dueToday.map((t) => (
-                      <TaskRow key={t.id} task={t} kind="due" isNew={isNew(`task-du-${t.id}`)} onClose={() => setOpen(false)} />
-                    ))}
-                  </Section>
-                )}
-
-                {/* Assigned to you. Counted while unseen, quiet afterwards —
-                    the badge marks the arrival, not the existence. */}
-                {myBuckets.upcoming.length > 0 && (
-                  <Section title="Assigned to you" count={myBuckets.upcoming.length}>
-                    <SubHead icon={FiUser} tone="blue" label={`${myBuckets.upcoming.length} open`} />
-                    {myBuckets.upcoming.map((t) => (
-                      <TaskRow
-                        key={t.id}
-                        task={t}
-                        kind="upcoming"
-                        isNew={isNew(`task-as-${t.id}-${t.assigneeId}`)}
-                        onClose={() => setOpen(false)}
+                      <NotifyRow
+                        key={a.id} href={`/jobs/${a.jobId}`} onClick={() => setOpen(false)} tone="reply" unread={isNew(a.id)}
+                        title={`${a.clientName}${a.replyCount > 1 ? ` · ${a.replyCount} messages` : ""}`}
+                        meta={`${a.jobId} — ${previewLine(a.detail)}`} when={relTime(a.at)}
                       />
                     ))}
-                  </Section>
+                  </NotifyGroup>
                 )}
-
-              </>
+                {myBuckets.overdue.length + myBuckets.dueToday.length > 0 && (
+                  <NotifyGroup title="Needs you now" count={myBuckets.overdue.length + myBuckets.dueToday.length}>
+                    {myBuckets.overdue.map((t) => <TaskNotifyRow key={t.id} task={t} userId={user?.id} unread={isNew(`task-od-${t.id}`)} onClick={() => setOpen(false)} />)}
+                    {myBuckets.dueToday.map((t) => <TaskNotifyRow key={t.id} task={t} userId={user?.id} unread={isNew(`task-du-${t.id}`)} onClick={() => setOpen(false)} />)}
+                  </NotifyGroup>
+                )}
+                {myBuckets.upcoming.length > 0 && (
+                  <NotifyGroup title="Coming up" count={myBuckets.upcoming.length}>
+                    {myBuckets.upcoming.map((t) => <TaskNotifyRow key={t.id} task={t} userId={user?.id} unread={isNew(`task-as-${t.id}-${t.assigneeId}`)} onClick={() => setOpen(false)} />)}
+                  </NotifyGroup>
+                )}
+              </div>
             )}
           </div>
         </div>
