@@ -26,6 +26,7 @@ import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { serviceShort } from "@/lib/format";
 import { AUTO_NOTIFY_LABELS } from "@/lib/settings";
+import BankAccounts from "@/components/BankAccounts";
 import { PUSH_KINDS } from "@/lib/pushKinds";
 import { useAuth } from "@/lib/auth";
 import {
@@ -542,6 +543,7 @@ function SettingsInner() {
         />
         <div className="space-y-2.5 sm:space-y-6">
         <SettingsGroup title="Configuration" id="config">
+          <BankAccounts />
   {/* Configuration shortcuts */}
           <section>
             <h2 className="mb-3 section-label text-sm">
@@ -687,7 +689,7 @@ function SettingsInner() {
             <div className="card overflow-hidden">
               <div className="flex items-center justify-between border-b border-navy-100 bg-navy-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-navy-500">
                 <span>Service</span>
-                <span>Price (inc VAT)</span>
+                <span>Price</span>
               </div>
               <ul className="divide-y divide-navy-100">
                 {catalog.map((s) => {

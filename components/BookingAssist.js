@@ -10,13 +10,12 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import { rankEngineers, engineerUnavailable, samePostcodeJobs } from "@/lib/booking";
 import { openWhatsAppChat } from "@/lib/whatsapp";
-import { greetingNow, firstName, senderFor } from "@/lib/email";
+import { greetingNow, firstName, jobSender } from "@/lib/email";
 import { accessPhone, windowStr } from "@/lib/jobCard";
 import { isSplit } from "@/lib/visits";
 import { fmtDate, getJobLines } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
-const NO_ACCESS_FEE = 35;
 
 export default function BookingAssist({ job, client, property, onReschedule }) {
   const { jobs, clients, engineers, engineerById, updateJob, logActivity } = useStore();
@@ -36,12 +35,14 @@ export default function BookingAssist({ job, client, property, onReschedule }) {
     const phone = accessPhone(job, client) || client?.phone;
     if (!phone) { toast.error("No phone number for the client or access contact."); return; }
     const name = firstName(job.accessName || client?.name);
-    const msg = `${greetingNow()} ${name}, this is ${senderFor(job.id)} from Landlord Compliance London. Your engineer${eng?.name ? `, ${eng.name.split(" ")[0]},` : ""} is on the way to ${property?.postcode || "the property"} now${windowStr(job) ? ` and should be with you ${windowStr(job)}` : ""}. Please make sure someone is there to let them in.`;
+    const msg = `${greetingNow()} ${name}, this is ${jobSender(job)} from Landlord Compliance London. Your engineer${eng?.name ? `, ${eng.name.split(" ")[0]},` : ""} is on the way to ${property?.postcode || "the property"} now${windowStr(job) ? ` and should be with you ${windowStr(job)}` : ""}. Please make sure someone is there to let them in.`;
     if (!openWhatsAppChat(phone, msg)) return;
     updateJob(job.id, { onTheWayAt: new Date().toISOString() });
     logActivity(job.id, { type: "whatsapp", title: "“On the way” message opened", detail: msg, by: who });
   };
 
+  // The fee is whatever THIS job's quote stated — and only if it stated one.
+  const NO_ACCESS_FEE = Number(job.noAccessFee) || 0;
   const noAccess = (withFee) => {
     const n = (job.noAccessCount || 0) + 1;
     const patch = { noAccessCount: n, lastNoAccessAt: new Date().toISOString() };
@@ -134,13 +135,24 @@ export default function BookingAssist({ job, client, property, onReschedule }) {
           </button>
           <button
             type="button"
+            onClick={() => {
+              updateJob(job.id, { accessConfirmedAt: job.accessConfirmedAt ? null : new Date().toISOString() });
+              if (!job.accessConfirmedAt) logActivity(job.id, { type: "status", title: "Access confirmed for the appointment", by: who });
+            }}
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-semibold ${job.accessConfirmedAt ? "border-brand-300 bg-brand-50 text-brand-700" : "border-navy-200 text-navy-600 hover:border-brand-300"}`}
+            title="Someone has confirmed they'll be there to let the engineer in"
+          >
+            <FiKey /> {job.accessConfirmedAt ? "Access confirmed" : "Mark access confirmed"}
+          </button>
+          <button
+            type="button"
             onClick={() => noAccess(false)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-navy-200 px-2.5 py-1.5 font-semibold text-navy-600 hover:border-rose-300 hover:text-rose-600"
             title="Record that nobody was in, then pick a new date"
           >
             <FiSlash /> No access
           </button>
-          {can?.("invoices") && (
+          {can?.("invoices") && NO_ACCESS_FEE > 0 && (
             <button
               type="button"
               onClick={() => noAccess(true)}

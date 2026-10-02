@@ -58,10 +58,13 @@ import { toast } from "@/lib/toast";
 import { openWhatsAppChat } from "@/lib/whatsapp";
 import { quoteChecks } from "@/lib/quoteChecks";
 import BookingAssist from "@/components/BookingAssist";
+import { bankForJob } from "@/lib/bank";
 import PaymentLedger from "@/components/PaymentLedger";
 import ClientQuickActions from "@/components/ClientQuickActions";
 import CongestionAuto from "@/components/CongestionAuto";
-import { greetingNow, firstName, senderFor } from "@/lib/email";
+import IntakePanel from "@/components/IntakePanel";
+import { bookingMissing, closingMissing, appointmentCertainty, priceCertainty } from "@/lib/gates";
+import { greetingNow, firstName, jobSender } from "@/lib/email";
 import { FaWhatsapp } from "react-icons/fa";
 
 export default function JobDetailPage() {
@@ -70,6 +73,7 @@ export default function JobDetailPage() {
   const { jobs, clients, updateJob, removeJob, mergeBackToParentJob, cancelServices, restoreService, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
     useStore();
   const { can, user } = useAuth();
+  const { bankAccounts, invoiceBankId } = useStore();
   const [editOpen, setEditOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
@@ -155,6 +159,7 @@ export default function JobDetailPage() {
 
   const client = clients.find((c) => c.id === job.clientId);
   const property = client?.properties.find((p) => p.id === job.propertyId);
+  const jobBank = bankForJob(job, bankAccounts, invoiceBankId);
   // Only show engineers qualified for this job's services (e.g. a GAS-only
   // job doesn't offer EICR-only engineers). Falls back to the full roster if
   // nobody matches, so assignment is never silently blocked when a service
@@ -272,6 +277,19 @@ export default function JobDetailPage() {
       case "quote_sent":
         markQuoteSent();
         return;
+      case "intake":
+        scrollToId("job-details");
+        return;
+      case "access":
+        scrollToId("booking");
+        return;
+      case "access_confirmed":
+        updateJob(job.id, { accessConfirmedAt: new Date().toISOString() });
+        logActivity(job.id, { type: "status", title: "Access confirmed for the appointment", by: who() });
+        return;
+      case "payment":
+        scrollToId("payment");
+        return;
       case "review_skip":
         updateJob(job.id, { reviewSkipped: true });
         return;
@@ -312,7 +330,10 @@ export default function JobDetailPage() {
   const acceptQuote = () => {
     if (!job) return;
     const acceptedAt = new Date().toISOString();
-    const b = blockersForScheduling(job, (eid) => engineerById(eid)?.name || "the engineer");
+    const b = [
+      ...blockersForScheduling(job, (eid) => engineerById(eid)?.name || "the engineer"),
+      ...bookingMissing(job, { client, property }).map((m) => `add ${m.label}`),
+    ];
     logActivity(job.id, { type: "status", title: "Quote accepted by the client", by: who() });
     if (!b.length) { changeStatus("scheduled", { acceptedAt }); return; }
     updateJob(job.id, { acceptedAt, quoteHoldUntil: null });
@@ -325,7 +346,7 @@ export default function JobDetailPage() {
     if (!job || !client?.phone) return;
     const what = (job.services || []).filter((c) => !isAddonCode(c)).map((c) => certLabel(c)).join(" and ");
     const where = property?.postcode ? ` at ${property.postcode}` : "";
-    const msg = `${greetingNow()} ${firstName(client.name)}, this is ${senderFor(job.id)} from Landlord Compliance London. Thank you for your enquiry${what ? ` about the ${what}` : ""}${where} — we've received it and I'm putting your quote together now. You'll have it from me shortly.`;
+    const msg = `${greetingNow()} ${firstName(client.name)}, this is ${jobSender(job)} from Landlord Compliance London. Thank you for your enquiry${what ? ` about the ${what}` : ""}${where} — we've received it and I'm putting your quote together now. You'll have it from me shortly.`;
     if (!openWhatsAppChat(client.phone, msg)) return;
     updateJob(job.id, { enquiryRepliedAt: new Date().toISOString() });
     logActivity(job.id, { type: "whatsapp", title: "WhatsApp reply to the enquiry opened", detail: msg, by: who() });
@@ -356,6 +377,13 @@ export default function JobDetailPage() {
     if (!hasCertPdf) {
       toast.error("Upload the certificate PDF to the job first (Documents & photos).");
       document.getElementById("documents")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    // Nothing is closed with loose ends: the certificate checked and sent,
+    // corrections finished, any failure followed up, payments squared.
+    const loose = closingMissing(job, { jobs });
+    if (loose.length) {
+      toast.error(`Can't close ${job.id} yet — ${loose.map((l) => l.label.toLowerCase()).join("; ")}.`, { duration: 9000 });
       return;
     }
     updateJob(job.id, { certifiedAt: new Date().toISOString() });
@@ -393,7 +421,11 @@ export default function JobDetailPage() {
     // nothing. Blocked here rather than silently corrected, and the message
     // names the exact services so it's actionable.
     if (s === "scheduled") {
-      const blockers = blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer");
+      const blockers = [
+        ...blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer"),
+        // …and not without the details a booking needs.
+        ...bookingMissing(job, { client, property }).map((m) => `missing ${m.label}`),
+      ];
       if (blockers.length) {
         toast.error(
           `Can't schedule ${job.id} yet — ${blockers.join("; ")}.`,
@@ -659,6 +691,7 @@ export default function JobDetailPage() {
           <CongestionAuto job={job} property={property} />
           <NextStepCard
             job={job}
+            client={client}
             clientEmail={client?.email || ""}
             clientPhone={client?.phone || ""}
             engineerName={(eid) => engineerById(eid)?.name || "the engineer"}
@@ -667,6 +700,10 @@ export default function JobDetailPage() {
             onDo={handleNextStep}
             checks={job.status === "quote" ? quoteChecks(job, { property, jobs, client }) : []}
           />
+
+          <div id="job-details" className="scroll-mt-24">
+            <IntakePanel job={job} client={client} property={property} />
+          </div>
 
           {/* Status workflow */}
           <section className="card p-5">
@@ -871,7 +908,9 @@ export default function JobDetailPage() {
               </div>
             )}
             <div className={`flex items-center justify-between ${jobDiscount(job) > 0 ? "mt-2 pt-2" : "mt-3 border-t border-navy-100 pt-3"}`}>
-              <span className="text-sm text-navy-500">Total (inc VAT)</span>
+              <span className="flex items-center gap-2 text-sm text-navy-500">Total
+                {(() => { const c = priceCertainty(job); return c ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.key === "confirmed" ? "bg-brand-50 text-brand-700" : "bg-amber-100 text-amber-800"}`}>{c.label}</span> : null; })()}
+              </span>
               <span className="text-lg font-bold text-navy-900">{gbp(job.price)}</span>
             </div>
 
@@ -1050,7 +1089,7 @@ export default function JobDetailPage() {
 
           {/* Payment — admin only */}
           {can("payments") && (
-          <section className="card p-5">
+          <section id="payment" className="card scroll-mt-24 p-5">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="section-label text-sm">
                 Payment
@@ -1071,23 +1110,23 @@ export default function JobDetailPage() {
               <p className="font-semibold text-navy-700">Bank transfer (BACS)</p>
               <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1">
                 <span className="text-navy-400">Account holder</span>
-                <span className="font-medium text-navy-800">{invoiceConfig.bank.accountHolder}</span>
+                <span className="font-medium text-navy-800">{jobBank.accountHolder}</span>
                 <span className="text-navy-400">Account no.</span>
-                <span className="font-medium text-navy-800">{invoiceConfig.bank.accountNumber}</span>
+                <span className="font-medium text-navy-800">{jobBank.accountNumber}</span>
                 <span className="text-navy-400">Sort code</span>
-                <span className="font-medium text-navy-800">{invoiceConfig.bank.sortCode}</span>
+                <span className="font-medium text-navy-800">{jobBank.sortCode}</span>
                 <span className="text-navy-400">Bank</span>
-                <span className="font-medium text-navy-800">{invoiceConfig.bank.bankName}</span>
-                {invoiceConfig.bank.iban && (
+                <span className="font-medium text-navy-800">{jobBank.bankName}</span>
+                {jobBank.iban && (
                   <>
                     <span className="text-navy-400">IBAN</span>
-                    <span className="font-mono text-[11px] font-medium text-navy-800">{invoiceConfig.bank.iban}</span>
+                    <span className="font-mono text-[11px] font-medium text-navy-800">{jobBank.iban}</span>
                   </>
                 )}
-                {invoiceConfig.bank.bic && (
+                {jobBank.bic && (
                   <>
                     <span className="text-navy-400">BIC / SWIFT</span>
-                    <span className="font-mono text-[11px] font-medium text-navy-800">{invoiceConfig.bank.bic}</span>
+                    <span className="font-mono text-[11px] font-medium text-navy-800">{jobBank.bic}</span>
                   </>
                 )}
                 <span className="text-navy-400">Reference</span>
@@ -1238,6 +1277,10 @@ export default function JobDetailPage() {
                 <p className="flex items-center gap-2 text-navy-700">
                   <FiClock className="text-navy-400" />
                   {job.scheduledAt ? dateLine(job) : "Not scheduled"}
+                  {(() => {
+                    const c = appointmentCertainty(job, blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer").length === 0);
+                    return c ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.key === "confirmed" ? "bg-brand-50 text-brand-700" : "bg-amber-100 text-amber-800"}`}>{c.label}</span> : null;
+                  })()}
                 </p>
                 {/* Moving an appointment used to mean Edit → Scheduling, which
                     overwrites the date silently — nothing recorded that the job
@@ -1573,7 +1616,11 @@ export default function JobDetailPage() {
           // rescheduling it — otherwise it moves date but stays off the board.
           // A split job's status is derived from its visits by reconcileJob;
           // forcing "scheduled" here overrode that.
-          if (["quote", "cancelled"].includes(job.status) && !isSplit(job)) patch.status = "scheduled";
+          // …but only once an engineer has confirmed and the booking details
+          // are in. A date on its own is an intention, not a booking.
+          if (["quote", "cancelled"].includes(job.status) && !isSplit(job)
+              && !blockersForScheduling({ ...job, ...patch }, (id) => engineerById(id)?.name || "the engineer").length
+              && !bookingMissing(job, { client, property }).length) patch.status = "scheduled";
           // Every visit on a split job moves with the job. Rescheduling the
           // parent and leaving the visits on the old date would put the job in
           // two places at once on the dispatch board.

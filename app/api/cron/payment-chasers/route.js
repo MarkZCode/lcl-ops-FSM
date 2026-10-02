@@ -11,6 +11,7 @@ import { sendEmailRaw } from "@/lib/emailSend";
 import { mailboxForPurpose, resolveProvider } from "@/lib/emailProviders";
 import { invoiceConfig } from "@/lib/invoiceConfig";
 import { jobBalance } from "@/lib/payments";
+import { bankForJob } from "@/lib/bank";
 import { pushToAll } from "@/lib/pushAll";
 
 export const runtime = "nodejs";
@@ -60,7 +61,8 @@ export async function GET(request) {
 
     const ref = job.invoiceNumber ? `invoice ${job.invoiceNumber}` : `invoice ${job.id}`;
     const first = String(client.billingName || client.name || "").trim().split(/\s+/)[0] || "there";
-    const b = invoiceConfig.bank;
+    // The account printed on THIS job's invoice.
+    const b = bankForJob(job, settings.data.bankAccounts, settings.data.invoiceBankId);
     const text =
       `Hi ${first},\n\n` +
       (stage.n === 1

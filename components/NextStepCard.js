@@ -28,6 +28,10 @@ const BUTTON_LABEL = {
   accept: "Yes, accepted",
   quote_sent: "Mark it sent",
   quote_checked: "Checked — it's right",
+  intake: "Open job details",
+  access: "Go to booking",
+  access_confirmed: "Access is confirmed",
+  payment: "Go to payment",
   "email:review_request": "Ask for a review",
   review_skip: "Skip",
   wa_reply: "Open WhatsApp",
@@ -41,8 +45,8 @@ const BUTTON_LABEL = {
   "email:reminder": "Send reminder",
 };
 
-export default function NextStepCard({ job, clientEmail, clientPhone, engineerName, engineerExists, engineerById, onDo, checks = [] }) {
-  const actions = nextActions(job, { engineerName, clientEmail, clientPhone, engineerExists, engineerById });
+export default function NextStepCard({ job, client, clientEmail, clientPhone, engineerName, engineerExists, engineerById, onDo, checks = [] }) {
+  const actions = nextActions(job, { engineerName, clientEmail, clientPhone, engineerExists, engineerById, client });
   if (["paid", "cancelled"].includes(job.status) && !actions.length) return null;
 
   if (!actions.length) {

@@ -20,6 +20,8 @@ import { JOB_TEMPLATE_PURPOSES } from "@/lib/templates";
 import { fileSrc, uploadFile } from "@/lib/uploads";
 import { buildInvoicePrefill, overridesKey } from "@/lib/invoiceData";
 import { toWhatsAppNumber } from "@/lib/whatsapp";
+import { bankForJob } from "@/lib/bank";
+import { blockersForScheduling } from "@/lib/visits";
 import { toast } from "@/lib/toast";
 
 const URGENCY_LINE =
@@ -44,7 +46,10 @@ export default function SendEmailModal({
   defaultTemplate,
   urgency = false,
 }) {
-  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob, generateShareToken } = useStore();
+  const { templates, email, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, peekInvoiceNumber, logActivity, updateJob, generateShareToken, bankAccounts, invoiceBankId, engineerById } = useStore();
+  // The account this job's invoice carries: the one already used, else the
+  // one currently selected for new invoices.
+  const bank = bankForJob(job, bankAccounts, invoiceBankId);
   const [tplKey, setTplKey] = useState(defaultTemplate || "booking");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -135,7 +140,11 @@ export default function SendEmailModal({
     ? (certFiles.length === 1 ? "certificate" : `${certFiles.length} certificates`)
     : docType === "quote" ? "quote" : "invoice";
 
-  const ctx = buildContext({ job, client, property, email });
+  const ctx = buildContext({ job, client, property, email, bank });
+  // A booking confirmation tells the client it's booked. It doesn't go until
+  // every engineer on the job has actually confirmed.
+  const bookingBlockers = job && ["booking", "reminder"].includes(tplKey) ? blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer") : [];
+  const bookingBlocked = bookingBlockers.length > 0;
 
   // Open on the requested template (e.g. "renewal" for reminders).
   // `templates` used to sit in this effect's dependency array — that object
@@ -189,7 +198,15 @@ export default function SendEmailModal({
       const token = job.shareToken || generateShareToken(job.id);
       if (token) acceptLine = `\n\nYou can view and accept your quote online here: ${window.location.origin}/share/${token}`;
     }
-    setBody(renderTemplate(tpl.body, ctx) + acceptLine + nudge + sig);
+    // What the quote and the booking say about a missed appointment — only
+    // when this job carries the condition.
+    const fee = Number(job?.noAccessFee) || 0;
+    const noAccessLine = fee > 0 && ["quote", "booking"].includes(tplKey)
+      ? `\n\nPlease note: if nobody is available to give access at the booked time, a £${fee} no-access fee applies.` : "";
+    // The engineer's courtesy call, when one has been arranged.
+    const callLine = tplKey === "booking" && job?.callBefore && !/no call/i.test(job.callBefore)
+      ? `\n\nYour engineer will ${job.callBefore.replace(/^Call/i, "call")}.` : "";
+    setBody(renderTemplate(tpl.body, ctx) + callLine + noAccessLine + acceptLine + nudge + sig);
     // Invoices go to the billing email when the client has one.
     setTo((["invoice", "job_completed"].includes(tplKey) && client?.billingEmail) || client?.email || "");
     setPhone(client?.phone || "");
@@ -278,6 +295,11 @@ export default function SendEmailModal({
   };
 
   const handleSend = async () => {
+    if (bookingBlocked) {
+      setStatus("error");
+      setMessage(`Not sent — the booking isn't confirmed yet: ${bookingBlockers.join("; ")}.`);
+      return;
+    }
     setStatus("sending");
     setMessage("");
 
@@ -315,6 +337,8 @@ export default function SendEmailModal({
         // Allocated against the job so the emailed PDF, the job page and
         // the payment record all quote the same invoice number.
         const invNo = docType === "invoice" ? allocateInvoiceNumber(job.id) : `Q-${job.id}`;
+        // The job remembers which account its invoice went out with.
+        if (docType === "invoice" && job.invoiceBankId !== bank.id) updateJob(job.id, { invoiceBankId: bank.id });
         const { generateInvoicePDF } = await import("@/lib/generateInvoice");
         const pdf = generateInvoicePDF(
           {
@@ -323,6 +347,7 @@ export default function SendEmailModal({
             dateISO: todayISO(),
             ...buildInvoicePrefill(job, client, property, docType),
             taxOn: false,
+            bank,
           },
           { output: "base64" }
         );

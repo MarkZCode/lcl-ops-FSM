@@ -147,6 +147,7 @@ export default function JobsPage() {
         clientEmail: c?.email || "",
         clientPhone: c?.phone || "",
         engineerById: (id) => engineerById(id),
+        client: c,
       });
       if (a) m.set(j.id, a);
     }

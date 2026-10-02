@@ -39,6 +39,7 @@ export default function JobCard({ job, onJobCard }) {
     engineerName: (id) => engineerById(id)?.name || "the engineer",
     clientEmail: client?.email || "",
     clientPhone: client?.phone || "",
+    client,
     engineerById: (id) => engineerById(id),
   });
 

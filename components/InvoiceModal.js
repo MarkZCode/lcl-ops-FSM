@@ -7,6 +7,7 @@ import { DISCOUNT_PRESETS } from "@/lib/constants";
 import { INVOICE_PRESETS } from "@/lib/invoiceConfig";
 import { gbp } from "@/lib/format";
 import { useStore } from "@/lib/store";
+import { pickBank, bankLabel } from "@/lib/bank";
 
 function todayISO() {
   const d = new Date();
@@ -34,7 +35,8 @@ const newLine = (desc = "", price = "", qty = 1, type = "charge") => ({
 // instead of downloading a PDF.
 export default function InvoiceModal({ open, onClose, prefill, docType = "invoice", onSave, jobId }) {
   const isQuote = docType === "quote";
-  const { invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } = useStore();
+  const { invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber, bankAccounts, invoiceBankId, setInvoiceBank, updateJob } = useStore();
+  const bank = pickBank(bankAccounts, invoiceBankId);
   const [invNo, setInvNo] = useState(String(invoiceSeq));
   const [dateISO, setDateISO] = useState(todayISO());
   const [clientName, setClientName] = useState("");
@@ -146,8 +148,12 @@ export default function InvoiceModal({ open, onClose, prefill, docType = "invoic
       taxOn,
       taxRate,
       lines: signedLines(),
+      noAccessFee: prefill?.noAccessFee,
+      bank,
     });
     setGenerating(false);
+    // The job remembers which account its invoice went out with.
+    if (!isQuote && jobId) updateJob(jobId, { invoiceBankId: bank.id });
     // The number was already allocated and persisted when this modal opened
     // (allocateInvoiceNumber), so generating the PDF must NOT advance the
     // counter again or bump the field — doing that here is what made the
@@ -346,23 +352,23 @@ export default function InvoiceModal({ open, onClose, prefill, docType = "invoic
 
         {/* Tax + totals */}
         <div className="flex flex-col items-end gap-2 border-t border-navy-100 pt-3">
-          <label className="flex items-center gap-2 text-sm text-navy-600">
-            <input
-              type="checkbox"
-              checked={taxOn}
-              onChange={(e) => setTaxOn(e.target.checked)}
-              className="h-4 w-4 rounded border-navy-300 text-brand-500 focus:ring-brand-400"
-            />
-            Add VAT
-            <input
-              type="number"
-              className="input w-16 py-1"
-              value={taxRate}
-              onChange={(e) => setTaxRate(e.target.value)}
-              disabled={!taxOn}
-            />
-            %
-          </label>
+          {/* Which account this invoice asks to be paid into. Chosen here,
+              before generating; it stays the choice for the next invoice
+              too, until the other one is picked. */}
+          {!isQuote && (
+            <label className="flex w-full flex-wrap items-center justify-end gap-2 text-sm text-navy-600">
+              Pay into
+              <select
+                className="input w-auto max-w-full py-1.5"
+                value={bank.id}
+                onChange={(e) => setInvoiceBank(e.target.value)}
+              >
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{bankLabel(a)} · {a.accountNumber}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className="w-full max-w-[240px] space-y-1 text-sm">
             {discountTotal > 0 && (
               <>
@@ -380,12 +386,6 @@ export default function InvoiceModal({ open, onClose, prefill, docType = "invoic
               <span>Subtotal</span>
               <span>{gbp(subtotal)}</span>
             </div>
-            {taxOn && (
-              <div className="flex justify-between text-navy-500">
-                <span>VAT ({taxRate}%)</span>
-                <span>{gbp(tax)}</span>
-              </div>
-            )}
             <div className="flex justify-between border-t border-navy-100 pt-1 text-base font-bold text-navy-900">
               <span>Total due</span>
               <span className="text-brand-600">{gbp(total)}</span>

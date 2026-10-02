@@ -112,7 +112,7 @@ function WorkflowGuide() {
       n: 3,
       title: "Send the quote",
       body:
-        "Open the job → Quote to make a branded quote PDF, and/or Email → Quote template to email it. Prices are all-inclusive (no VAT shown on documents). If you're giving a goodwill discount on parking/congestion, tick 'Waive' on that line — it still shows on the quote, marked discounted.",
+        "Open the job → Quote to make a branded quote PDF, and/or Email → Quote template to email it. Prices are all-inclusive (the total is the total on documents). If you're giving a goodwill discount on parking/congestion, tick 'Waive' on that line — it still shows on the quote, marked discounted.",
     },
     {
       n: 4,

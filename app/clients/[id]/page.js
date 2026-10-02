@@ -19,6 +19,7 @@ import { useStore } from "@/lib/store";
 import { gbp, fmtDateTime, serviceShort, fmtDate } from "@/lib/format";
 import { getRenewals, renewalTone } from "@/lib/renewals";
 import { clientTimeline } from "@/lib/clients";
+import { pickBank } from "@/lib/bank";
 import { toast } from "@/lib/toast";
 import { jobBalance, jobReceived } from "@/lib/payments";
 import { jobPayable } from "@/lib/format";
@@ -34,7 +35,7 @@ import TaskCompletionBanner from "@/components/team/TaskCompletionBanner";
 export default function ClientDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { clients, jobs, removeClient, updateClient, hydrated } = useStore();
+  const { clients, jobs, removeClient, updateClient, hydrated, bankAccounts, invoiceBankId } = useStore();
   const [editOpen, setEditOpen] = useState(false);
   const [jobOpen, setJobOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -100,6 +101,7 @@ export default function ClientDetailPage() {
     generateStatementPDF({
       clientName: client.billingName || client.name,
       clientAddr: client.billingAddress || client.company || "",
+      bank: pickBank(bankAccounts, invoiceBankId),
       rows: owing
         .sort((a, b) => new Date(a.invoicedAt || 0) - new Date(b.invoicedAt || 0))
         .map((j) => ({

@@ -827,7 +827,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
             <p className="section-label text-xs">
               Breakdown
             </p>
-            <p className="text-[11px] text-navy-400">prices editable · inc VAT</p>
+            <p className="text-[11px] text-navy-400">prices editable</p>
           </div>
 
           {form.lines.length === 0 ? (
@@ -1159,7 +1159,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
 
           <div className="mt-2 flex items-center justify-between border-t border-navy-200 pt-2">
             <span className="text-sm font-semibold text-navy-600">
-              Total (inc VAT)
+              Total
             </span>
             <span className="text-base font-bold text-brand-600">
               {gbp(breakdownTotal)}
@@ -1418,7 +1418,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
             </select>
           </div>
           <div>
-            <label className="label">Price (inc VAT)</label>
+            <label className="label">Price</label>
             <input
               type="number"
               step="0.01"
