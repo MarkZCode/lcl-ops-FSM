@@ -1560,3 +1560,14 @@ body[data-drawer-open] [data-bottom-nav] {
   .page.space-y-6 > :not([hidden]) ~ :not([hidden]),
   .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.25rem; }
 }
+
+
+@media (max-width: 1023px) {
+  /* Rows that scroll sideways (tabs, filter pills, people) show no track. */
+  .scroll-area { scrollbar-width: none; }
+  .scroll-area::-webkit-scrollbar { display: none; }
+  /* Small outline buttons inside lists keep a finger-sized target. */
+  .btn.py-1, .btn-outline.py-1, .btn-primary.py-1 { min-height: 32px; }
+  /* Tables that are wider than the screen scroll inside their card. */
+  .card > table, .panel > table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

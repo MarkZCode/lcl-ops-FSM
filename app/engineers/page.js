@@ -127,10 +127,10 @@ function EngineersInner() {
 
       {/* Tabs */}
       <div className="border-b border-navy-100 bg-white px-4 dark:border-white/10 dark:bg-navy-900 sm:px-8 mt-4">
-        <div className="flex gap-1">
+        <div className="scroll-area flex gap-1 overflow-x-auto whitespace-nowrap">
           {[
-            ["roster",   `Active roster (${engineers.length})`],
-            ["sourcing", `Sourcing pipeline (${recruits.length})`],
+            ["roster",   `Roster (${engineers.length})`],
+            ["sourcing", `Sourcing (${recruits.length})`],
             ["payments", "Payments"],
             ["paperwork", "Paperwork"],
           ].map(([key, label]) => (

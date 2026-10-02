@@ -567,7 +567,7 @@ function SettingsInner() {
         subtitle="Team, services, integrations and data"
         actions={
           <select
-            className="input h-10 w-auto max-w-[15rem]"
+            className="input h-10 w-auto max-w-[9.5rem] sm:max-w-[15rem]"
             value=""
             aria-label="Find a setting"
             onChange={(e) => { if (e.target.value) window.location.assign(`/settings?section=${e.target.value}`); }}

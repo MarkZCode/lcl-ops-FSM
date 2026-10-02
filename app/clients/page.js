@@ -114,7 +114,7 @@ export default function ClientsPage() {
 
       <div className="page">
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="relative min-w-0 flex-1 sm:max-w-sm">
+          <div className="relative min-w-0 flex-1 basis-full sm:max-w-sm sm:basis-auto">
             <FiSearch className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-navy-400" />
             <input
               className="input pl-9"
@@ -123,13 +123,13 @@ export default function ClientsPage() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <select className="input h-10 w-auto" value={show} onChange={(e) => setShow(e.target.value)} aria-label="Which clients to show">
+          <select className="input h-10 w-auto min-w-0 flex-1 sm:flex-none" value={show} onChange={(e) => setShow(e.target.value)} aria-label="Which clients to show">
             <option value="all">All clients</option>
             <option value="open">With open jobs</option>
             <option value="owes">Owes money</option>
             <option value="lapsed">Not used us in 12 months</option>
           </select>
-          <select className="input h-10 w-auto" value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Filter by tag">
+          <select className="input h-10 w-auto min-w-0 flex-1 sm:flex-none" value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Filter by tag">
             <option value="">Any tag</option>
             {CLIENT_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>

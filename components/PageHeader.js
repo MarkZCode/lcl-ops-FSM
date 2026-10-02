@@ -77,7 +77,7 @@ export default function PageHeader({ title, subtitle, actions, icon: Icon, meta,
                 {title}
               </h1>
               {subtitle && (
-                <p className="mt-0.5 truncate text-[13px] text-navy-500 sm:text-sm">{subtitle}</p>
+                <p className="mt-0.5 text-[13px] leading-snug text-navy-500 line-clamp-2 sm:truncate sm:text-sm">{subtitle}</p>
               )}
               {meta && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">{meta}</div>

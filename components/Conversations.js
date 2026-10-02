@@ -97,12 +97,12 @@ export default function Conversations() {
                     <span className="text-xs text-navy-500">{r.job.id} · {statusMeta(r.job.status)?.label || r.job.status}</span>
                     {r.waiting && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">Waiting {span(r.waitMs)}</span>}
                   </span>
-                  <span className="block truncate text-sm text-navy-700">{inbound ? "They said: " : "We said: "}{r.last.title}{first ? ` — ${first}` : ""}</span>
+                  <span className="block text-sm text-navy-700 line-clamp-2 sm:truncate">{inbound ? "They said: " : "We said: "}{r.last.title}{first ? ` — ${first}` : ""}</span>
                   <span className="block text-[11px] text-navy-400">{new Date(r.last.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                 </Link>
                 {r.waiting && (
-                  <button type="button" className="btn-outline shrink-0 py-1 text-xs" title="Nothing needs sending — stop flagging this" onClick={() => { updateJob(r.job.id, { replyHandledAt: new Date().toISOString() }); toast("Marked as handled"); }}>
-                    <FiCheck /> Handled
+                  <button type="button" aria-label="Mark as handled" className="btn-outline shrink-0 !px-2.5 py-1 text-xs sm:!px-3.5" title="Nothing needs sending — stop flagging this" onClick={() => { updateJob(r.job.id, { replyHandledAt: new Date().toISOString() }); toast("Marked as handled"); }}>
+                    <FiCheck /> <span className="hidden sm:inline">Handled</span>
                   </button>
                 )}
               </li>
