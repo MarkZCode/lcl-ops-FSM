@@ -106,11 +106,6 @@ export default function JobDetailPage() {
   }, []);
   const setTab = (t) => { setTabState(t); try { sessionStorage.setItem("lcl-job-tab", t); } catch {} };
   const on = (...keys) => tab === "all" || keys.includes(tab);
-  // What this stage is about, so the page shows that and not everything.
-  const headerDoc = job?.status === "quote" ? "quote" : ["completed", "invoiced", "paid"].includes(job?.status) ? "invoice" : null;
-  // A quote the client hasn't accepted and nobody has dated: booking tools
-  // stay on the Booking tab instead of crowding the overview.
-  const preBooking = job?.status === "quote" && !job?.acceptedAt && !job?.scheduledAt;
   // Where this job sits in the list you came from, for the ‹ › arrows.
   const [order, setOrder] = useState([]);
   useEffect(() => {
@@ -145,6 +140,11 @@ export default function JobDetailPage() {
   }, [id]);
 
   const job = jobs.find((j) => j.id === id);
+  // What this stage is about, so the page shows that and not everything.
+  const headerDoc = job?.status === "quote" ? "quote" : ["completed", "invoiced", "paid"].includes(job?.status) ? "invoice" : null;
+  // A quote the client hasn't accepted and nobody has dated: booking tools
+  // stay on the Booking tab instead of crowding the overview.
+  const preBooking = job?.status === "quote" && !job?.acceptedAt && !job?.scheduledAt;
   // Opening a job marks it as seen at its current version, so the list's
   // "changed since you last looked" dot means changes by someone else.
   useEffect(() => {
