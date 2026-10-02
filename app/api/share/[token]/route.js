@@ -43,6 +43,21 @@ export async function GET(_request, { params }) {
   }
 
   const job = data.data;
+  // What we still need from the client to book it — asked for on the page
+  // once they've accepted, so nobody has to chase it by message.
+  let property = null;
+  if (job.clientId) {
+    const { data: cRow } = await supabaseAdmin.from("clients").select("data").eq("id", job.clientId).maybeSingle();
+    property = (cRow?.data?.properties || []).find((p) => p.id === job.propertyId) || null;
+  }
+  const flat = (v) => String(v || "").replace(/\s/g, "").toUpperCase();
+  const needs = [];
+  if (!flat(property?.label) || flat(property?.label) === flat(property?.postcode)) needs.push("address");
+  if (!String(job.nameOnCert || "").trim()) needs.push("certName");
+  if (!String(job.accessName || "").trim() && !String(job.accessPhone || "").trim() && !(job.accessContacts || []).length) needs.push("access");
+  if (!job.preferredDate && !job.scheduledAt) needs.push("date");
+  const isPdf = (f) => f?.type === "application/pdf" || /\.pdf$/i.test(f?.name || "");
+  const certified = job.status === "paid" && !!(job.certifiedAt || job.certificateSentAt);
   // Explicit allow-list. Anything added to a job in future is private by
   // default and has to be named here to become public.
   await applyCompanyServer();
@@ -61,6 +76,15 @@ export async function GET(_request, { params }) {
     scheduledAt: job.scheduledAt || null,
     canRequestChange: job.status === "scheduled" && !!job.scheduledAt,
     changeRequestedAt: job.changeRequestedAt || null,
+    postcode: property?.postcode || "",
+    needs: job.status === "quote" && job.acceptedAt && !job.clientDetailsAt ? needs : [],
+    detailsSentAt: job.clientDetailsAt || null,
+    // Only once the office has pressed "on the way" / the engineer said so.
+    onTheWay: job.status !== "completed" && !!job.onTheWayAt && Date.now() - new Date(job.onTheWayAt).getTime() < 6 * 3600_000,
+    runningLate: job.runningLate && Date.now() - new Date(job.runningLate.at).getTime() < 6 * 3600_000 ? job.runningLate.minutes : null,
+    // Their certificate, once the job is paid and it has been sent — the
+    // same files the office checked, never one flagged as doubtful.
+    certificates: certified ? (job.attachments || []).filter((f) => isPdf(f) && f.url && f.check?.postcode !== "missing").map((f) => ({ name: f.name, url: f.url })) : [],
     lines: getJobLines(job).map((l) => ({
       name: l.code === "CUSTOM" ? l.name : l.name,
       code: l.code,
@@ -120,6 +144,44 @@ export async function POST(request, { params }) {
     await pushToAll({ title: "Client wants to reschedule", body: `${job.id} — would prefer ${nice}`, url: `/jobs/${job.id}` }, { kind: "reschedule" });
     await runTaskSync({ force: true });
     return NextResponse.json({ ok: true, changeRequestedAt: at });
+  }
+
+  // The booking details, typed by the client on their link after accepting.
+  if (body?.action === "details") {
+    if (job.status !== "quote" || !job.acceptedAt) return NextResponse.json({ error: "These details can't be sent online for this job — please call us." }, { status: 409 });
+    const clip = (v, n) => String(v || "").trim().slice(0, n);
+    const address = clip(body.address, 200), certName = clip(body.certName, 120), accessName = clip(body.accessName, 80), accessPhone = clip(body.accessPhone, 30);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ? body.date : "";
+    const slot = ["Morning", "Afternoon"].includes(body.slot) ? body.slot : "";
+    if (!address && !certName && !accessName && !accessPhone && !date) return NextResponse.json({ error: "Please fill in the details first." }, { status: 400 });
+    const at = new Date().toISOString();
+    const lines = [address && `Address: ${address}`, certName && `Name on certificate: ${certName}`, (accessName || accessPhone) && `Access: ${[accessName, accessPhone].filter(Boolean).join(" · ")}`, date && `Preferred: ${date}${slot ? ` (${slot})` : ""}`].filter(Boolean);
+    const withDetails = {
+      ...job,
+      ...(certName ? { nameOnCert: certName } : {}),
+      ...(accessName ? { accessName } : {}),
+      ...(accessPhone ? { accessPhone } : {}),
+      ...(date ? { preferredDate: date } : {}),
+      ...(slot ? { preferredSlot: slot } : {}),
+      clientDetailsAt: at,
+      updatedAt: at,
+      activity: [...(job.activity || []), { id: "act-" + Date.now().toString(36), at, by: "client", type: "note", title: "Client sent their booking details online", detail: lines.join("\n") }],
+    };
+    const { error: dErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: withDetails });
+    if (dErr) return NextResponse.json({ error: "Couldn't send that — please call us." }, { status: 502 });
+    // The address goes onto the property, but only where we had none.
+    if (address && job.clientId) {
+      const { data: cRow } = await supabaseAdmin.from("clients").select("id,data").eq("id", job.clientId).maybeSingle();
+      const c = cRow?.data;
+      const flat = (v) => String(v || "").replace(/\s/g, "").toUpperCase();
+      if (c && (c.properties || []).some((p) => p.id === job.propertyId && (!flat(p.label) || flat(p.label) === flat(p.postcode)))) {
+        const props = c.properties.map((p) => (p.id === job.propertyId ? { ...p, label: address } : p));
+        await supabaseAdmin.from("clients").upsert({ id: cRow.id, data: { ...c, properties: props } });
+      }
+    }
+    await pushToAll({ title: "Booking details received", body: `${job.id} — the client sent their address, access and preferred date. Book it in.`, url: `/jobs/${job.id}` }, { kind: "quote_accepted" });
+    await runTaskSync({ force: true });
+    return NextResponse.json({ ok: true, detailsSentAt: at });
   }
 
   if (job.acceptedAt) return NextResponse.json({ ok: true, acceptedAt: job.acceptedAt, already: true });

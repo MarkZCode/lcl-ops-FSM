@@ -348,6 +348,17 @@ export default function JobDetailPage() {
         logActivity(job.id, { type: "whatsapp", title: "WhatsApp message sent with the quote (opened)", detail: msg, by: who() });
         return;
       }
+      case "wa_late": {
+        const phone = job.accessPhone || client?.phone;
+        const msg = `${greetingNow()} ${firstName(job.accessName || client?.name)}, this is ${jobSender(job)} from Landlord Compliance London. Your engineer is running about ${job.runningLate?.minutes || 30} minutes late today — apologies for the wait. They are on their way.`;
+        if (!phone || !openWhatsAppChat(phone, msg)) return;
+        updateJob(job.id, { runningLate: { ...job.runningLate, toldAt: new Date().toISOString() } });
+        logActivity(job.id, { type: "whatsapp", title: "Told the client the engineer is running late (WhatsApp opened)", detail: msg, by: who() });
+        return;
+      }
+      case "late_done":
+        updateJob(job.id, { runningLate: { ...job.runningLate, toldAt: new Date().toISOString() } });
+        return;
       case "wa_nudge_done":
         updateJob(job.id, { quoteNudgeAt: new Date().toISOString() });
         logActivity(job.id, { type: "status", title: "Booking message sent outside the app", by: who() });
@@ -708,9 +719,9 @@ export default function JobDetailPage() {
                 {headerDoc === "quote" ? <><FiFileText /> Quote</> : <><FiDownload /> Invoice</>}
               </button>
             )}
-            <button className="btn-outline" onClick={handleShare} title="Copy shareable client link">
+            <button className="btn-outline" onClick={handleShare} title="Copies the client's own page for this job: they can accept the quote, send their booking details, see the appointment and download the certificate">
               {shareCopied ? <FiCheck className="text-brand-600" /> : <FiShare2 />}
-              {shareCopied ? "Copied!" : "Share"}
+              {shareCopied ? "Link copied" : "Client link"}
             </button>
             <div className="relative">
               <button
@@ -732,6 +743,14 @@ export default function JobDetailPage() {
                       edge of the screen and every item was clipped to a
                       couple of letters. */}
                   <div className="absolute left-0 top-full z-20 mt-1 min-w-[10.5rem] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-xl border border-navy-200 bg-white py-1 shadow-lg sm:left-auto sm:right-0">
+                    <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" title="The engineer's own page for this job: confirm or decline, on my way, running late, arrived, finished, upload the certificate" onClick={() => {
+                      setMoreOpen(false);
+                      const token = job.confirmToken || Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+                      if (!job.confirmToken) updateJob(job.id, { confirmToken: token });
+                      navigator.clipboard.writeText(`${window.location.origin}/confirm/${token}`).then(() => toast.success("Engineer link copied — send it to the engineer.")).catch(() => {});
+                    }}>
+                      <FiShare2 className="h-4 w-4" /> Copy engineer link
+                    </button>
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setJobCardOpen(true); setMoreOpen(false); }}>
                       <FiClipboard className="h-4 w-4" /> Job card
                     </button>
@@ -760,9 +779,11 @@ export default function JobDetailPage() {
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setMoreOpen(false); printSummary(); }}>
                       <FiDownload className="h-4 w-4" /> Print summary
                     </button>
-                    <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50" onClick={() => { setConfirmDel(true); setMoreOpen(false); }}>
-                      <FiTrash2 className="h-4 w-4" /> Delete
-                    </button>
+                    {can("deleteRecords") && (
+                      <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50" onClick={() => { setConfirmDel(true); setMoreOpen(false); }}>
+                        <FiTrash2 className="h-4 w-4" /> Delete
+                      </button>
+                    )}
                   </div>
                 </>
               )}

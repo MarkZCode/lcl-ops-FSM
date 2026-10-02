@@ -11,6 +11,27 @@ import LogoMark from "@/components/LogoMark";
 import { invoiceConfig } from "@/lib/invoiceConfig";
 
 const STATUS_STEPS = ["quote", "scheduled", "in_progress", "completed", "invoiced", "paid"];
+// What the visit involves, in a sentence or two — so the client knows what
+// to expect and what to have ready.
+const WHAT_HAPPENS = {
+  GAS: "The engineer tests each gas appliance, the flue and the pipework, and checks ventilation and the carbon monoxide alarm. Allow 30–45 minutes for one or two appliances. Please make sure the gas is on and the appliances can be reached.",
+  GAS_COM: "The engineer tests each commercial gas appliance, its flue, ventilation and safety devices. Please make sure the appliances can be reached and the gas is on.",
+  BOILER: "The engineer opens, cleans and checks the boiler and tests how it is burning. Allow about an hour. Please make sure the boiler can be reached.",
+  EICR: "The electrician inspects and tests the fixed wiring, sockets, lights and the fuse box. The power is switched off for parts of the visit. Allow 2–4 hours depending on the size of the property.",
+  EICR_COM: "The electrician inspects and tests the fixed wiring and each distribution board. The power is switched off circuit by circuit, so please plan around short interruptions.",
+  EPC: "The assessor measures the property and records the heating, insulation, windows and lighting. Allow 30–60 minutes. Access to every room, the loft and the boiler helps.",
+  EPC_COM: "The assessor surveys the building, its heating, cooling, lighting and construction. Plans and any service records are helpful.",
+  PAT: "Each portable appliance is checked and tested, then labelled. Please have the appliances plugged in or to hand.",
+  PAT_COM: "Each portable appliance is checked and tested, then labelled. Please have the appliances to hand and staff aware of short interruptions.",
+  FRA: "The assessor walks through the property and the shared areas, looking at escape routes, fire doors, alarms and anything that could start or spread a fire. Allow 45–90 minutes.",
+  FRA_COM: "The assessor walks through the premises and shared areas, looking at escape routes, fire doors, alarms, signage and how the building is used. Allow 1–2 hours.",
+  FSC: "The engineer tests the smoke and heat alarms and checks they are in the right places and in date.",
+  FSC_COM: "The engineer tests the alarms and detection and checks they are in the right places and working.",
+  EMLIGHT: "The engineer tests each emergency light on its battery and checks it covers the escape routes.",
+  EMLIGHT_COM: "The engineer tests each emergency light on its battery and checks it covers the escape routes.",
+  ASBESTOS: "The surveyor inspects the agreed areas and takes small samples of any suspect material for the laboratory.",
+};
+
 const STATUS_LABELS = { quote: "Quote", scheduled: "Booked", in_progress: "In progress", completed: "Done", invoiced: "Invoice sent", paid: "Paid" };
 
 export default function SharePage() {
@@ -24,6 +45,27 @@ export default function SharePage() {
   const [moveNote, setMoveNote] = useState("");
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState("");
+  const [details, setDetails] = useState({ address: "", certName: "", accessName: "", accessPhone: "", date: "", slot: "" });
+  const [detailsBusy, setDetailsBusy] = useState(false);
+  const [detailsError, setDetailsError] = useState("");
+  const sendDetails = async () => {
+    setDetailsBusy(true);
+    setDetailsError("");
+    try {
+      const r = await fetch(`/api/share/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "details", ...details }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Something went wrong — please call us.");
+      setJob((j) => ({ ...j, needs: [], detailsSentAt: d.detailsSentAt }));
+    } catch (e) {
+      setDetailsError(String(e.message || e));
+    } finally {
+      setDetailsBusy(false);
+    }
+  };
 
   const requestMove = async () => {
     setMoveBusy(true);
@@ -53,6 +95,8 @@ export default function SharePage() {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Something went wrong — please call us.");
       setJob((j) => ({ ...j, acceptedAt: d.acceptedAt, canAccept: false }));
+      // Fetch again so the page can ask for whatever is still needed to book.
+      fetch(`/api/share/${encodeURIComponent(token)}`).then((x) => (x.ok ? x.json() : null)).then((x) => x && setJob(x)).catch(() => {});
     } catch (e) {
       setAcceptError(String(e.message || e));
     } finally {
@@ -157,8 +201,71 @@ export default function SharePage() {
         )}
         {job.status === "quote" && job.acceptedAt && (
           <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
-            <strong>Quote accepted</strong> on {fmtDate(job.acceptedAt)}. We&rsquo;ll contact you to book your appointment.
+            <strong>Quote accepted</strong> on {fmtDate(job.acceptedAt)}. {job.detailsSentAt ? "Thank you — we have your details and are arranging your appointment with the engineer. We\u2019ll confirm the date and time shortly." : "We\u2019re arranging your appointment and will confirm the date and time shortly."}
           </div>
+        )}
+
+        {/* The few things we need to book it — only what's still missing. */}
+        {(job.needs || []).length > 0 && (
+          <div className="card space-y-3 p-5 text-sm">
+            <p className="font-semibold text-navy-900">To book your appointment, please tell us:</p>
+            {job.needs.includes("address") && (
+              <div><label className="label">Full property address</label><input className="input" value={details.address} onChange={(e) => setDetails((d) => ({ ...d, address: e.target.value }))} placeholder={job.postcode ? `Flat / house number and street, ${job.postcode}` : ""} /></div>
+            )}
+            {job.needs.includes("certName") && (
+              <div><label className="label">Name to go on the certificate</label><input className="input" value={details.certName} onChange={(e) => setDetails((d) => ({ ...d, certName: e.target.value }))} /></div>
+            )}
+            {job.needs.includes("access") && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div><label className="label">Who will let the engineer in?</label><input className="input" value={details.accessName} onChange={(e) => setDetails((d) => ({ ...d, accessName: e.target.value }))} placeholder="Tenant or contact name" /></div>
+                <div><label className="label">Their phone number</label><input className="input" inputMode="tel" value={details.accessPhone} onChange={(e) => setDetails((d) => ({ ...d, accessPhone: e.target.value }))} /></div>
+              </div>
+            )}
+            {job.needs.includes("date") && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div><label className="label">Preferred date</label><input type="date" className="input" min={new Date().toISOString().slice(0, 10)} value={details.date} onChange={(e) => setDetails((d) => ({ ...d, date: e.target.value }))} /></div>
+                <div><label className="label">Morning or afternoon</label>
+                  <select className="input" value={details.slot} onChange={(e) => setDetails((d) => ({ ...d, slot: e.target.value }))}>
+                    <option value="">Either</option><option value="Morning">Morning (8am–1pm)</option><option value="Afternoon">Afternoon (1pm–6pm)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+            <button type="button" className="btn-primary w-full justify-center" disabled={detailsBusy} onClick={sendDetails}>{detailsBusy ? "Sending…" : "Send these details"}</button>
+            <p className="text-xs text-navy-500">Your appointment is confirmed once the engineer has agreed the date — we&rsquo;ll let you know.</p>
+            {detailsError && <p className="text-xs font-semibold text-rose-600">{detailsError}</p>}
+          </div>
+        )}
+
+        {/* On the day */}
+        {(job.onTheWay || job.runningLate) && (
+          <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
+            {job.runningLate ? <>Your engineer is running about <strong>{job.runningLate} minutes</strong> late. Sorry for the wait.</> : <><strong>Your engineer is on the way.</strong> Please make sure someone is there to let them in.</>}
+          </div>
+        )}
+
+        {/* Their certificate, once it has been issued */}
+        {(job.certificates || []).length > 0 && (
+          <div className="card p-5 text-sm">
+            <h2 className="mb-2 section-label text-sm">Your certificate</h2>
+            <ul className="space-y-1.5">
+              {job.certificates.map((c) => (
+                <li key={c.url}><a href={c.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-700 underline">{c.name}</a></li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* What to expect at the visit */}
+        {["quote", "scheduled"].includes(job.status) && lines.some((l) => WHAT_HAPPENS[l.code]) && (
+          <details className="card p-5 text-sm">
+            <summary className="cursor-pointer font-semibold text-navy-900">What happens at the visit</summary>
+            <ul className="mt-3 space-y-2 text-navy-700">
+              {lines.filter((l) => WHAT_HAPPENS[l.code]).map((l) => (
+                <li key={l.code}><strong className="text-navy-900">{l.name}.</strong> {WHAT_HAPPENS[l.code]}</li>
+              ))}
+            </ul>
+          </details>
         )}
 
         {/* Appointment + ask to move it */}

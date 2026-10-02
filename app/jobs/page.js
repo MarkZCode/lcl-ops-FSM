@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/lib/auth";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiPlus, FiSearch, FiGrid, FiList, FiClipboard, FiBriefcase, FiColumns } from "react-icons/fi";
@@ -205,16 +206,22 @@ export default function JobsPage() {
     return m;
   }, [jobs, clients, engineerById]);
 
+  // "Mine": jobs whose open task is assigned to the person signed in.
+  const { user: me } = useAuth();
+  const myName = me?.name || me?.username || "";
+  const isMine = (id) => !!myName && owners.get(id) === myName;
   const todoCounts = useMemo(() => {
-    const c = { todo: nextByJob.size };
-    for (const a of nextByJob.values()) c[a.group] = (c[a.group] || 0) + 1;
+    const c = { todo: nextByJob.size, mine: 0 };
+    for (const [id, a] of nextByJob) { c[a.group] = (c[a.group] || 0) + 1; if (isMine(id)) c.mine++; }
     return c;
-  }, [nextByJob]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nextByJob, owners, myName]);
 
   const isTodo = statusFilter === "todo" || statusFilter.startsWith("todo:");
 
   const jobMatchesStatus = (job, targetStatus) => {
     if (targetStatus === "todo") return nextByJob.has(job.id);
+    if (targetStatus === "todo:mine") return nextByJob.has(job.id) && isMine(job.id);
     if (targetStatus.startsWith("todo:")) return nextByJob.get(job.id)?.group === targetStatus.slice(5);
     if (targetStatus.startsWith("quote:")) return job.status === "quote" && quoteStage(job, undefined, clientOf(job)) === targetStatus.slice(6);
     // Tabs are STAGES: "Paid" is paid-but-not-yet-certified, "Certified" the rest.
@@ -382,6 +389,7 @@ export default function JobsPage() {
           >
             <option value="">Needs doing…</option>
             <option value="todo">Anything ({todoCounts.todo || 0})</option>
+            {todoCounts.mine > 0 && <option value="todo:mine">Mine ({todoCounts.mine})</option>}
             {ACTION_GROUPS.filter((g) => todoCounts[g.key]).map((g) => (
               <option key={g.key} value={`todo:${g.key}`}>{g.label} ({todoCounts[g.key]})</option>
             ))}

@@ -13,6 +13,61 @@ export default function ConfirmPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [done, setDone] = useState({});
+  const [sharing, setSharing] = useState("");
+  const [note, setNote] = useState("");
+
+  // One call for every on-the-day action.
+  const act = async (key, action, extra = {}, okNote = "") => {
+    setBusy(key);
+    setError("");
+    try {
+      const r = await fetch(`/api/confirm/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, action, ...extra }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Something went wrong — please message the office.");
+      if (okNote) setNote(okNote);
+      await load();
+    } catch (e) {
+      setError(String(e.message || e));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  // "On my way": shares where this phone is, for as long as the page is open.
+  const share = (key) => {
+    if (!navigator.geolocation) { setError("This phone can't share its location."); return; }
+    setSharing(key);
+    let last = 0;
+    navigator.geolocation.watchPosition(
+      (pos) => {
+        if (Date.now() - last < 45_000) return;
+        last = Date.now();
+        fetch(`/api/confirm/${encodeURIComponent(token)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, action: "location", lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        }).catch(() => {});
+      },
+      () => { setSharing(""); setError("Location is switched off for this page — allow it in your browser to share it."); },
+      { enableHighAccuracy: true, maximumAge: 30_000 }
+    );
+  };
+
+  const upload = async (key, file) => {
+    if (!file) return;
+    if (file.size > 9 * 1024 * 1024) { setError("That file is too large (max 9 MB)."); return; }
+    const base64 = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result).split(",")[1] || "");
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+    await act(key, "upload", { base64, filename: file.name, contentType: file.type }, `${file.name} sent to the office.`);
+  };
 
   const load = () =>
     fetch(`/api/confirm/${encodeURIComponent(token)}`)
@@ -94,7 +149,38 @@ export default function ConfirmPage() {
             <p className="mt-0.5 text-sm text-navy-600">{s.when || "Date to be agreed"}</p>
             {s.confirmed ? (
               <>
-                <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700">Confirmed — thank you. The full job card will follow.</p>
+                <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700">{s.finished ? "Finished — thank you." : "Confirmed — thank you. The full job card will follow."}</p>
+                {/* On the day: tell the office where things are without a call. */}
+                {data.open && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    {!s.finished && (
+                      <button type="button" className="btn-outline justify-center" disabled={!!sharing} onClick={() => share(s.key)}>
+                        {sharing === s.key ? "Sharing location…" : "On my way"}
+                      </button>
+                    )}
+                    {!s.started && (
+                      <select className="input" value="" disabled={busy === s.key} onChange={(e) => e.target.value && act(s.key, "late", { minutes: Number(e.target.value) }, "The office has been told you're running late.")} aria-label="Running late">
+                        <option value="">Running late…</option>
+                        <option value="15">About 15 minutes</option>
+                        <option value="30">About 30 minutes</option>
+                        <option value="45">About 45 minutes</option>
+                        <option value="60">About an hour</option>
+                        <option value="90">More than an hour</option>
+                      </select>
+                    )}
+                    {!s.started && (
+                      <button type="button" className="btn-primary col-span-2 justify-center" disabled={busy === s.key} onClick={() => act(s.key, "arrived", {}, "Marked as arrived.")}>I&rsquo;ve arrived</button>
+                    )}
+                    {s.started && !s.finished && (
+                      <button type="button" className="btn-primary col-span-2 justify-center" disabled={busy === s.key} onClick={() => window.confirm("Is the work finished?") && act(s.key, "finished", {}, "Marked as finished — please upload the certificate when it's ready.")}>Work finished</button>
+                    )}
+                    <label className="btn-outline col-span-2 cursor-pointer justify-center">
+                      {busy === s.key ? "Sending…" : "Upload certificate or photo"}
+                      <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { upload(s.key, e.target.files?.[0]); e.target.value = ""; }} />
+                    </label>
+                    {sharing === s.key && <p className="col-span-2 text-xs text-navy-500">Your location is shared with the office while this page stays open.</p>}
+                  </div>
+                )}
                 {data.open && <button type="button" className="mt-2 text-xs font-semibold text-navy-500 underline" disabled={busy === s.key} onClick={() => decline(s.key, true)}>I can no longer do this job</button>}
               </>
             ) : data.open ? (
@@ -107,6 +193,7 @@ export default function ConfirmPage() {
             ) : null}
           </div>
         ))}
+        {note && <p className="text-center text-sm font-semibold text-brand-700">{note}</p>}
         {error && <p className="text-center text-sm font-semibold text-rose-600">{error}</p>}
         <p className="pb-8 text-center text-xs text-navy-400">Can&rsquo;t do it? Message the office so it can be reassigned.</p>
       </div>

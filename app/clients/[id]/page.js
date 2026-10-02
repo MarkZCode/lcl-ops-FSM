@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/lib/auth";
 import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -38,6 +39,7 @@ export default function ClientDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { clients, jobs, removeClient, updateClient, addJob, hydrated, bankAccounts, invoiceBankId } = useStore();
+  const { can } = useAuth();
   const [editOpen, setEditOpen] = useState(false);
   const [jobOpen, setJobOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -213,12 +215,14 @@ export default function ClientDetailPage() {
             <button className="btn-outline" onClick={() => setEditOpen(true)}>
               <FiEdit2 /> Edit
             </button>
+            {can("deleteRecords") && (
             <button
               className="btn-outline text-rose-600 hover:bg-rose-50"
               onClick={() => setConfirmDel(true)}
             >
               <FiTrash2 /> Delete
             </button>
+            )}
           </div>
         </div>
       </div>
