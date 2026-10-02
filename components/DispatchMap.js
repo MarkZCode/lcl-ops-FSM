@@ -109,7 +109,7 @@ export default function DispatchMap({ stops = [] }) {
           const pos = [at[s.postcode][0] + i * 0.0012, at[s.postcode][1] + i * 0.0018];
           L.marker(pos, {
             icon: L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: `<span class="lcl-dot" style="--c:${s.colour}"><i></i><b>${s.n}</b></span>` }),
-          }).addTo(map).bindPopup(`<strong>${esc(s.time)} · ${esc(s.engineerName)}</strong><br>${esc(s.label)}<br>${esc(s.postcode)}<br><a href="/jobs/${encodeURIComponent(s.jobId)}">Open ${esc(s.jobId)}</a>`);
+          }).addTo(map).bindPopup(`<strong>${esc(s.time)} · ${esc(s.engineerName)}</strong><br>${esc(s.label)}<br>${esc(s.postcode)}${s.noLink ? `<br>${esc(s.jobId)}` : `<br><a href="/jobs/${encodeURIComponent(s.jobId)}">Open ${esc(s.jobId)}</a>`}`);
           (routes[s.engineerId] = routes[s.engineerId] || { colour: s.colour, pts: [] }).pts.push(pos);
         }
 

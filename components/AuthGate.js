@@ -16,6 +16,7 @@ import Toaster from "./Toaster";
 import SyncErrorBanner from "./SyncErrorBanner";
 import ErrorBoundary from "./ErrorBoundary";
 import { ConfirmProvider } from "./ConfirmProvider";
+import EngineerPortal from "./EngineerPortal";
 import OnboardingTour from "./OnboardingTour";
 import SplashScreen, { INTRO_MS } from "./SplashScreen";
 
@@ -42,6 +43,23 @@ function NoAccess({ email }) {
 // Wraps the whole app. Shows the login screen until a user signs in. The data
 // store is mounted ONLY when signed in, so its Supabase queries always carry a
 // valid session (the database is locked to authenticated requests).
+// The whole app, for an engineer: a slim top bar and their portal.
+function EngineerShell() {
+  const { logout } = useAuth();
+  // Clear anything an earlier version of the app cached on this device.
+  useEffect(() => { try { indexedDB.deleteDatabase("lcl-ops-cache"); } catch {} }, []);
+  return (
+    <div className="min-h-[var(--app-height,100dvh)] w-full">
+      <div className="flex items-center justify-between border-b border-navy-100 px-4 pb-3 dark:border-white/10" style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))", backgroundColor: "var(--surface-card)" }}>
+        <span className="text-[17px] font-semibold tracking-tight text-navy-900">LCL Ops</span>
+        <button type="button" onClick={logout} className="btn-outline py-1.5 text-xs">Sign out</button>
+      </div>
+      <EngineerPortal />
+      <Toaster />
+    </div>
+  );
+}
+
 export default function AuthGate({ children }) {
   const { user, ready } = useAuth();
   const [showTour, setShowTour] = useState(false);
@@ -123,6 +141,17 @@ export default function AuthGate({ children }) {
     );
   }
 
+  // An engineer login gets the portal and nothing else. The office store
+  // (every job, client and engineer) is never mounted for them, so none of
+  // it is requested — the database refuses it to them as well.
+  if (user.role === "engineer") {
+    return (
+      <ErrorBoundary>
+        <EngineerShell />
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <StoreProvider>
@@ -179,7 +208,7 @@ export default function AuthGate({ children }) {
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v150</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v151</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed

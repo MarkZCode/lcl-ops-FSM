@@ -45,7 +45,8 @@ export default function SharePage() {
   const [moveNote, setMoveNote] = useState("");
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState("");
-  const [details, setDetails] = useState({ address: "", certName: "", accessName: "", accessPhone: "", date: "", slot: "" });
+  const [details, setDetails] = useState({ address: "", certName: "", accessName: "", accessPhone: "", date: "", slot: "", intake: {} });
+  const setAnswer = (field, value) => setDetails((d) => ({ ...d, intake: { ...d.intake, [field]: value } }));
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [detailsError, setDetailsError] = useState("");
   const sendDetails = async () => {
@@ -59,7 +60,7 @@ export default function SharePage() {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Something went wrong — please call us.");
-      setJob((j) => ({ ...j, needs: [], detailsSentAt: d.detailsSentAt }));
+      setJob((j) => ({ ...j, needs: [], questions: [], detailsSentAt: d.detailsSentAt }));
     } catch (e) {
       setDetailsError(String(e.message || e));
     } finally {
@@ -206,22 +207,22 @@ export default function SharePage() {
         )}
 
         {/* The few things we need to book it — only what's still missing. */}
-        {(job.needs || []).length > 0 && (
+        {((job.needs || []).length > 0 || (job.questions || []).length > 0) && (
           <div className="card space-y-3 p-5 text-sm">
             <p className="font-semibold text-navy-900">To book your appointment, please tell us:</p>
-            {job.needs.includes("address") && (
+            {(job.needs || []).includes("address") && (
               <div><label className="label">Full property address</label><input className="input" value={details.address} onChange={(e) => setDetails((d) => ({ ...d, address: e.target.value }))} placeholder={job.postcode ? `Flat / house number and street, ${job.postcode}` : ""} /></div>
             )}
-            {job.needs.includes("certName") && (
+            {(job.needs || []).includes("certName") && (
               <div><label className="label">Name to go on the certificate</label><input className="input" value={details.certName} onChange={(e) => setDetails((d) => ({ ...d, certName: e.target.value }))} /></div>
             )}
-            {job.needs.includes("access") && (
+            {(job.needs || []).includes("access") && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div><label className="label">Who will let the engineer in?</label><input className="input" value={details.accessName} onChange={(e) => setDetails((d) => ({ ...d, accessName: e.target.value }))} placeholder="Tenant or contact name" /></div>
                 <div><label className="label">Their phone number</label><input className="input" inputMode="tel" value={details.accessPhone} onChange={(e) => setDetails((d) => ({ ...d, accessPhone: e.target.value }))} /></div>
               </div>
             )}
-            {job.needs.includes("date") && (
+            {(job.needs || []).includes("date") && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div><label className="label">Preferred date</label><input type="date" className="input" min={new Date().toISOString().slice(0, 10)} value={details.date} onChange={(e) => setDetails((d) => ({ ...d, date: e.target.value }))} /></div>
                 <div><label className="label">Morning or afternoon</label>
@@ -231,6 +232,29 @@ export default function SharePage() {
                 </div>
               </div>
             )}
+            {/* What the engineer needs to know about the property. */}
+            {(job.questions || []).map((q) => (
+              <div key={q.field}>
+                <label className="label">{q.title}</label>
+                {q.input === "number" && <input type="number" min="0" inputMode="numeric" className="input" value={details.intake[q.field] ?? ""} onChange={(e) => setAnswer(q.field, e.target.value)} />}
+                {q.input === "text" && <input className="input" value={details.intake[q.field] || ""} onChange={(e) => setAnswer(q.field, e.target.value)} />}
+                {q.input === "yesno" && (
+                  <div className="flex gap-2">
+                    {["Yes", "No"].map((v) => (
+                      <button key={v} type="button" onClick={() => setAnswer(q.field, v)} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${details.intake[q.field] === v ? "border-brand-400 bg-brand-50 text-brand-700" : "border-navy-200 text-navy-600"}`}>{v}</button>
+                    ))}
+                  </div>
+                )}
+                {q.input === "chips" && (
+                  <div className="flex flex-wrap gap-2">
+                    {(q.options || []).map((o) => {
+                      const on = (details.intake[q.field] || []).includes(o);
+                      return <button key={o} type="button" onClick={() => setAnswer(q.field, on ? details.intake[q.field].filter((x) => x !== o) : [...(details.intake[q.field] || []), o])} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${on ? "border-brand-400 bg-brand-50 text-brand-700" : "border-navy-200 text-navy-600"}`}>{o}</button>;
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
             <button type="button" className="btn-primary w-full justify-center" disabled={detailsBusy} onClick={sendDetails}>{detailsBusy ? "Sending…" : "Send these details"}</button>
             <p className="text-xs text-navy-500">Your appointment is confirmed once the engineer has agreed the date — we&rsquo;ll let you know.</p>
             {detailsError && <p className="text-xs font-semibold text-rose-600">{detailsError}</p>}

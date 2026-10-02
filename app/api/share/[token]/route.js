@@ -16,6 +16,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getJobLines, lineTotal } from "@/lib/format";
 import { lineSizeLabel } from "@/lib/jobCard";
+import { quoteMissing, intakeFieldsFor } from "@/lib/gates";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -47,8 +48,10 @@ export async function GET(_request, { params }) {
   // What we still need from the client to book it — asked for on the page
   // once they've accepted, so nobody has to chase it by message.
   let property = null;
+  let clientRec = null;
   if (job.clientId) {
     const { data: cRow } = await supabaseAdmin.from("clients").select("data").eq("id", job.clientId).maybeSingle();
+    clientRec = cRow?.data || null;
     property = (cRow?.data?.properties || []).find((p) => p.id === job.propertyId) || null;
   }
   const flat = (v) => String(v || "").replace(/\s/g, "").toUpperCase();
@@ -57,6 +60,12 @@ export async function GET(_request, { params }) {
   if (!String(job.nameOnCert || "").trim()) needs.push("certName");
   if (!String(job.accessName || "").trim() && !String(job.accessPhone || "").trim() && !(job.accessContacts || []).length) needs.push("access");
   if (!job.preferredDate && !job.scheduledAt) needs.push("date");
+  // The questions each service asks (appliances, bedrooms, floors…) that
+  // nobody has answered yet — asked on the same form, in plain words.
+  const questions = quoteMissing(job, { client: clientRec, property }, { all: true })
+    .map((m) => intakeFieldsFor(job).find((f) => f.field === m.key))
+    .filter(Boolean)
+    .map((f) => ({ field: f.field, title: f.title, input: f.input, options: f.options || null }));
   const isPdf = (f) => f?.type === "application/pdf" || /\.pdf$/i.test(f?.name || "");
   const certified = job.status === "paid" && !!(job.certifiedAt || job.certificateSentAt);
   // Explicit allow-list. Anything added to a job in future is private by
@@ -79,6 +88,7 @@ export async function GET(_request, { params }) {
     changeRequestedAt: job.changeRequestedAt || null,
     postcode: property?.postcode || "",
     needs: job.status === "quote" && job.acceptedAt && !job.clientDetailsAt ? needs : [],
+    questions: job.status === "quote" && job.acceptedAt && !job.clientDetailsAt ? questions : [],
     detailsSentAt: job.clientDetailsAt || null,
     // Only once the office has pressed "on the way" / the engineer said so.
     onTheWay: job.status !== "completed" && !!job.onTheWayAt && Date.now() - new Date(job.onTheWayAt).getTime() < 6 * 3600_000,
@@ -154,9 +164,20 @@ export async function POST(request, { params }) {
     const address = clip(body.address, 200), certName = clip(body.certName, 120), accessName = clip(body.accessName, 80), accessPhone = clip(body.accessPhone, 30);
     const date = /^\d{4}-\d{2}-\d{2}$/.test(String(body.date || "")) ? body.date : "";
     const slot = ["Morning", "Afternoon"].includes(body.slot) ? body.slot : "";
-    if (!address && !certName && !accessName && !accessPhone && !date) return NextResponse.json({ error: "Please fill in the details first." }, { status: 400 });
+    // Answers to the service questions — only fields this job actually asks.
+    const intake = { ...(job.intake || {}) };
+    const answered = [];
+    for (const f of intakeFieldsFor(job)) {
+      const v = body.intake?.[f.field];
+      if (v === undefined || v === null || v === "") continue;
+      if (f.input === "number") { const n = Number(v); if (Number.isFinite(n) && n >= 0 && n < 1000) { intake[f.field] = n; answered.push(`${f.title}: ${n}`); } }
+      else if (f.input === "yesno") { if (["Yes", "No"].includes(v)) { intake[f.field] = v; answered.push(`${f.title}: ${v}`); } }
+      else if (f.input === "chips") { const list = (Array.isArray(v) ? v : []).filter((x) => (f.options || []).includes(x)); if (list.length) { intake[f.field] = list; answered.push(`${f.title}: ${list.join(", ")}`); } }
+      else { const t = clip(v, 200); if (t) { intake[f.field] = t; answered.push(`${f.title}: ${t}`); } }
+    }
+    if (!address && !certName && !accessName && !accessPhone && !date && !answered.length) return NextResponse.json({ error: "Please fill in the details first." }, { status: 400 });
     const at = new Date().toISOString();
-    const lines = [address && `Address: ${address}`, certName && `Name on certificate: ${certName}`, (accessName || accessPhone) && `Access: ${[accessName, accessPhone].filter(Boolean).join(" · ")}`, date && `Preferred: ${date}${slot ? ` (${slot})` : ""}`].filter(Boolean);
+    const lines = [address && `Address: ${address}`, certName && `Name on certificate: ${certName}`, (accessName || accessPhone) && `Access: ${[accessName, accessPhone].filter(Boolean).join(" · ")}`, date && `Preferred: ${date}${slot ? ` (${slot})` : ""}`, ...answered].filter(Boolean);
     const withDetails = {
       ...job,
       ...(certName ? { nameOnCert: certName } : {}),
@@ -164,6 +185,7 @@ export async function POST(request, { params }) {
       ...(accessPhone ? { accessPhone } : {}),
       ...(date ? { preferredDate: date } : {}),
       ...(slot ? { preferredSlot: slot } : {}),
+      ...(answered.length ? { intake } : {}),
       clientDetailsAt: at,
       updatedAt: at,
       activity: [...(job.activity || []), { id: "act-" + Date.now().toString(36), at, by: "client", type: "note", title: "Client sent their booking details online", detail: lines.join("\n") }],
