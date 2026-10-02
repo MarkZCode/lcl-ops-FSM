@@ -70,7 +70,7 @@ export default function PageHeader({ title, subtitle, actions, icon: Icon, meta,
               </span>
             )}
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-navy-400 dark:text-navy-500">
+              <p className="hidden text-[10px] font-semibold uppercase tracking-[0.16em] text-navy-400 sm:block dark:text-navy-500">
                 Landlord Compliance London
               </p>
               <h1 className="mt-0.5 truncate text-lg font-bold tracking-tight text-navy-900 sm:text-2xl">

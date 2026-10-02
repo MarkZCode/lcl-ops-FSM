@@ -886,13 +886,13 @@ export default function JobDetailPage() {
           </div>
 
           {/* Status workflow */}
-          <section className="card p-5">
+          <section className="px-1">
             {/* The status moves by itself as things happen (accepted,
                 confirmed, completed, paid, certificate sent). Changing it
                 by hand is the exception, so it's folded away. */}
             <details>
-            <summary className="cursor-pointer section-label text-sm">
-              Change the status by hand <span className="ml-1 font-normal normal-case tracking-normal text-navy-400">— only to correct a mistake</span>
+            <summary className="cursor-pointer text-xs font-semibold text-navy-400 hover:text-navy-600">
+              Change the status by hand <span className="font-normal">(only to correct a mistake)</span>
             </summary>
             <div className="mt-3 flex flex-wrap gap-2">
               {STAGE_ORDER.map((s) => {

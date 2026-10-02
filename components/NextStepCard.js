@@ -100,12 +100,12 @@ export default function NextStepCard({ job, client, clientEmail, clientPhone, en
     >
       <div className={`flex flex-wrap items-center gap-3 p-4 ${urgent ? "bg-rose-50/70" : "bg-amber-50/70"} dark:bg-white/[0.03]`}>
         <FiAlertCircle className={`h-5 w-5 shrink-0 ${urgent ? "text-rose-500" : "text-amber-600"}`} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[60%] flex-1 sm:min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-500">Next step</p>
           <p className="text-[15px] font-semibold text-navy-900">{first.title}</p>
           {first.detail && <p className="mt-0.5 text-xs text-navy-600">{first.detail}</p>}
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 [&>button]:justify-center sm:[&>button]:flex-none">
           {first.do === "complete" && (
             <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => onDo("not_done", first)}>
               Something wasn&rsquo;t done…
@@ -137,13 +137,13 @@ export default function NextStepCard({ job, client, clientEmail, clientPhone, en
           {rest.map((a) => (
             <li key={a.key} className="flex flex-wrap items-center gap-2 px-4 py-2 text-xs">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${a.severity === "urgent" ? "bg-rose-500" : "bg-amber-500"}`} />
-              <span className="min-w-0 flex-1 text-navy-700">
+              <span className="min-w-[70%] flex-1 text-navy-700 sm:min-w-0">
                 <strong className="font-semibold text-navy-800">{a.title}</strong>
                 {a.detail ? <span className="text-navy-500"> — {a.detail}</span> : null}
               </span>
               <button
                 type="button"
-                className="shrink-0 font-semibold text-brand-600 hover:text-brand-700"
+                className="ml-3.5 shrink-0 font-semibold text-brand-600 hover:text-brand-700 sm:ml-0"
                 onClick={() => onDo(a.do, a)}
               >
                 {BUTTON_LABEL[a.do] || "Open"}

@@ -375,7 +375,11 @@ export default function JobsPage() {
 
         {/* Period selector — sits above the status pills because it scopes
             them: the pill counts are counts WITHIN the chosen period. */}
-        <PeriodControls ctl={ctl} withAll className="mb-4" />
+        <div className="hidden sm:block"><PeriodControls ctl={ctl} withAll className="mb-4" /></div>
+        <details className="mb-3 sm:hidden">
+          <summary className="cursor-pointer text-xs font-semibold text-navy-500">Dates: {ctl.period === "all" ? "all dates" : `this ${ctl.period}`} — change</summary>
+          <PeriodControls ctl={ctl} withAll className="mt-2" />
+        </details>
 
         {/* Status filter pills */}
         <div className="jobs-status-filter scroll-area mb-5 flex items-center gap-2 overflow-x-auto pb-1">

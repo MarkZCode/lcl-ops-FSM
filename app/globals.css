@@ -1397,3 +1397,23 @@ textarea {
   .card, .panel { break-inside: avoid; box-shadow: none !important; }
   body { background: #fff !important; }
 }
+
+
+/* ── Touch feel ───────────────────────────────────────────────────────
+   Phones: no 300ms wait before a tap registers, no grey flash, and a small
+   press-in on anything tappable so the app answers the finger at once. */
+a, button, summary, select, label, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: none) and (pointer: coarse) {
+  .card-hover, .job-card, .m-row, .a-row, .btn-outline, .btn-secondary, .btn-ghost, .m-hero {
+    transition: transform 120ms ease-out, opacity 120ms ease-out, background-color 120ms ease-out;
+  }
+  .card-hover:active, .job-card:active, .m-hero:active { transform: scale(0.985); opacity: 0.92; }
+  .btn-outline:active, .btn-secondary:active { transform: scale(0.97); }
+  /* Hover lifts are for a mouse; on a touch screen they stick after a tap. */
+  .job-card:hover, .card-hover:hover { transform: none; }
+  /* Page change: quicker and shorter on a phone. */
+  .page-in { animation-duration: 160ms !important; }
+}

@@ -458,15 +458,16 @@ export default function Dashboard() {
                   </div>
                 </Link>
 
-                <Link href="/reports" className="m-hero block">
+                <div className="grid grid-cols-2 gap-4">
+                <Link href="/reports" className="m-hero block !p-4 [&_.m-hero-foot]:!mt-2 [&_.m-hero-foot]:!text-[11px] [&_.m-hero-foot]:!leading-snug">
                   <p className="m-hero-label">Net Profit</p>
-                  <p className={`m-hero-value ${stats.netProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><CostFigure ready={financeReady}><MoneyCounter value={stats.netProfit} /></CostFigure></p>
+                  <p className={`m-hero-value !mt-1 !text-[1.6rem] ${stats.netProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><CostFigure ready={financeReady}><MoneyCounter value={stats.netProfit} /></CostFigure></p>
                   <div className="m-hero-foot"><span>Revenue minus engineer cost</span></div>
                 </Link>
 
-                <Link href="/reports" className="m-hero block">
+                <Link href="/reports" className="m-hero block !p-4 [&_.m-hero-foot]:!mt-2 [&_.m-hero-foot]:!text-[11px] [&_.m-hero-foot]:!leading-snug">
                   <p className="m-hero-label">True Profit</p>
-                  <p className={`m-hero-value ${stats.trueProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><CostFigure ready={financeReady}><MoneyCounter value={stats.trueProfit} /></CostFigure></p>
+                  <p className={`m-hero-value !mt-1 !text-[1.6rem] ${stats.trueProfit < 0 ? "!text-rose-500" : "text-emerald-600 dark:text-emerald-400"}`}><CostFigure ready={financeReady}><MoneyCounter value={stats.trueProfit} /></CostFigure></p>
                   <div className="m-hero-foot">
                     <span>After engineer cost and expenses</span>
                   </div>
@@ -482,6 +483,8 @@ export default function Dashboard() {
                     </div>
                   )}
                 </Link>
+
+                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <Link href="/reports" className="m-hero block !p-4">

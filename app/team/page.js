@@ -367,7 +367,7 @@ function TeamInner() {
                 }`}
               >
                 <Icon className="h-4 w-4" />
-                {t.label}
+                <span className="whitespace-nowrap">{t.label}</span>
               </button>
             );
           })}

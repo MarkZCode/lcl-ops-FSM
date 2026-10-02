@@ -175,7 +175,7 @@ export async function POST(request) {
   };
 
   // Build HTML with open-pixel, link rewriting, and unsubscribe footer.
-  const htmlBody = buildHtml({ text, sendId, fromName, unsubToken: sendId });
+  const htmlBody = buildHtml({ text, sendId, fromName, unsubToken: sendId, plain: !!(prospectId || campaignLabel || /^(cold_|recruit)/.test(String(purpose || ""))) });
 
   const result = await sendEmailRaw({ to, subject, text, html: htmlBody, fromName, replyTo, bcc: safeBcc, attachments: atts, provider, identity });
   if (!result.ok) {

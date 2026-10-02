@@ -75,7 +75,7 @@ export default function JobCard({ job, onJobCard, compact = false, owner, unseen
       href={`/jobs/${job.id}`}
       id={`job-row-${job.id}`}
       onClick={(e) => { if (selecting) { e.preventDefault(); onToggle?.(job.id); } }}
-      className={`card block min-w-0 border-l-4 transition hover:shadow-md hover:-translate-y-px ${compact ? "p-3" : "p-4"} ${accent} ${selected ? "ring-2 ring-brand-400" : highlighted ? "ring-2 ring-navy-300" : ""}`}
+      className={`card job-card block min-w-0 border-l-4 transition hover:shadow-md hover:-translate-y-px ${compact ? "p-3" : "p-4"} ${accent} ${selected ? "ring-2 ring-brand-400" : highlighted ? "ring-2 ring-navy-300" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -181,7 +181,7 @@ export default function JobCard({ job, onJobCard, compact = false, owner, unseen
       )}
       {/* Note — reads/writes job.notes directly, so it's the exact same note
           the job detail page shows, editable here without opening the job. */}
-      <div className={`mt-2 border-t border-navy-100 pt-2 dark:border-white/10 ${compact ? "hidden" : ""}`}>
+      <div className={`mt-2 border-t border-navy-100 pt-2 dark:border-white/10 ${compact ? "hidden" : job.notes ? "" : "hidden sm:block"}`}>
         {editingNote ? (
           <div onClick={(e) => { e.preventDefault(); e.stopPropagation(); }} className="space-y-1.5">
             <textarea
@@ -218,7 +218,7 @@ export default function JobCard({ job, onJobCard, compact = false, owner, unseen
             type="button"
             onClick={startEditingNote}
             title={job.notes || "Click to add a note"}
-            className="flex w-full items-start gap-1.5 rounded-md px-1 py-1 text-left hover:bg-navy-50 dark:hover:bg-white/5"
+            className={`${job.notes ? "flex" : "hidden sm:flex"} w-full items-start gap-1.5 rounded-md px-1 py-1 text-left hover:bg-navy-50 dark:hover:bg-white/5`}
           >
             <span className="mt-0.5 shrink-0 text-[10px] font-bold uppercase tracking-wide text-navy-400">Note:</span>
             <span className={`min-w-0 flex-1 truncate text-xs ${job.notes ? "text-navy-600 dark:text-slate-300" : "italic text-navy-400"}`}>

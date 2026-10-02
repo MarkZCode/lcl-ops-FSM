@@ -169,17 +169,17 @@ export default function AuthGate({ children }) {
                     <p className="text-[10px] text-slate-500">Landlord Compliance London</p>
                   </div>
                   <div className="flex items-center gap-3 text-[10px] text-slate-500">
-                    <span>Gas Safe Registered</span>
-                    <span className="text-slate-700">·</span>
-                    <span>NICEIC / NAPIT</span>
-                    <span className="text-slate-700">·</span>
-                    <span>© {new Date().getFullYear()}</span>
-                    <span className="text-slate-700">·</span>
+                    <span className="hidden sm:inline">Gas Safe Registered</span>
+                    <span className="hidden text-slate-700 sm:inline">·</span>
+                    <span className="hidden sm:inline">NICEIC / NAPIT</span>
+                    <span className="hidden text-slate-700 sm:inline">·</span>
+                    <span className="hidden sm:inline">© {new Date().getFullYear()}</span>
+                    <span className="hidden text-slate-700 sm:inline">·</span>
                     {/* Manually bumped every deploy (matches public/sw.js's
                         CACHE_VERSION convention). Exists purely so a device
                         stuck on old code can be diagnosed by just reading
                         this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v139</span>
+                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v140</span>
                     <span className="text-slate-700">·</span>
                     {/* Which host this window is actually running against, and
                         whether it has database credentials at all. An installed
