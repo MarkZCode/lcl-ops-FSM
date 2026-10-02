@@ -20,6 +20,7 @@ export default function Conversations() {
   const [q, setQ] = useState("");
   const [channel, setChannel] = useState("all");
   const [only, setOnly] = useState("all");
+  const [mailbox, setMailbox] = useState("all");
 
   const rows = useMemo(() => {
     const out = [];
@@ -34,6 +35,8 @@ export default function Conversations() {
         waitMs: waiting ? Date.now() - new Date(waiting.at).getTime() : 0,
         text: msgs.map((m) => `${m.title || ""} ${m.detail || ""}`).join(" ").toLowerCase(),
         channels: new Set(msgs.map((m) => m.type)),
+        // Which of our mailboxes the emails on this job came through.
+        mailboxes: new Set([j.sourceMailbox, ...msgs.map((m) => (String(m.title || "").match(/\bto ([\w.+-]+@[\w.-]+)/i) || [])[1])].filter(Boolean).map((x) => x.toLowerCase())),
       });
     }
     return out.sort((a, b) => (b.waiting ? 1 : 0) - (a.waiting ? 1 : 0) || (a.waiting ? b.waitMs - a.waitMs : new Date(b.last.at) - new Date(a.last.at)));
@@ -42,10 +45,12 @@ export default function Conversations() {
   const shown = rows.filter((r) => {
     if (only === "waiting" && !r.waiting) return false;
     if (channel !== "all" && !r.channels.has(channel)) return false;
+    if (mailbox !== "all" && !r.mailboxes.has(mailbox)) return false;
     const n = q.trim().toLowerCase();
     return !n || `${r.client?.name || ""} ${r.job.id} ${r.text}`.toLowerCase().includes(n);
   });
   const waiting = rows.filter((r) => r.waiting);
+  const mailboxes = [...new Set(rows.flatMap((r) => [...r.mailboxes]))].sort();
 
   return (
     <div>
@@ -64,6 +69,12 @@ export default function Conversations() {
           <option value="whatsapp">WhatsApp</option>
           <option value="call">Calls</option>
         </select>
+        {mailboxes.length > 1 && (
+          <select className="input h-10 w-auto" value={mailbox} onChange={(e) => setMailbox(e.target.value)} aria-label="Mailbox">
+            <option value="all">Any mailbox</option>
+            {mailboxes.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        )}
         <span className={`text-sm ${waiting.length ? "font-semibold text-rose-600" : "text-navy-500"}`}>
           {waiting.length ? `${waiting.length} waiting on us · longest ${span(Math.max(...waiting.map((r) => r.waitMs)))}` : "Nobody is waiting on a reply"}
         </span>

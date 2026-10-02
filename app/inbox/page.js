@@ -10,6 +10,11 @@ import Conversations from "@/components/Conversations";
 import { useStore } from "@/lib/store";
 import { statusMeta } from "@/lib/constants";
 import { toast } from "@/lib/toast";
+import { uploadFile } from "@/lib/uploads";
+import { renderTemplate, buildContext } from "@/lib/email";
+
+// Client-facing templates worth offering in a reply (not outreach ones).
+const JOB_REPLY_TEMPLATES = ["quote", "followup", "booking", "reminder", "invoice", "receipt", "certificate", "renewal", "review_request"];
 import { useEffect, useMemo, useState } from "react";
 import {
   FiInbox, FiSend, FiSearch, FiRefreshCw, FiX, FiMail, FiArrowDown, FiArrowUp, FiStar, FiAlertCircle,
@@ -51,7 +56,7 @@ function InboxInner() {
   // Two views: every client conversation as logged on the jobs (default —
   // it shows who is waiting on us), or the raw Gmail mailbox.
   const [mode, setMode] = useState("conversations");
-  const { clients, jobs, logActivity } = useStore();
+  const { clients, jobs, logActivity, updateJob, templates, email: emailSettings } = useStore();
   // Which client an address belongs to, and their most recent open job.
   const jobFor = (email) => {
     const e = String(email || "").toLowerCase();
@@ -187,6 +192,23 @@ function InboxInner() {
         onClose={() => setActive(null)}
         linked={active ? jobFor(active.kind === "inbox" ? active.from?.email : active.to?.email) : null}
         jobs={jobs}
+        templates={templates}
+        emailSettings={emailSettings}
+        onSaveAttachment={async (job, message, att) => {
+          // Fetch the file from Gmail, store it like any other job document.
+          try {
+            const r = await fetch(`/api/gmail/attachment?id=${message.id}&att=${encodeURIComponent(att.id)}`, { cache: "no-store", headers: await authHeaders() });
+            const d = await r.json();
+            if (!r.ok || !d.base64) throw new Error(d.error || "Couldn't fetch the file.");
+            const bytes = Uint8Array.from(atob(d.base64), (c) => c.charCodeAt(0));
+            const up = await uploadFile(new File([bytes], att.name, { type: att.type }), `jobs/${job.id}`);
+            updateJob(job.id, { attachments: [{ id: "att-" + Date.now().toString(36), ...up, addedAt: new Date().toISOString(), fromEmail: message.id }, ...(job.attachments || [])] });
+            toast.success(`${att.name} saved to ${job.id}.`);
+          } catch (e) { toast.error(String(e.message || e)); }
+        }}
+        onReplied={(job, message, text) => {
+          if (job) logActivity(job.id, { type: "email", title: `Reply sent from the inbox — Re: ${message.subject || ""}`, detail: text, to: message.from?.email });
+        }}
         onFile={(job, message, text) => {
           if ((job.activity || []).some((a) => a.meta?.messageId === message.id)) { toast("That email is already on the job."); return; }
           logActivity(job.id, {
@@ -256,8 +278,39 @@ function Row({ m, me, onOpen, linked }) {
   );
 }
 
-function MessageDrawer({ message, onClose, linked, jobs = [], onFile }) {
+function MessageDrawer({ message, onClose, linked, jobs = [], onFile, onSaveAttachment, onReplied, templates = {}, emailSettings = {} }) {
   const [pick, setPick] = useState("");
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const [saving, setSaving] = useState("");
+  useEffect(() => { setReply(""); setPick(""); }, [message?.id]);
+  // Start the reply from a saved template, filled in from the linked job
+  // where there is one. The signature is added once, at the end.
+  const startFrom = (key) => {
+    const tpl = templates[key];
+    if (!tpl) return;
+    const ctx = buildContext({ job: linked?.job || null, client: linked?.client || { name: message.from?.name || "" }, property: linked?.client?.properties?.find((p) => p.id === linked?.job?.propertyId) || null, email: emailSettings });
+    const sig = emailSettings.signature ? `\n\n${renderTemplate(emailSettings.signature, ctx)}` : "";
+    setReply(renderTemplate(tpl.body, ctx) + sig);
+  };
+  const sendReply = async () => {
+    const to = message.from?.email;
+    if (!to || reply.trim().length < 2) return;
+    setSending(true);
+    try {
+      const r = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject: /^re:/i.test(message.subject || "") ? message.subject : `Re: ${message.subject || ""}`, text: reply, fromName: emailSettings.fromName, replyTo: emailSettings.replyTo }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `Couldn't send (${r.status}).`);
+      onReplied?.(linked?.job || null, message, reply);
+      toast.success(`Reply sent to ${to}.`);
+      setReply("");
+    } catch (e) { toast.error(String(e.message || e)); }
+    setSending(false);
+  };
   const [full, setFull] = useState(null);
   const [loading, setLoading] = useState(false);
   useEffect(() => {
@@ -338,6 +391,45 @@ function MessageDrawer({ message, onClose, linked, jobs = [], onFile }) {
           <div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(full.html, { FORBID_TAGS: ["style", "form", "input"], ADD_ATTR: ["target"] }) }} />
         ) : (
           <p className="text-sm text-navy-500 dark:text-slate-400">{message.snippet || "No preview available."}</p>
+        )}
+
+        {/* Files that came with the email — save one straight onto the job. */}
+        {(full?.attachments || []).length > 0 && (
+          <section>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-navy-500 dark:text-slate-400">Attachments</p>
+            <ul className="space-y-1.5">
+              {full.attachments.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-2 rounded-lg border border-navy-100 px-3 py-2 text-sm dark:border-white/10">
+                  <span className="min-w-0 truncate text-navy-800 dark:text-slate-100">{a.name} <span className="text-xs text-navy-400">· {Math.max(1, Math.round((a.size || 0) / 1024))} KB</span></span>
+                  {linked?.job ? (
+                    <button type="button" className="btn-outline shrink-0 py-1 text-xs" disabled={saving === a.id} onClick={async () => { setSaving(a.id); await onSaveAttachment(linked.job, message, a); setSaving(""); }}>
+                      {saving === a.id ? "Saving…" : `Save to ${linked.job.id}`}
+                    </button>
+                  ) : (
+                    <span className="shrink-0 text-xs text-navy-400">Link the sender to a client to save it</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Reply from here, starting from a saved template if one fits. */}
+        {isInbound && message.from?.email && (
+          <section className="border-t border-navy-100 pt-4 dark:border-white/10">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-navy-500 dark:text-slate-400">Reply to {message.from.email}</p>
+              <select className="input h-8 w-auto py-0 text-xs" value="" onChange={(e) => { startFrom(e.target.value); e.target.value = ""; }} aria-label="Start from a template">
+                <option value="">Start from a template…</option>
+                {JOB_REPLY_TEMPLATES.filter((k) => templates[k]).map((k) => <option key={k} value={k}>{templates[k].name}</option>)}
+              </select>
+            </div>
+            <textarea className="input resize-y text-sm" rows={6} value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Write your reply…" />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-navy-400">{linked?.job ? `Will be logged on ${linked.job.id}.` : "Not linked to a job — it won't be logged on one."}</span>
+              <button type="button" className="btn-primary" disabled={sending || reply.trim().length < 2} onClick={sendReply}>{sending ? "Sending…" : "Send reply"}</button>
+            </div>
+          </section>
         )}
       </div>
     </DetailSlideOver>

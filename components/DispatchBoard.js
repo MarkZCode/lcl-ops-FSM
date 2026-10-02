@@ -16,6 +16,7 @@ import { ukDateTimeToUtcIso } from "@/lib/ukTime";
 import StatusBadge from "./StatusBadge";
 import { jobStage } from "@/lib/stages";
 import JobCardModal from "./JobCardModal";
+import DispatchMap, { MAP_COLOURS } from "./DispatchMap";
 
 // ServiceM8-style dispatch board: one column per engineer (+ Unassigned).
 // Drag a job card onto another engineer's column to reassign it.
@@ -30,6 +31,7 @@ export default function DispatchBoard({ day }) {
   // for a column, worked out from the postcodes on request.
   const [routes, setRoutes] = useState({});
   const [routing, setRouting] = useState("");
+  const [showMap, setShowMap] = useState(false);
 
   // Looks the day's postcodes up (postcodes.io — postcodes only, nothing
   // about the client) and numbers the cards nearest-first from the earliest
@@ -155,8 +157,29 @@ export default function DispatchBoard({ day }) {
     (a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt)
   );
 
+  // The day's visits as map pins: numbered in time order per engineer.
+  const mapStops = showMap ? columns.flatMap((col, ci) =>
+    agenda.filter((j) => (j.engineerId || "unassigned") === col.id).map((j, i) => {
+      const c = clients.find((x) => x.id === j.clientId);
+      const p = c?.properties.find((x) => x.id === j.propertyId);
+      return {
+        id: j.id, jobId: j.jobId || j.id, postcode: String(p?.postcode || "").trim().toUpperCase(), label: p?.label || c?.name || "",
+        time: j.windowFrom || (j.scheduledAt ? format(parseISO(j.scheduledAt), "HH:mm") : ""),
+        engineerId: col.id, engineerName: col.name, colour: MAP_COLOURS[ci % MAP_COLOURS.length], n: i + 1,
+      };
+    })
+  ) : [];
+
   return (
     <>
+    {agenda.length > 0 && (
+      <div className="mb-3 flex justify-end">
+        <button type="button" className="btn-outline py-1.5 text-xs" onClick={() => setShowMap((s) => !s)}>
+          <FiMapPin className="mr-1.5 inline" />{showMap ? "Hide map" : "Show the day on a map"}
+        </button>
+      </div>
+    )}
+    {showMap && <DispatchMap stops={mapStops} />}
     {/* Phone: one agenda for the day. See .a-row in globals.css for why the
         column board doesn't translate to a 375px screen. */}
     <div className="m-group lg:hidden">

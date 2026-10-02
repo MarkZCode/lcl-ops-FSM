@@ -27,6 +27,8 @@ import { supabase } from "@/lib/supabase";
 import { serviceShort } from "@/lib/format";
 import { AUTO_NOTIFY_LABELS } from "@/lib/settings";
 import BankAccounts from "@/components/BankAccounts";
+import CompanyDetails from "@/components/CompanyDetails";
+import RestoreBackup from "@/components/RestoreBackup";
 import RulesSettings from "@/components/RulesSettings";
 import ReplySettings from "@/components/ReplySettings";
 import { RolesGrid, SettingsLog } from "@/components/SettingsExtras";
@@ -62,7 +64,7 @@ const SETTINGS_FIND = [
   ["Saved WhatsApp replies", "config"], ["Bank accounts", "config"], ["Email and templates", "config"], ["Who changed a setting", "config"],
   ["Users, passwords and access", "profile"], ["Set someone as away", "profile"], ["What each role can do", "profile"],
   ["Engineers", "engineers"], ["Service prices", "services"],
-  ["Notifications on this device", "push"], ["Away (me)", "push"], ["Download a backup", "push"],
+  ["Notifications on this device", "push"], ["Away (me)", "push"], ["Download a backup", "push"], ["Test email, notification and backup", "push"],
   ["Payment chasers, renewal quotes, statements", "auto-notify"], ["Automatic emails on status change", "auto-notify"],
   ["Gmail connection", "gmail"], ["Data and reset", "data"],
 ];
@@ -250,6 +252,25 @@ function PushNotificationsSection() {
     try { localStorage.setItem("lcl-last-backup", stamp); } catch {}
   };
 
+  // System checks: an email to yourself, and the backup email on demand.
+  const [check, setCheck] = useState({});
+  const runCheck = async (kind) => {
+    setCheck((c) => ({ ...c, [kind]: "…" }));
+    try {
+      const { data } = await supabase.auth.getSession();
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${data?.session?.access_token || ""}` };
+      const res = kind === "email"
+        ? await fetch("/api/send-email", { method: "POST", headers, body: JSON.stringify({ to: user?.email, subject: "LCL Ops test email", text: "If you can read this, the app can send email.", fromName: "LCL Ops" }) })
+        : await fetch("/api/admin/backup-now", { method: "POST", headers });
+      const out = await res.json().catch(() => ({}));
+      setCheck((c) => ({ ...c, [kind]: res.ok && out.ok
+        ? { ok: true, text: kind === "email" ? `Test email sent to ${user?.email}.` : `Backup emailed to ${out.to} — ${out.jobs} jobs, ${out.clients} clients.` }
+        : { ok: false, text: out.error || `Failed (${res.status}).` } }));
+    } catch (e) {
+      setCheck((c) => ({ ...c, [kind]: { ok: false, text: e.message || "Couldn't reach the server." } }));
+    }
+  };
+
   const toggle = async () => {
     setState("working");
     setMsg("");
@@ -349,6 +370,14 @@ function PushNotificationsSection() {
           <button onClick={sendTest} disabled={test === "sending"} className="btn-outline py-1.5 text-xs disabled:opacity-50">
             <FiBell /> {test === "sending" ? "Sending…" : "Send test notification"}
           </button>
+          {/* The other two things worth proving work, beside the first. */}
+          <button onClick={() => runCheck("email")} disabled={check.email === "…"} className="btn-outline ml-2 py-1.5 text-xs disabled:opacity-50">
+            <FiMail /> {check.email === "…" ? "Sending…" : "Send me a test email"}
+          </button>
+          <button onClick={() => runCheck("backup")} disabled={check.backup === "…"} className="btn-outline ml-2 py-1.5 text-xs disabled:opacity-50">
+            {check.backup === "…" ? "Sending…" : "Send the backup email now"}
+          </button>
+          {["email", "backup"].map((k) => check[k] && check[k] !== "…" ? <p key={k} className={`mt-2 text-xs font-semibold ${check[k].ok ? "text-brand-700" : "text-rose-600"}`}>{check[k].text}</p> : null)}
           <span className="ml-2 text-[11px] text-navy-400">Goes to every device you&apos;ve enabled — lock your phone first.</span>
           {test && test !== "sending" && (
             <div className="mt-3 space-y-1.5 text-xs">
@@ -572,6 +601,8 @@ function SettingsInner() {
           <RulesSettings />
           <ReplySettings />
           <BankAccounts />
+          <CompanyDetails />
+          <RestoreBackup />
           <SettingsLog />
   {/* Configuration shortcuts */}
           <section>

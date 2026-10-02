@@ -10,6 +10,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendEmailRaw } from "@/lib/emailSend";
 import { mailboxForPurpose, resolveProvider } from "@/lib/emailProviders";
 import { invoiceConfig } from "@/lib/invoiceConfig";
+import { applyCompanyServer } from "@/lib/companyServer";
 import { jobBalance } from "@/lib/payments";
 import { bankForJob } from "@/lib/bank";
 import { pushToAll } from "@/lib/pushAll";
@@ -27,6 +28,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!supabaseAdmin) return NextResponse.json({ skipped: true, reason: "Supabase not configured" });
+  await applyCompanyServer();
 
   const { data: settings } = await supabaseAdmin.from("app_settings").select("data").eq("id", "singleton").maybeSingle();
   if (!settings?.data?.autoNotify?.payment_chasers) {

@@ -43,6 +43,7 @@ export default function RulesSettings() {
           <Num label="Weekly revenue target" prefix="£" value={rules.weeklyTarget} step={50} onSave={(n) => saveRules({ weeklyTarget: n })} hint="Shown on the dashboard. 0 hides it." />
           <Num label="Jobs per engineer per day" value={rules.engineerDailyJobs} min={1} onSave={(n) => saveRules({ engineerDailyJobs: n })} hint="More than this is flagged on dispatch." />
           <Num label="Outreach WhatsApps per day" value={rules.outreachWaCap} min={1} onSave={(n) => saveRules({ outreachWaCap: n })} hint="Per device, before the app asks you to stop." />
+          <Num label="Emails per day, per mailbox" value={rules.emailDailyCap} step={10} onSave={(n) => saveRules({ emailDailyCap: n })} hint="0 leaves it at the mail provider's own limit. Lower it to send more slowly." />
         </div>
 
         <div>

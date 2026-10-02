@@ -49,8 +49,14 @@ function Table({ title, note, head, rows, empty }) {
   );
 }
 
-export default function ReportInsights({ jobs, engineerById, label, clients = [], engineers = [], allJobs }) {
-  const d = useMemo(() => insights(jobs, engineerById, { clients, engineers, allJobs }), [jobs, engineerById, clients, engineers, allJobs]);
+const COMPARE = [
+  ["Revenue", "revenue", true], ["Collected", "collected", true], ["Outstanding", "outstanding", true],
+  ["Jobs in the period", "total", false], ["Completed", "completed", false], ["Average job", "avgValue", true],
+  ["Profit after engineer pay", "netProfitAfterPay", true],
+];
+
+export default function ReportInsights({ jobs, engineerById, label, clients = [], engineers = [], allJobs, stats, prevStats, comparable = false, prospects = [] }) {
+  const d = useMemo(() => insights(jobs, engineerById, { clients, engineers, allJobs, prospects }), [jobs, engineerById, clients, engineers, allJobs, prospects]);
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -88,6 +94,21 @@ export default function ReportInsights({ jobs, engineerById, label, clients = []
           <p className="mt-1 text-xs text-navy-500">{d.losses.cancelledCount} cancelled · {d.losses.noAccessVisits} no-access visit{d.losses.noAccessVisits === 1 ? "" : "s"}</p>
         </div>
       </div>
+
+      {stats && prevStats && comparable && (
+        <Table
+          title="This period against the one before"
+          note={`${label} beside the period of the same length immediately before it.`}
+          head={["", label, "Period before", "Change"]}
+          rows={COMPARE.map(([name, key, money]) => {
+            const a = Number(stats[key]) || 0, b = Number(prevStats[key]) || 0;
+            const diff = a - b;
+            const pc = b ? `${diff >= 0 ? "+" : "−"}${Math.abs(Math.round((diff / Math.abs(b)) * 100))}%` : a ? "new" : "—";
+            return [name, money ? gbp(a) : a, money ? gbp(b) : b, `${diff >= 0 ? "+" : "−"}${money ? gbp(Math.abs(diff)) : Math.abs(diff)} (${pc})`];
+          })}
+          empty=""
+        />
+      )}
 
       <Table
         title="Money owed, by age"
@@ -152,6 +173,13 @@ export default function ReportInsights({ jobs, engineerById, label, clients = []
         head={["Service", "Done", "Revenue", "Engineer cost", "Margin", "Margin %"]}
         rows={d.margins.map((r) => [r.service + (r.unpriced ? ` (${r.unpriced} with no engineer rate)` : ""), r.count, gbp(r.revenue), gbp(r.cost), gbp(r.margin), `${r.marginPct}%`])}
         empty="No finished work in this period."
+      />
+      <Table
+        title="When people pick up"
+        note={d.callTimes.best ? `Best answered: ${d.callTimes.best.label} (${d.callTimes.best.rate}% of calls). From ${d.callTimes.total} logged calls.` : `${d.callTimes.total} call${d.callTimes.total === 1 ? "" : "s"} logged with an outcome so far — it needs at least five in two different time slots before it can say which is best. Use “Log a call” on jobs and the outcome buttons on prospects.`}
+        head={["Time of day", "Calls", "Answered", "Answer rate"]}
+        rows={d.callTimes.slots.filter((s) => s.calls).map((s) => [s.label, s.calls, s.answered, `${s.rate}%`])}
+        empty="No calls with an outcome have been logged yet."
       />
       <Table
         title="Why work was lost"

@@ -33,6 +33,11 @@ function walk(part, out) {
   if (!part) return;
   if (part.mimeType === "text/plain" && part.body?.data) out.text = (out.text || "") + Buffer.from(part.body.data, "base64url").toString("utf-8");
   if (part.mimeType === "text/html"  && part.body?.data) out.html = (out.html || "") + Buffer.from(part.body.data, "base64url").toString("utf-8");
+  // Files attached to the email — listed, not downloaded; the bytes are
+  // fetched one at a time through /api/gmail/attachment when asked for.
+  if (part.filename && part.body?.attachmentId) {
+    (out.attachments = out.attachments || []).push({ id: part.body.attachmentId, name: part.filename, type: part.mimeType || "application/octet-stream", size: part.body.size || 0 });
+  }
   (part.parts || []).forEach((p) => walk(p, out));
 }
 
@@ -72,5 +77,7 @@ export async function GET(request) {
     date: new Date(parseInt(m.internalDate || "0", 10)).toISOString(),
     text: (out.text || "").trim(),
     html: out.html || "",
+    attachments: out.attachments || [],
+    messageIdHeader: headerVal(headers, "message-id"),
   });
 }

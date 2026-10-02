@@ -8,6 +8,7 @@
 // pricing-uplift + AI Call still live here but framed around the staged
 // "one primary action per stage" pattern from §4.2.
 
+import { bestCallTimes } from "@/lib/insights";
 import { useStore } from "@/lib/store";
 import { Component, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -98,7 +99,7 @@ function ProspectDetailPanelInner({
   const [note, setNote] = useState("");
   const [uplift, setUplift] = useState(0);
   const [aiCalling, setAiCalling] = useState(false);
-  const { clients: allClients, jobs: allJobs } = useStore();
+  const { clients: allClients, jobs: allJobs, prospects: allProspects } = useStore();
 
   const p = prospect || {};
   const svcs = p.services?.length ? p.services : [p.primaryService || "CONFIRM"];
@@ -337,6 +338,10 @@ function ProspectDetailPanelInner({
             record instead of just "call outreach". */}
         <section>
           <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-navy-500 dark:text-slate-400">What happened?</h4>
+          {(() => {
+            const best = bestCallTimes(allJobs || [], allProspects || []).best;
+            return best ? <p className="mb-2 text-xs text-navy-500">People pick up most between <strong className="text-navy-800">{best.label}</strong> ({best.rate}% of logged calls).</p> : null;
+          })()}
           <div className="flex flex-wrap gap-1.5">
             {["No answer", "Left a message", "Call back later", "Wants a quote", "Already sorted elsewhere", "Not interested"].map((o) => (
               <button key={o} type="button" onClick={() => onLog?.(p.id, { channel: "outcome", note: note ? `${o} — ${note}` : o })} className="rounded-lg border border-navy-200 px-2.5 py-1 text-xs font-semibold text-navy-700 hover:border-brand-300 hover:text-brand-600 dark:border-white/10 dark:text-slate-200">{o}</button>

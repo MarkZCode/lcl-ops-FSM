@@ -123,15 +123,22 @@ export async function POST(request) {
   }
 
   // ---- Daily quota gate (per provider) ----
+  // Settings → Rules can set a lower daily limit than the provider's own.
+  let dailyCapInForce = dailyCap;
+  if (supabaseAdmin) {
+    const { data: rulesRow } = await supabaseAdmin.from("app_settings").select("data").eq("id", "rules").maybeSingle();
+    const own = Number(rulesRow?.data?.emailDailyCap) || 0;
+    if (own > 0) dailyCapInForce = Math.min(dailyCap, own);
+  }
   const todayCount = await todaysSentCount(provider);
-  if (todayCount >= dailyCap) {
+  if (todayCount >= dailyCapInForce) {
     return NextResponse.json(
       {
-        error: `Daily ${EMAIL_PROVIDERS[provider].label} cap reached (${dailyCap}). Resumes at midnight UTC.`,
+        error: `Daily ${EMAIL_PROVIDERS[provider].label} cap reached (${dailyCapInForce}). Resumes at midnight UTC.`,
         quotaReached: true,
         provider,
         sentToday: todayCount,
-        dailyCap,
+        dailyCap: dailyCapInForce,
       },
       { status: 429 }
     );

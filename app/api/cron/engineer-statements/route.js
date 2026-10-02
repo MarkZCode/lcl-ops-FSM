@@ -12,6 +12,7 @@ import { sendEmailRaw } from "@/lib/emailSend";
 import { mailboxForPurpose, resolveProvider } from "@/lib/emailProviders";
 import { computeEngineerPay } from "@/lib/stats";
 import { invoiceConfig } from "@/lib/invoiceConfig";
+import { applyCompanyServer } from "@/lib/companyServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,6 +25,7 @@ export async function GET(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!supabaseAdmin) return NextResponse.json({ skipped: true, reason: "Supabase not configured" });
+  await applyCompanyServer();
 
   const { data: settings } = await supabaseAdmin.from("app_settings").select("data").eq("id", "singleton").maybeSingle();
   if (!settings?.data?.autoNotify?.engineer_statements) {
