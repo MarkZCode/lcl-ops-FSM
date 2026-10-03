@@ -7,6 +7,7 @@
 // asks about appliances, an FRA about floors and communal areas…), lists
 // what is still missing, and writes the message asking the client for
 // exactly those things and nothing else.
+import AddressInput from "@/components/AddressInput";
 import { useEffect, useState } from "react";
 import { FaWhatsapp } from "react-icons/fa";
 import { FiCopy, FiAlertTriangle, FiCheckCircle } from "react-icons/fi";
@@ -151,8 +152,7 @@ export default function IntakePanel({ job, client, property }) {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <label className="label">Full property address</label>
-              <input className="input" defaultValue={property?.label || ""} key={`addr-${property?.label || ""}`} placeholder="Flat / house number and street" disabled={!property}
-                onBlur={(e) => e.target.value.trim() !== (property?.label || "") && setProperty({ label: e.target.value.trim() })} />
+              <AddressField property={property} onSave={setProperty} />
             </div>
             <div>
               <label className="label">Postcode</label>
@@ -215,5 +215,20 @@ export default function IntakePanel({ job, client, property }) {
         </div>
       )}
     </section>
+  );
+}
+
+// The address box with suggestions. Saved when one is picked (with its
+// postcode if the property has none) or when you leave the box.
+function AddressField({ property, onSave }) {
+  const [v, setV] = useState(property?.label || "");
+  useEffect(() => { setV(property?.label || ""); }, [property?.label]);
+  return (
+    <AddressInput
+      value={v} onChange={setV} postcode={property?.postcode || ""} disabled={!property}
+      placeholder="Flat / house number and street — start typing to pick"
+      onPick={(o) => onSave({ label: o.label, ...(!property?.postcode && o.postcode ? { postcode: o.postcode } : {}) })}
+      onBlur={(e) => e.target.value.trim() !== (property?.label || "") && onSave({ label: e.target.value.trim() })}
+    />
   );
 }

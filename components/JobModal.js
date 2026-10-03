@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { FiUserPlus, FiPlus, FiTrash2, FiAlertTriangle, FiEdit2 } from "react-icons/fi";
 import PostcodeInput from "./PostcodeInput";
+import AddressInput from "./AddressInput";
 import Modal from "./Modal";
 import ClientModal from "./ClientModal";
 import ConfirmDialog from "./ConfirmDialog";
@@ -738,11 +739,13 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                         Cancel
                       </button>
                     </div>
-                    <input
+                    <AddressInput
                       className="input h-9 text-sm"
-                      placeholder="Property address / label"
+                      placeholder="Property address — start typing to pick"
                       value={newProperty.label}
-                      onChange={(e) => setNewProperty((p) => ({ ...p, label: e.target.value }))}
+                      postcode={newProperty.postcode}
+                      onChange={(v) => setNewProperty((p) => ({ ...p, label: v }))}
+                      onPick={(o) => o.postcode && setNewProperty((p) => ({ ...p, postcode: p.postcode || o.postcode }))}
                       autoFocus
                     />
                     <PostcodeInput
@@ -817,13 +820,12 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
                   onChange={(v) => setNewClient((c) => ({ ...c, postcode: v }))}
                 />
               </div>
-              <input
-                className="input"
-                placeholder="Property address / label"
+              <AddressInput
+                placeholder="Property address — start typing to pick"
                 value={newClient.propertyLabel}
-                onChange={(e) =>
-                  setNewClient((c) => ({ ...c, propertyLabel: e.target.value }))
-                }
+                postcode={newClient.postcode}
+                onChange={(v) => setNewClient((c) => ({ ...c, propertyLabel: v }))}
+                onPick={(o) => o.postcode && setNewClient((c) => ({ ...c, postcode: c.postcode || o.postcode }))}
               />
             </div>
           )}

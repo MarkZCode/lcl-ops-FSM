@@ -3,6 +3,7 @@
 // no client phone, no internal notes.
 "use client";
 
+import AddressInput from "@/components/AddressInput";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { gbp, fmtDate, serviceName } from "@/lib/format";
@@ -211,7 +212,7 @@ export default function SharePage() {
           <div className="card space-y-3 p-5 text-sm">
             <p className="font-semibold text-navy-900">To book your appointment, please tell us:</p>
             {(job.needs || []).includes("address") && (
-              <div><label className="label">Full property address</label><input className="input" value={details.address} onChange={(e) => setDetails((d) => ({ ...d, address: e.target.value }))} placeholder={job.postcode ? `Flat / house number and street, ${job.postcode}` : ""} /></div>
+              <div><label className="label">Full property address</label><AddressInput value={details.address} postcode={job.postcode || ""} onChange={(v) => setDetails((d) => ({ ...d, address: v }))} placeholder={job.postcode ? `Flat / house number and street, ${job.postcode}` : "Flat / house number and street"} /></div>
             )}
             {(job.needs || []).includes("certName") && (
               <div><label className="label">Name to go on the certificate</label><input className="input" value={details.certName} onChange={(e) => setDetails((d) => ({ ...d, certName: e.target.value }))} /></div>
