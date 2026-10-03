@@ -17,7 +17,7 @@ import {
   WINDOW_PRESETS,
   CALL_BEFORE_OPTIONS,
 } from "@/lib/constants";
-import { gbp, lineTotal, linesTotal, getJobLines, lineGross } from "@/lib/format";
+import { gbp, lineTotal, linesTotal, getJobLines, lineGross, jobPayable } from "@/lib/format";
 import { detectConflicts } from "@/lib/dispatch";
 import { ukDateTimeToUtcIso } from "@/lib/ukTime";
 import DurationPicker from "@/components/DurationPicker";
@@ -101,6 +101,8 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
   // the job and hunting them down on the separate Clients page.
   const [editClientOpen, setEditClientOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Changes to the services or price of an existing quote, waiting for a yes.
+  const [quoteChanges, setQuoteChanges] = useState(null);
   const [custom, setCustom] = useState(emptyCustom);
   const snapshotRef = useRef(""); // initial form state, to detect unsaved edits
   const initRef = useRef(null);
@@ -386,7 +388,43 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
     cancelReasonValid &&
     (creatingClient ? newClient.name.trim().length > 0 : Boolean(form.clientId));
 
+  // Editing the services or the price of an existing job is never silent:
+  // the list of what is about to change is shown first, and nothing is saved
+  // until it is confirmed. (A wrong service once landed on a quote unnoticed.)
+  const quoteDiff = () => {
+    if (!isEdit) return [];
+    const tally = (items) => {
+      const m = new Map();
+      for (const l of items || []) {
+        const key = l.code === "CUSTOM" ? `CUSTOM:${l.name}` : l.code;
+        if (!key) continue;
+        m.set(key, { name: l.name || l.code, qty: (m.get(key)?.qty || 0) + Math.max(1, Math.round(Number(l.qty) || 1)) });
+      }
+      return m;
+    };
+    const was = tally(getJobLines(job)), now = tally([...form.lines, ...(custom.name.trim() ? [{ code: "CUSTOM", name: custom.name.trim(), qty: 1 }] : [])]);
+    const out = [];
+    for (const [k, l] of now) {
+      const b = was.get(k);
+      if (!b) out.push(`Add ${l.name}${l.qty > 1 ? ` ×${l.qty}` : ""}`);
+      else if (b.qty !== l.qty) out.push(`${l.name}: ×${b.qty} → ×${l.qty}`);
+    }
+    for (const [k, l] of was) if (!now.has(k)) out.push(`Remove ${l.name}`);
+    const before = jobPayable(job);
+    const sub = linesTotal(form.lines) + (custom.name.trim() ? Number(custom.price) || 0 : 0);
+    const after = Math.max(0, sub - Math.max(0, Math.min(sub, Number(form.discount) || 0)));
+    if (Math.abs(before - after) >= 0.005) out.push(`Total: ${gbp(before)} → ${gbp(after)}`);
+    return out;
+  };
+
   const handleSave = () => {
+    if (!canSave) return;
+    const changes = quoteDiff();
+    if (changes.length) { setQuoteChanges(changes); return; }
+    doSave();
+  };
+
+  const doSave = () => {
     if (!canSave) return;
 
     // Flush a custom service that was TYPED but never "+"-ed.
@@ -1475,6 +1513,26 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
       cancelLabel="Keep editing"
       onCancel={() => setConfirmDiscard(false)}
       onConfirm={() => { setConfirmDiscard(false); onClose(); }}
+    />
+    <ConfirmDialog
+      open={!!quoteChanges}
+      title={`Change the quote for ${job?.id || "this job"}?`}
+      body={quoteChanges && (
+        <>
+          {(quoteChanges || []).map((c, i) => <span key={i} className="block font-medium text-navy-800">• {c}</span>)}
+          <span className="block mt-2">
+            {job?.acceptedAt
+              ? "The client has already accepted this quote. Only change it if they've agreed — and send them the corrected quote."
+              : job?.quoteSentAt
+              ? "This quote has already been sent. The client will need the corrected one."
+              : "Check this is the right job before saving."}
+          </span>
+        </>
+      )}
+      confirmLabel="Yes, change it"
+      cancelLabel="Go back"
+      onCancel={() => setQuoteChanges(null)}
+      onConfirm={() => { setQuoteChanges(null); doSave(); }}
     />
     <ClientModal
       open={editClientOpen}
