@@ -17,6 +17,7 @@
 // these same values straight out, so the downloaded sheet and the screen
 // can never disagree either.
 
+import { isDrawing, categoryOf } from "@/lib/expenses";
 import { useMemo, useState } from "react";
 import { FiDownload, FiPieChart } from "react-icons/fi";
 import { useStore } from "@/lib/store";
@@ -317,19 +318,18 @@ function SummaryInner() {
     // covers (that is how expensesForRange totals it), so on a range longer
     // than a month the line has to show amount x months or the list would
     // not add up to the total printed under it.
-    const expMonths = Math.max(
-      1,
-      (range.end.getFullYear() - range.start.getFullYear()) * 12 +
-        (range.end.getMonth() - range.start.getMonth()) + 1
-    );
-    const expItems = (expenses || []).filter((e) => {
-      if (e.recurring) return true;
-      try { const dt = new Date(e.date); return dt >= range.start && dt <= range.end; } catch { return false; }
-    }).map((e) => {
-      const unit = Number(e.amount) || 0;
-      const months = e.recurring ? expMonths : 1;
-      return { ...e, unit, months, effective: Math.round(unit * months * 100) / 100 };
-    }).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    // Built from expensesForRange's own lines (each recurring cost once per
+    // month it was running), owner drawings left out — so this list always
+    // adds up to the expenses in the P&L above.
+    const expMonths = exp.months;
+    const byExp = new Map();
+    for (const l of exp.lines.filter((l) => !isDrawing(l.e))) {
+      const cur = byExp.get(l.e.id) || { ...l.e, category: categoryOf(l.e), unit: l.amount, months: 0, effective: 0 };
+      cur.months += 1;
+      cur.effective = Math.round((cur.effective + l.amount) * 100) / 100;
+      byExp.set(l.e.id, cur);
+    }
+    const expItems = [...byExp.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const expItemsTotal = Math.round(expItems.reduce((s, e) => s + e.effective, 0) * 100) / 100;
 
     // The same period counted two internally-consistent ways — see

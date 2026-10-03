@@ -20,6 +20,9 @@ import { serviceShort } from "@/lib/format";
 import { isWithinInterval, parseISO, getDay } from "date-fns";
 import EngineerPayModal from "@/components/EngineerPayModal";
 import PageHeader from "@/components/PageHeader";
+import ExpensesPanel from "@/components/ExpensesPanel";
+import { groupOf, categoryOf } from "@/lib/expenses";
+import StaffPay from "@/components/StaffPay";
 import StatCard from "@/components/StatCard";
 import BarChart from "@/components/BarChart";
 import RequirePermission from "@/components/RequirePermission";
@@ -46,19 +49,6 @@ const REPORT_TABS = [
   { k: "insights", l: "Insights" },
 ];
 
-const EXPENSE_CATEGORIES = ["Staffing", "Technology", "Marketing", "Operations", "Legal", "Vehicles", "Insurance", "Bank Transfer Fees", "Other"];
-
-const CAT_COLORS = {
-  Staffing: "bg-blue-100 text-blue-700",
-  Technology: "bg-purple-100 text-purple-700",
-  Marketing: "bg-pink-100 text-pink-700",
-  Operations: "bg-amber-100 text-amber-700",
-  Legal: "bg-navy-100 text-navy-700",
-  Vehicles: "bg-orange-100 text-orange-700",
-  Insurance: "bg-teal-100 text-teal-700",
-  "Bank Transfer Fees": "bg-slate-100 text-slate-600",
-  Other: "bg-gray-100 text-gray-600",
-};
 
 // One figure in the phone P&L: label + caption on the left, value right, with
 // the change-vs-previous chip beside the label rather than as its own column —
@@ -120,9 +110,6 @@ function ReportsInner() {
   });
   const { period, ref, setRef, range, isCurrent } = ctl;
 
-  const [editingExp, setEditingExp] = useState(null); // { id } or "new"
-  const [feesOpen, setFeesOpen] = useState(false);
-  const [expForm, setExpForm] = useState({ name: "", amount: "", category: "Operations", date: new Date().toISOString().slice(0, 10), recurring: false });
 
   const stats = useMemo(() => computeStats(jobs, range, engineers, engineerPayments), [jobs, range, engineers, engineerPayments]);
   // Previous period — powers the ▲/▼ change badges on every KPI card. A
@@ -195,6 +182,8 @@ function ReportsInner() {
   const feeExpenses = periodExpenses.filter((e) => e.category === "Bank Transfer Fees");
   const otherExpenses = periodExpenses.filter((e) => e.category !== "Bank Transfer Fees");
   const feeTotal = feeExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  // Staff pay inside the expenses total, shown on its own so it's visible.
+  const staffPay = (expBreakdown.lines || []).filter((l) => groupOf(categoryOf(l.e)).key === "staff").reduce((s, l) => s + l.amount, 0);
   const transferFeeExpense = feeTotal;
   const totalExpenses = loggedExpenses;
   // TWO different profit questions, and they are NOT interchangeable:
@@ -220,31 +209,6 @@ function ReportsInner() {
   const trueProfitAfterPay = cashProfit;
   const trueProfitPct = accrualProfitPct;
   const showSundayPayReminder = period === "week" && [0, 6].includes(getDay(new Date())) && pay.totalBalance > 0;
-
-  // Group expenses by category for chart. "Bank Transfer Fees" is a normal
-  // category now (see addEngineerPayment in lib/store.js), not injected here.
-  const expByCategory = EXPENSE_CATEGORIES.map((cat) => ({
-    cat,
-    total:
-      expBreakdown.oneTime.filter((e) => e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0) +
-      expBreakdown.recurring.filter((e) => e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0) * expBreakdown.months,
-  })).filter((e) => e.total > 0);
-
-  const saveExpense = () => {
-    if (!expForm.name.trim() || !expForm.amount) return;
-    if (editingExp === "new") {
-      addExpense({ ...expForm, amount: Number(expForm.amount) });
-    } else {
-      updateExpense(editingExp, { ...expForm, amount: Number(expForm.amount) });
-    }
-    setEditingExp(null);
-    setExpForm({ name: "", amount: "", category: "Operations", date: new Date().toISOString().slice(0, 10), recurring: false });
-  };
-
-  const startEdit = (exp) => {
-    setExpForm({ name: exp.name, amount: String(exp.amount), category: exp.category, date: exp.date, recurring: !!exp.recurring });
-    setEditingExp(exp.id);
-  };
 
   return (
     <>
@@ -349,7 +313,7 @@ function ReportsInner() {
               <RRow label="Engineer cost" sub="Work done this period"
                 value={gbp(pay.totalAccrued ?? 0)} onClick={() => setView("pay")} />
               <RRow label="Company expenses"
-                sub={`${periodExpenses.length} logged${transferFeeExpense > 0 ? " · incl. bank fees" : ""}`}
+                sub={staffPay > 0 ? `incl. ${gbp(staffPay)} staff pay` : `${periodExpenses.length} logged${transferFeeExpense > 0 ? " · incl. bank fees" : ""}`}
                 value={gbp(totalExpenses)} onClick={() => setView("expenses")} />
             </div>
 
@@ -394,7 +358,7 @@ function ReportsInner() {
               valueTone="negative" sub="Work done this period" onClick={() => setView("pay")} />
             <StatCard tone="light" icon={FiBarChart2} label="Company expenses" value={gbp(totalExpenses)}
               valueTone="negative"
-              sub={`${periodExpenses.length} expense${periodExpenses.length !== 1 ? "s" : ""} this period`}
+              sub={staffPay > 0 ? `incl. ${gbp(staffPay)} staff pay` : `${periodExpenses.length} expense${periodExpenses.length !== 1 ? "s" : ""} this period`}
               onClick={() => setView("expenses")} />
             <StatCard tone="light" icon={FiCheckSquare} label="Jobs completed" value={stats.completed}
               sub={`${stats.total} in period`} trend={trendVs(stats.completed, prevStats.completed)} />
@@ -574,171 +538,12 @@ function ReportsInner() {
 
         {/* ════ EXPENSES TAB ════ */}
         {view === "expenses" && <>
-          {/* ── COMPANY EXPENSES MANAGER ── */}
-          <div className="panel">
-            <div className="panel-head panel-head-ruled flex-wrap">
-              <div>
-                <span className="panel-title">Company Expenses · {range.label}</span>
-                <p className="panel-sub">Phone bills · salaries · software · domain · anything ongoing</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-navy-500">
-                  Total <strong className="text-base font-black text-rose-600">{gbp(totalExpenses)}</strong>
-                </span>
-                <button onClick={() => { setEditingExp("new"); setExpForm({ name: "", amount: "", category: "Operations", date: new Date().toISOString().slice(0, 10), recurring: false }); }}
-                  className="btn-primary py-1.5 text-xs">
-                  <FiPlus /> Add expense
-                </button>
-              </div>
-            </div>
-
-            {/* Inline add/edit form */}
-            {editingExp && (
-              <div className="border-b border-brand-100 bg-brand-50/50 p-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <div className="lg:col-span-2">
-                    <label className="label">Expense name</label>
-                    <input className="input" placeholder="e.g. Phone number · AI subscription" value={expForm.name}
-                      onChange={(e) => setExpForm(f => ({ ...f, name: e.target.value }))} autoFocus />
-                  </div>
-                  <div>
-                    <label className="label">Amount (£)</label>
-                    <input className="input" type="number" min="0" step="0.01" placeholder="0.00" value={expForm.amount}
-                      onChange={(e) => setExpForm(f => ({ ...f, amount: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="label">Category</label>
-                    <select className="input" value={expForm.category} onChange={(e) => setExpForm(f => ({ ...f, category: e.target.value }))}>
-                      {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="label">Date</label>
-                    <input className="input" type="date" value={expForm.date} onChange={(e) => setExpForm(f => ({ ...f, date: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm text-navy-600">
-                    <input type="checkbox" checked={expForm.recurring} onChange={(e) => setExpForm(f => ({ ...f, recurring: e.target.checked }))}
-                      className="h-4 w-4 rounded border-navy-300 text-brand-500" />
-                    Recurring (show every period)
-                  </label>
-                  <div className="flex gap-2">
-                    <button onClick={() => setEditingExp(null)} className="btn-outline py-1.5 text-xs"><FiX /> Cancel</button>
-                    <button onClick={saveExpense} className="btn-primary py-1.5 text-xs"><FiCheckCircle /> Save</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Expenses list.
-                Only ever shows expenses that are actually IN the selected
-                period. Out-of-period rows used to render dimmed with an
-                "outside period" note, which meant a list headed "August 2026"
-                was quietly padded with July's rows that no total on the page
-                counted — greyed-out noise you had to mentally filter. If you
-                want another month's expenses, change the period. */}
-            {periodExpenses.length === 0 ? (
-              <p className="p-8 text-center text-sm text-navy-400">
-                {expenses.length === 0
-                  ? "No expenses logged yet. Add phone bills, salaries, software costs and more."
-                  : `No expenses in ${range.label}. Change the period above to see others.`}
-              </p>
-            ) : (
-              <div className="divide-y divide-navy-100">
-                {/* Bank transfer fees collapse into ONE row. They're generated
-                    automatically — one per engineer payment — so at any real
-                    volume they bury every hand-logged expense under a wall of
-                    identical £0.74 lines. One summary row that expands into
-                    the individual fees keeps them auditable without the mess. */}
-                {feeExpenses.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => setFeesOpen((v) => !v)}
-                      className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors hover:bg-navy-50"
-                    >
-                      <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-semibold ${CAT_COLORS["Bank Transfer Fees"] || CAT_COLORS.Other}`}>
-                        Bank Transfer Fees
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-navy-800">
-                          Bank transfer fees
-                        </p>
-                        <p className="text-xs text-navy-400">
-                          {feeExpenses.length} transfer{feeExpenses.length !== 1 ? "s" : ""} this period · tap to {feesOpen ? "hide" : "view"}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-sm font-black text-navy-900">{gbp(feeTotal)}</span>
-                      <FiChevronDown className={`h-4 w-4 shrink-0 text-navy-400 transition-transform ${feesOpen ? "rotate-180" : ""}`} />
-                    </button>
-                    {feesOpen && feeExpenses.map((exp) => (
-                      <div key={exp.id} className="flex items-center gap-3 bg-navy-50/50 py-2.5 pl-12 pr-5 dark:bg-white/[0.03]">
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] text-navy-700">{exp.name}</p>
-                          <p className="text-xs text-navy-400">{exp.date}</p>
-                        </div>
-                        <span className="shrink-0 text-[13px] font-semibold text-navy-800">{gbp(Number(exp.amount) || 0)}</span>
-                        <div className="flex shrink-0 gap-1">
-                          {exp.linkedPaymentId && (
-                            <button
-                              onClick={() => setView("pay")}
-                              title="Open the engineer payment this fee came from"
-                              className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:border-brand-300 hover:text-brand-600"
-                            >
-                              <FiExternalLink className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          <button onClick={() => startEdit(exp)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-brand-600 hover:border-brand-300">
-                            <FiEdit2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </>
-                )}
-                {otherExpenses.map((exp) => (
-                  <div key={exp.id} className="flex items-center gap-3 px-5 py-3">
-                    <span className={`shrink-0 rounded-lg px-2 py-0.5 text-[11px] font-semibold ${CAT_COLORS[exp.category] || CAT_COLORS.Other}`}>
-                      {exp.category}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-navy-800">{exp.name}</p>
-                      <p className="text-xs text-navy-400">{exp.date}{exp.recurring ? " · recurring" : ""}</p>
-                    </div>
-                    <span className="shrink-0 text-sm font-black text-navy-900">{gbp(Number(exp.amount) || 0)}</span>
-                    <div className="flex shrink-0 gap-1">
-                      <button onClick={() => startEdit(exp)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-brand-600 hover:border-brand-300">
-                        <FiEdit2 className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => removeExpense(exp.id)} className="grid h-7 w-7 place-items-center rounded-lg border border-navy-200 text-navy-400 hover:text-rose-600 hover:border-rose-200">
-                        <FiTrash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Category breakdown */}
-            {expByCategory.length > 0 && (
-              <div className="border-t border-navy-100 bg-navy-50/50 px-5 py-4">
-                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-navy-400">Breakdown by category</p>
-                <div className="flex flex-wrap gap-2">
-                  {expByCategory.map(({ cat, total }) => (
-                    <div key={cat} className="flex items-center gap-2 rounded-lg bg-white border border-navy-100 px-3 py-1.5">
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${CAT_COLORS[cat] || CAT_COLORS.Other}`}>{cat}</span>
-                      <span className="text-sm font-bold text-navy-900">{gbp(total)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <p className="px-5 py-3 text-[11px] text-navy-400 border-t border-navy-100">
-              One-time expenses are included when their date falls in the selected period. Mark an expense as &ldquo;recurring&rdquo; to include it in every period automatically.
-            </p>
-          </div>
-
+          <ExpensesPanel
+            expenses={expenses} breakdown={expBreakdown} rangeLabel={range.label} revenue={stats.revenue}
+            addExpense={addExpense} updateExpense={updateExpense} removeExpense={removeExpense}
+            onOpenPay={() => setView("pay")}
+          />
+          <StaffPay expenses={expenses} addExpense={addExpense} removeExpense={removeExpense} />
         </>}
 
         {/* ════ TRENDS TAB ════ */}
