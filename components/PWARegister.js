@@ -9,6 +9,9 @@ export default function PWARegister() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
+    // A client's or engineer's link is a one-off page, not the office app —
+    // don't install the app's offline cache on their phone.
+    if (/^\/(share|confirm|certs)\//.test(window.location.pathname) || window.location.pathname === "/unsubscribe") return;
     if (process.env.NODE_ENV !== "production") return; // avoid caching during dev
 
     // When a new service worker takes over (i.e. a new deploy was picked

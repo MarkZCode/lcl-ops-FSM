@@ -12,6 +12,7 @@ import { confirmationScopes, scopeAccepted, setScopeConfirmed, dateLine } from "
 import { reconcileJob } from "@/lib/visits";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
+import { within } from "@/lib/within";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
@@ -34,7 +35,9 @@ function view(job, engineerById, clientPostcode) {
     .filter((sc) => sc.engineerId && sc.engineerId !== "unassigned")
     .map((sc) => {
       const v = sc.visitId ? (job.visits || []).find((x) => x.id === sc.visitId) : null;
-      const when = v ? (v.scheduledAt ? dateLine({ ...job, ...v }) : "") : (job.scheduledAt ? dateLine(job) : "");
+      const raw = v ? (v.scheduledAt ? dateLine({ ...job, ...v }) : "") : (job.scheduledAt ? dateLine(job) : "");
+      // "Tomorrow (9am–12pm) morning" → "Tomorrow, 9am–12pm (morning)"
+      const when = raw.replace(/^(\S+(?: \d+ \w+)?) \((.*?)\)\s*(.*)$/, (m, day, range, part) => `${day}, ${range}${part ? ` (${part})` : ""}`);
       return {
         key: sc.key,
         engineer: engineerById(sc.engineerId)?.name || "Engineer",
@@ -130,7 +133,7 @@ export async function POST(req, { params }) {
         : done ? { status: "completed", completedAt: now } : { status: "in_progress", startedAt: now };
       if (!(await save(patch, done ? `${who} finished on site${sc.sub ? ` — ${sc.sub}` : ""}` : `${who} arrived on site`))) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
       await pushToAll({ title: done ? "Engineer finished" : "Engineer arrived", body: `${who} ${done ? "has finished" : "is on site at"} ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` }, { kind: "engineer_progress" });
-      await runTaskSync({ force: true });
+      await within(runTaskSync({ force: true }));
       return NextResponse.json({ ok: true });
     }
 
@@ -147,7 +150,7 @@ export async function POST(req, { params }) {
     const file = { id: "att-" + Date.now().toString(36), name: safe, type: contentType, size: Math.round(base64.length * 0.75), url: pub.publicUrl, path, addedAt: now, by: who, fromEngineer: true };
     if (!(await save({ attachments: [file, ...(job.attachments || [])] }, `${who} uploaded ${safe}`))) return NextResponse.json({ error: "Couldn't save that — please send it to the office." }, { status: 502 });
     await pushToAll({ title: "Certificate uploaded", body: `${who} uploaded a document for ${job.id} — check it and send it.`, url: `/jobs/${job.id}` }, { kind: "engineer_progress" });
-    await runTaskSync({ force: true });
+    await within(runTaskSync({ force: true }));
     return NextResponse.json({ ok: true });
   }
 
@@ -170,7 +173,7 @@ export async function POST(req, { params }) {
     const { error: dErr } = await supabaseAdmin.from("jobs").upsert({ id: row.id, data: nextJob });
     if (dErr) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
     await pushToAll({ title: was ? "Engineer pulled out" : "Engineer declined", body: `${who} can't do ${job.id}${sc.sub ? ` · ${sc.sub}` : ""} — it needs another engineer.`, url: `/jobs/${job.id}` }, { kind: "engineer_cancelled" });
-    await runTaskSync({ force: true });
+    await within(runTaskSync({ force: true }));
     return NextResponse.json({ ok: true, declined: true });
   }
 
@@ -188,6 +191,6 @@ export async function POST(req, { params }) {
   const { error } = await supabaseAdmin.from("jobs").upsert({ id: row.id, data: next });
   if (error) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
   await pushToAll({ title: "Engineer confirmed", body: `${name} confirmed ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` }, { kind: "engineer_confirmed" });
-  await runTaskSync({ force: true });
+  await within(runTaskSync({ force: true }));
   return NextResponse.json({ ok: true });
 }

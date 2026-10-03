@@ -33,12 +33,18 @@ const WHAT_HAPPENS = {
   ASBESTOS: "The surveyor inspects the agreed areas and takes small samples of any suspect material for the laboratory.",
 };
 
-const STATUS_LABELS = { quote: "Quote", scheduled: "Booked", in_progress: "In progress", completed: "Done", invoiced: "Invoice sent", paid: "Paid" };
+const STATUS_LABELS = { quote: "Quote", scheduled: "Booked", in_progress: "In progress", completed: "Done", invoiced: "Invoice sent", paid: "Paid", cancelled: "Cancelled" };
+const ukToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+// "+44 7426 409342" → "07426 409342" for display; digits only for tel:.
+const phoneShow = (p) => String(p || "").replace(/^\+44\s?/, "0");
+const phoneTel = (p) => String(p || "").replace(/[^\d+]/g, "");
 
 export default function SharePage() {
   const { token } = useParams();
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false); // network, not a bad link
+  const [confirmAccept, setConfirmAccept] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState("");
   const [moveOpen, setMoveOpen] = useState(false);
@@ -50,7 +56,20 @@ export default function SharePage() {
   const setAnswer = (field, value) => setDetails((d) => ({ ...d, intake: { ...d.intake, [field]: value } }));
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [detailsError, setDetailsError] = useState("");
+  // Everything the booking needs must be filled in before it can be sent —
+  // a half-filled form used to close itself, leaving the office to chase.
+  const detailsMissing = (j) => {
+    const n = j?.needs || [];
+    const out = [];
+    if (n.includes("address") && !details.address.trim()) out.push("the property address");
+    if (n.includes("certName") && !details.certName.trim()) out.push("the name for the certificate");
+    if (n.includes("access") && (!details.accessName.trim() || !details.accessPhone.trim())) out.push("who will let the engineer in and their number");
+    if (n.includes("date") && !details.date) out.push("a preferred date");
+    return out;
+  };
   const sendDetails = async () => {
+    const miss = detailsMissing(job);
+    if (miss.length) { setDetailsError(`Please add ${miss.join(", ")}.`); return; }
     setDetailsBusy(true);
     setDetailsError("");
     try {
@@ -110,31 +129,45 @@ export default function SharePage() {
   // browser used to query Supabase directly with the anon key, which both
   // forced the jobs table to stay world-readable and shipped the entire job
   // — engineer pay, margin, access phone, internal notes — to a public page.
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    fetch(`/api/share/${encodeURIComponent(token)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
+    setLoading(true);
+    setLoadFailed(false);
+    fetch(`/api/share/${encodeURIComponent(token)}`, { cache: "no-store" })
+      .then(async (r) => {
         if (cancelled) return;
-        setJob(d || null);
+        if (r.status === 404) { setJob(null); setLoading(false); return; }
+        if (!r.ok) throw new Error("load");
+        setJob(await r.json());
         setLoading(false);
       })
       .catch(() => {
-        if (!cancelled) { setJob(null); setLoading(false); }
+        if (!cancelled) { setJob(null); setLoadFailed(true); setLoading(false); }
       });
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, attempt]);
 
   if (loading) return (
-    <div className="grid min-h-screen place-items-center bg-navy-900 text-navy-300 text-sm">Loading…</div>
+    <div className="grid min-h-screen place-items-center bg-navy-50 text-sm text-navy-400">Loading your booking…</div>
+  );
+
+  if (!job && loadFailed) return (
+    <div className="grid min-h-screen place-items-center bg-navy-50 p-6">
+      <div className="text-center">
+        <p className="text-lg font-bold text-navy-900">Couldn&rsquo;t load this page</p>
+        <p className="mt-1 text-sm text-navy-500">Please check your internet connection and try again.</p>
+        <button type="button" className="btn-primary mt-4" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+      </div>
+    </div>
   );
 
   if (!job) return (
     <div className="grid min-h-screen place-items-center bg-navy-50">
       <div className="text-center">
         <p className="text-lg font-bold text-navy-900">Link not found</p>
-        <p className="mt-1 text-sm text-navy-500">This link may have expired or been removed.</p>
+        <p className="mt-1 text-sm text-navy-500">This link may have expired or been removed. Please call us on {phoneShow(invoiceConfig.phone)}.</p>
       </div>
     </div>
   );
@@ -153,7 +186,7 @@ export default function SharePage() {
           </span>
           <div>
             <p className="font-bold text-navy-900">Landlord Compliance London</p>
-            <p className="text-xs text-navy-500">07426 409342</p>
+            <a href={`tel:${phoneTel(job.companyPhone || invoiceConfig.phone)}`} className="text-xs text-navy-500">{phoneShow(job.companyPhone || invoiceConfig.phone)}</a>
           </div>
         </div>
 
@@ -161,29 +194,38 @@ export default function SharePage() {
         <div className="card p-5">
           <div className="mb-4 flex items-center justify-between">
             <h1 className="text-lg font-bold text-navy-900">{job.id}</h1>
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${meta.color}`}>{meta.label}</span>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${meta.color}`}>{STATUS_LABELS[job.status] || meta.label}</span>
           </div>
           {/* Progress bar */}
-          <div className="flex items-center gap-1">
+          {job.status !== "cancelled" && <div className="flex items-center gap-1">
             {STATUS_STEPS.map((s, i) => (
               <div key={s} className="flex flex-1 flex-col items-center gap-1">
                 <div className={`h-2 w-full rounded-full ${i <= currentStep ? "bg-brand-500" : "bg-navy-100"}`} />
-                <span className="text-[8px] leading-tight text-navy-400 sm:text-[9px]">{STATUS_LABELS[s]}</span>
+                <span className={`text-center text-[10px] leading-tight ${i === currentStep ? "font-semibold text-navy-700" : "text-navy-400"}`}>{STATUS_LABELS[s]}</span>
               </div>
             ))}
-          </div>
+          </div>}
         </div>
 
         {/* Services */}
         <div className="card p-5">
           <h2 className="mb-3 section-label text-sm">Services</h2>
           <ul className="divide-y divide-navy-100">
-            {lines.map((l) => (
-              <li key={l.id} className="flex items-center justify-between py-2 text-sm">
-                <span className="text-navy-800">{l.name}</span>
-                <span className="font-semibold text-navy-900">{gbp(l.total)}</span>
+            {lines.map((l, i) => (
+              <li key={l.id || i} className="flex items-start justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0 text-navy-800">
+                  {l.name}
+                  {(l.tier || l.qty > 1) && <span className="block text-xs text-navy-500">{[l.tier, !l.tier && l.qty > 1 ? `× ${l.qty}` : ""].filter(Boolean).join(" · ")}</span>}
+                </span>
+                <span className="shrink-0 font-semibold text-navy-900">{gbp(l.total)}</span>
               </li>
             ))}
+            {job.discount > 0 && (
+              <li className="flex items-center justify-between py-2 text-sm">
+                <span className="text-navy-800">Discount</span>
+                <span className="font-semibold text-brand-700">−{gbp(job.discount)}</span>
+              </li>
+            )}
           </ul>
           <div className="mt-2 flex items-center justify-between border-t border-navy-100 pt-2">
             <span className="text-sm text-navy-500">Total</span>
@@ -195,9 +237,18 @@ export default function SharePage() {
         {job.canAccept && (
           <div className="card p-5">
             <p className="text-sm text-navy-700">Happy with this quote? Accept it here and we&rsquo;ll be in touch to agree a date.</p>
-            <button type="button" className="btn-primary mt-3 w-full justify-center" onClick={accept} disabled={accepting}>
-              {accepting ? "Recording…" : "Accept quote"}
-            </button>
+            {/* Two taps, so a stray touch can't accept a quote. */}
+            {!confirmAccept ? (
+              <button type="button" className="btn-primary mt-3 w-full justify-center" onClick={() => setConfirmAccept(true)}>Accept quote</button>
+            ) : (
+              <div className="mt-3 space-y-2">
+                <p className="text-sm font-semibold text-navy-900">Accept this quote for {gbp(job.price)}?</p>
+                <div className="flex gap-2">
+                  <button type="button" className="btn-primary flex-1 justify-center" onClick={accept} disabled={accepting}>{accepting ? "Recording…" : "Yes, accept"}</button>
+                  <button type="button" className="btn-outline" onClick={() => setConfirmAccept(false)} disabled={accepting}>Not yet</button>
+                </div>
+              </div>
+            )}
             {acceptError && <p className="mt-2 text-xs font-semibold text-rose-600">{acceptError}</p>}
           </div>
         )}
@@ -225,7 +276,7 @@ export default function SharePage() {
             )}
             {(job.needs || []).includes("date") && (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div><label className="label">Preferred date</label><input type="date" className="input" min={new Date().toISOString().slice(0, 10)} value={details.date} onChange={(e) => setDetails((d) => ({ ...d, date: e.target.value }))} /></div>
+                <div><label className="label">Preferred date</label><input type="date" className="input" min={ukToday()} value={details.date} onChange={(e) => setDetails((d) => ({ ...d, date: e.target.value }))} /></div>
                 <div><label className="label">Morning or afternoon</label>
                   <select className="input" value={details.slot} onChange={(e) => setDetails((d) => ({ ...d, slot: e.target.value }))}>
                     <option value="">Either</option><option value="Morning">Morning (8am–1pm)</option><option value="Afternoon">Afternoon (1pm–6pm)</option>
@@ -307,7 +358,7 @@ export default function SharePage() {
               <button type="button" className="btn-outline mt-3" onClick={() => setMoveOpen(true)}>Need a different date?</button>
             ) : job.canRequestChange ? (
               <div className="mt-3 space-y-2">
-                <input type="date" className="input" value={moveDate} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setMoveDate(e.target.value)} aria-label="Preferred date" />
+                <input type="date" className="input" value={moveDate} min={ukToday()} onChange={(e) => setMoveDate(e.target.value)} aria-label="Preferred date" />
                 <textarea className="input resize-none" rows={2} placeholder="Anything we should know (optional)" value={moveNote} onChange={(e) => setMoveNote(e.target.value)} />
                 <div className="flex gap-2">
                   <button type="button" className="btn-primary" disabled={!moveDate || moveBusy} onClick={requestMove}>{moveBusy ? "Sending…" : "Send request"}</button>
@@ -316,6 +367,14 @@ export default function SharePage() {
                 {moveError && <p className="text-xs font-semibold text-rose-600">{moveError}</p>}
               </div>
             ) : null}
+          </div>
+        )}
+
+        {/* Invoice sent — how to pay, without repeating bank details here. */}
+        {job.status === "invoiced" && (
+          <div className="card p-4 text-sm text-navy-700">
+            <p className="font-semibold text-navy-900">Payment</p>
+            <p className="mt-1">Please pay {gbp(job.price)} by bank transfer using the details on the invoice we emailed you, with <strong>{job.id}</strong> as the reference. Your certificate is sent once payment is received.</p>
           </div>
         )}
 
@@ -328,7 +387,7 @@ export default function SharePage() {
 
         {/* Footer */}
         <p className="pb-8 text-center text-xs text-navy-400">
-          Questions? Call us on <a href="tel:07426409342" className="font-semibold text-navy-600">07426 409342</a> or email{" "}
+          Questions? Call us on <a href={`tel:${phoneTel(job.companyPhone || invoiceConfig.phone)}`} className="font-semibold text-navy-600">{phoneShow(job.companyPhone || invoiceConfig.phone)}</a> or email{" "}
           {/* Same company address the quotes and invoices carry — a client
               looking at their certificate shouldn't be handed a gmail. */}
           <a href={`mailto:${job?.companyEmail || invoiceConfig.email}`} className="font-semibold text-navy-600">{job?.companyEmail || invoiceConfig.email}</a>

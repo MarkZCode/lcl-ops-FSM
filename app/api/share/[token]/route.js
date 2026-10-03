@@ -19,6 +19,7 @@ import { lineSizeLabel, windowStr } from "@/lib/jobCard";
 import { quoteMissing, intakeFieldsFor, bookingMissing } from "@/lib/gates";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
+import { within } from "@/lib/within";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { applyCompanyServer } from "@/lib/companyServer";
 import { invoiceConfig } from "@/lib/invoiceConfig";
@@ -74,6 +75,7 @@ export async function GET(_request, { params }) {
   const safe = {
     // The contact address from Settings → Company details.
     companyEmail: invoiceConfig.email,
+    companyPhone: invoiceConfig.phone || "",
     id: job.id,
     status: job.status,
     price: job.price,
@@ -100,14 +102,22 @@ export async function GET(_request, { params }) {
     // Their certificate, once the job is paid and it has been sent — the
     // same files the office checked, never one flagged as doubtful.
     certificates: certified ? (job.attachments || []).filter((f) => isPdf(f) && f.url && f.check?.postcode !== "missing").map((f) => ({ name: f.name, url: f.url })) : [],
-    lines: getJobLines(job).map((l) => ({
-      name: l.code === "CUSTOM" ? l.name : l.name,
+    // Cancelled services aren't shown; a discount is its own line so the
+    // list adds up to the total.
+    lines: getJobLines(job).filter((l) => !l.cancelled).map((l, i) => ({
+      id: l.id || `l${i}`,
+      name: l.name,
       code: l.code,
       qty: l.qty || 1,
       tier: lineSizeLabel(l, job) || l.tier || null,
       total: lineTotal(l),
     })),
   };
+  {
+    const sum = safe.lines.reduce((t, l) => t + (Number(l.total) || 0), 0);
+    const off = Math.round((sum - (Number(job.price) || 0)) * 100) / 100;
+    safe.discount = off >= 0.01 ? off : 0;
+  }
 
   return NextResponse.json(safe, {
     headers: { "Cache-Control": "no-store" },
@@ -157,7 +167,7 @@ export async function POST(request, { params }) {
     const { error: mErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: moved });
     if (mErr) return NextResponse.json({ error: "Couldn't send that — please call us." }, { status: 502 });
     await pushToAll({ title: "Client wants to reschedule", body: `${job.id} — would prefer ${nice}`, url: `/jobs/${job.id}` }, { kind: "reschedule" });
-    await runTaskSync({ force: true });
+    await within(runTaskSync({ force: true }));
     return NextResponse.json({ ok: true, changeRequestedAt: at });
   }
 
@@ -219,7 +229,7 @@ export async function POST(request, { params }) {
       body: `${job.id} — client sent: ${list(sent)}.${still.length ? ` Still missing: ${list(still)}.` : " Everything needed is in — book it."}`,
       url: `/jobs/${job.id}`,
     }, { kind: "quote_accepted" });
-    await runTaskSync({ force: true });
+    await within(runTaskSync({ force: true }));
     return NextResponse.json({ ok: true, detailsSentAt: at });
   }
 
@@ -242,6 +252,6 @@ export async function POST(request, { params }) {
   if (wErr) return NextResponse.json({ error: "Couldn't record that — please call us." }, { status: 502 });
 
   await pushToAll({ title: "Quote accepted online", body: `${job.id} — the client accepted. Book it in.`, url: `/jobs/${job.id}` }, { kind: "quote_accepted" });
-  await runTaskSync({ force: true });
+  await within(runTaskSync({ force: true }));
   return NextResponse.json({ ok: true, acceptedAt: now });
 }

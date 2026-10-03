@@ -63,7 +63,10 @@ export default function EngineerPortal() {
   const { engineer: me, jobs, pay } = data;
   const now = new Date();
   const open = jobs.filter((j) => !DONE.includes(j.status));
-  const today = open.filter((j) => when(j) && isSameDay(when(j), now)).sort((a, b) => when(a) - when(b));
+  // Today, plus any earlier job still not marked done — it used to drop out
+  // of every list once its day had passed.
+  const overdue = (j) => when(j) && when(j) < now && !isSameDay(when(j), now);
+  const today = open.filter((j) => when(j) && (isSameDay(when(j), now) || overdue(j))).sort((a, b) => when(a) - when(b));
   const upcoming = open.filter((j) => when(j) && when(j) > now && !isSameDay(when(j), now)).sort((a, b) => when(a) - when(b));
   const waiting = open.filter((j) => !when(j));
   const done = jobs.filter((j) => DONE.includes(j.status)).sort((a, b) => (when(b) || 0) - (when(a) || 0)).slice(0, 10);
@@ -85,8 +88,12 @@ export default function EngineerPortal() {
         </div>
         <p className="mt-3 flex items-start gap-2 text-sm text-navy-700">
           <FiMapPin className="mt-0.5 shrink-0 text-navy-400" />
-          {job.confirmed ? job.address || "Address to follow" : `${job.area || "London"} — confirm the job to see the address`}
+          <span className="min-w-0 flex-1">{job.confirmed ? job.address || "Address to follow" : `${job.area || "London"} — confirm the job to see the address`}</span>
+          {job.confirmed && (job.address || job.postcode) && !finished && (
+            <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([job.address, job.postcode].filter(Boolean).join(", "))}`} target="_blank" rel="noopener noreferrer" className="shrink-0 rounded-full border border-navy-200 px-2.5 py-0.5 text-xs font-semibold text-brand-700">Directions</a>
+          )}
         </p>
+        {overdue(job) && !finished && <p className="mt-1.5 text-xs font-semibold text-amber-700">From {dayLabel(when(job))} — not marked finished yet. Press &ldquo;Update this job&rdquo; if it&rsquo;s done.</p>}
         {job.contacts.map((c, i) => (
           <p key={i} className="mt-1.5 flex items-center gap-2 text-sm text-navy-700">
             <FiPhone className="shrink-0 text-navy-400" />
@@ -113,9 +120,9 @@ export default function EngineerPortal() {
   );
 
   const dated = [...today, ...upcoming];
-  const days = [...new Set(dated.map((j) => format(when(j), "yyyy-MM-dd")))];
+  const days = [...new Set(dated.map((j) => ukDay(when(j))))];
   const shownDay = mapDay || days[0] || "";
-  const stops = dated.filter((j) => format(when(j), "yyyy-MM-dd") === shownDay && j.postcode).map((j, i) => ({
+  const stops = dated.filter((j) => ukDay(when(j)) === shownDay && j.postcode).map((j, i) => ({
     id: j.id, jobId: j.id, postcode: j.postcode, label: j.services.join(", "), time: j.window || "", engineerId: me.id, engineerName: me.name, colour: me.color, n: i + 1, noLink: true,
   }));
 
@@ -127,7 +134,7 @@ export default function EngineerPortal() {
         <div className="inline-flex rounded-full border border-navy-200 bg-white p-1 text-sm dark:border-white/10 dark:bg-white/[0.04]">
           {[["jobs", "My jobs"], ["map", "Map"], ["pay", "My pay"]].map(([k, label]) => (
             <button key={k} type="button" onClick={() => setTab(k)}
-              className={`rounded-full px-4 py-1.5 font-semibold transition ${tab === k ? "bg-navy-900 text-white dark:bg-white dark:text-navy-900" : "text-navy-500 hover:text-navy-800 dark:text-slate-400"}`}>
+              className={`rounded-full px-4 py-1.5 font-semibold transition ${tab === k ? "bg-brand-600 text-white" : "text-navy-500 hover:text-navy-800 dark:text-slate-400"}`}>
               {label}
             </button>
           ))}
@@ -146,7 +153,7 @@ export default function EngineerPortal() {
           <>
             {days.length > 1 && (
               <select className="input h-10 w-auto" value={shownDay} onChange={(e) => setMapDay(e.target.value)} aria-label="Which day">
-                {days.map((d) => <option key={d} value={d}>{dayLabel(parseISO(d))}</option>)}
+                {days.map((d) => <option key={d} value={d}>{dayLabel(new Date(`${d}T12:00:00Z`))}</option>)}
               </select>
             )}
             <DispatchMap stops={stops} engineerView />

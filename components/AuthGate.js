@@ -1,65 +1,23 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { StoreProvider } from "@/lib/store";
-import { supabaseConfigured } from "@/lib/supabase";
-import LoginScreen from "./LoginScreen";
-import Sidebar from "./Sidebar";
-import TopBar from "./TopBar";
-import BottomNav from "./BottomNav";
-import ViewportProbe from "./ViewportProbe";
-import VersionWatcher from "./VersionWatcher";
-import PageTransition from "./PageTransition";
-import Toaster from "./Toaster";
-import SyncErrorBanner from "./SyncErrorBanner";
 import ErrorBoundary from "./ErrorBoundary";
-import { ConfirmProvider } from "./ConfirmProvider";
-import EngineerPortal from "./EngineerPortal";
-import OnboardingTour from "./OnboardingTour";
+// The splash is small and shows first, so it stays in the main bundle.
 import SplashScreen, { INTRO_MS } from "./SplashScreen";
 
-function NoAccess({ email }) {
-  const { logout } = useAuth();
-  return (
-    <div className="grid min-h-[var(--app-height,100dvh)] place-items-center bg-[#f5f5f7] px-6">
-      <div style={{ background: "#ffffff", colorScheme: "light" }} className="w-full max-w-sm rounded-[22px] p-8 text-center shadow-[0_2px_24px_rgba(0,0,0,0.06)]">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/lcl-logo.png" alt="Landlord Compliance London" className="mx-auto h-16 w-16 object-contain" />
-        <h1 className="mt-5 text-[19px] font-semibold tracking-tight text-[#1d1d1f]">Account not set up yet</h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-[#6e6e73]">
-          You&apos;re signed in as <strong className="text-[#1d1d1f]">{email}</strong>, but this account
-          hasn&apos;t been given access to LCL Ops. Ask your administrator to set it up.
-        </p>
-        <button onClick={logout} className="mt-6 w-full rounded-full bg-[#1d1d1f] py-3 text-[15px] font-medium text-white">
-          Sign out
-        </button>
-      </div>
-    </div>
-  );
-}
+// Loaded only when needed — the public client and engineer links render
+// bare and never download the office app (it was ~350 KB on every link).
+const OfficeShell = dynamic(() => import("./OfficeShell"), { ssr: false });
+const EngineerShell = dynamic(() => import("./EngineerShell"), { ssr: false });
+const NoAccess = dynamic(() => import("./EngineerShell").then((m) => m.NoAccess), { ssr: false });
+const LoginScreen = dynamic(() => import("./LoginScreen"), { ssr: false });
 
 // Wraps the whole app. Shows the login screen until a user signs in. The data
-// store is mounted ONLY when signed in, so its Supabase queries always carry a
-// valid session (the database is locked to authenticated requests).
-// The whole app, for an engineer: a slim top bar and their portal.
-function EngineerShell() {
-  const { logout } = useAuth();
-  // Clear anything an earlier version of the app cached on this device.
-  useEffect(() => { try { indexedDB.deleteDatabase("lcl-ops-cache"); } catch {} }, []);
-  return (
-    <div className="min-h-[var(--app-height,100dvh)] w-full">
-      <div className="flex items-center justify-between border-b border-navy-100 px-4 pb-3 dark:border-white/10" style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top))", backgroundColor: "var(--surface-card)" }}>
-        <span className="text-[17px] font-semibold tracking-tight text-navy-900">LCL Ops</span>
-        <button type="button" onClick={logout} className="btn-outline py-1.5 text-xs">Sign out</button>
-      </div>
-      <EngineerPortal />
-      <Toaster />
-    </div>
-  );
-}
-
+// store is mounted ONLY when signed in (inside OfficeShell), so its Supabase
+// queries always carry a valid session.
 export default function AuthGate({ children }) {
   const { user, ready } = useAuth();
   const [showTour, setShowTour] = useState(false);
@@ -154,92 +112,7 @@ export default function AuthGate({ children }) {
 
   return (
     <ErrorBoundary>
-      <StoreProvider>
-        <ConfirmProvider>
-        {/* Shell: one full-width app bar across the top, then rail + content
-            beneath it. Previously the bar lived INSIDE the content column,
-            so it started to the right of the sidebar and the app had no
-            single clean top edge — which is the main structural difference
-            from the reference layout. */}
-        {/* --app-height (set in ViewportHeightFix.js from window.innerHeight,
-            in real pixels) instead of a vh/dvh unit. 100vh measures off the
-            LARGEST possible mobile Safari viewport (address bar hidden) —
-            taller than what's really on screen — and switching to 100dvh
-            didn't close the gap either: this app runs installed to the home
-            screen (standalone display), where dvh support has its own
-            history of WebKit bugs not tracking the true visual viewport.
-            Either way the symptom was the same: the shell measured itself
-            against the wrong number and left a dead strip of real screen
-            below everything it painted, including the fixed bottom nav
-            ("still not going to the bottom... leaving like 20% of the
-            screen untouched"). window.innerHeight has no such ambiguity. */}
-        <div className="flex min-h-[var(--app-height,100dvh)] w-full max-w-[100vw] flex-col overflow-x-hidden lg:h-[var(--app-height,100dvh)]">
-          <SyncErrorBanner />
-          <TopBar />
-          <div className="flex min-h-0 w-full flex-1 flex-col overflow-x-hidden lg:flex-row">
-            <Sidebar />
-            {/* Mobile bottom padding = tab-bar height (4rem) + notch safe-area,
-                so the footer is never hidden behind the bottom nav. Restored
-                to the original value (this was briefly changed to a plain
-                pb-16 on a theory that the safe area was being reserved
-                twice — it wasn't; the bottom nav's own padding is what
-                actually needed restoring, see BottomNav.js). */}
-            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
-            <div className="flex min-h-full flex-col">
-              <main className="flex-1 min-w-0"><PageTransition>{children}</PageTransition></main>
-              <footer className="bar-navy border-t border-white/[0.06] px-5 py-3 sm:px-8">
-                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-                      LCL Ops
-                    </p>
-                    <span className="text-slate-700">·</span>
-                    <p className="text-[10px] text-slate-500">Landlord Compliance London</p>
-                  </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500">
-                    <span className="hidden sm:inline">Gas Safe Registered</span>
-                    <span className="hidden text-slate-700 sm:inline">·</span>
-                    <span className="hidden sm:inline">NICEIC / NAPIT</span>
-                    <span className="hidden text-slate-700 sm:inline">·</span>
-                    <span className="hidden sm:inline">© {new Date().getFullYear()}</span>
-                    <span className="hidden text-slate-700 sm:inline">·</span>
-                    {/* Manually bumped every deploy (matches public/sw.js's
-                        CACHE_VERSION convention). Exists purely so a device
-                        stuck on old code can be diagnosed by just reading
-                        this string out loud — no dev tools needed. */}
-                    <span className="font-mono text-amber-400" title="Build version — read this to support if data looks wrong">build v159</span>
-                    <span className="text-slate-700">·</span>
-                    {/* Which host this window is actually running against, and
-                        whether it has database credentials at all. An installed
-                        PWA gives no address bar, so a stale install pointed at
-                        an old preview URL is otherwise invisible — which is
-                        exactly how weeks of demo data went unexplained. */}
-                    <span
-                      className={`font-mono ${supabaseConfigured ? "text-slate-500" : "text-rose-400"}`}
-                      title={supabaseConfigured
-                        ? "Connected to the live database"
-                        : "NO database credentials in this build — nothing shown is real data"}
-                    >
-                      {typeof window !== "undefined" ? window.location.host : "—"}
-                      {supabaseConfigured ? "" : " · NO DB"}
-                    </span>
-                  </div>
-                </div>
-              </footer>
-            </div>
-            </div>
-          </div>
-        </div>
-        <BottomNav />
-        <ViewportProbe />
-        <VersionWatcher />
-        {/* WelcomeToast disabled for now — was popping up notifications on
-            every app open. <WelcomeToast /> */}
-        <Toaster />
-        {showTour && <OnboardingTour forceShow onDone={() => setShowTour(false)} />}
-      </ConfirmProvider>
-      </StoreProvider>
+      <OfficeShell showTour={showTour} setShowTour={setShowTour}>{children}</OfficeShell>
     </ErrorBoundary>
   );
 }

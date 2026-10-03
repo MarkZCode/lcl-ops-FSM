@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { invoiceConfig } from "@/lib/invoiceConfig";
 import LogoMark from "@/components/LogoMark";
 
 export default function ConfirmPage() {
@@ -77,12 +78,23 @@ export default function ConfirmPage() {
     });
     await act(key, "upload", { base64, filename: file.name, contentType: file.type }, `${file.name} sent to the office.`);
   };
+  // Several photos at once — sent one after another.
+  const uploadAll = async (key, files) => {
+    const list = [...(files || [])];
+    for (const f of list) await upload(key, f);
+    if (list.length > 1) setNote(`${list.length} files sent to the office.`);
+  };
 
+  // A dropped signal is not a dead link — say which it is.
+  const [loadFailed, setLoadFailed] = useState(false);
   const load = () =>
-    fetch(`/api/confirm/${encodeURIComponent(token)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { setData(d); setLoading(false); })
-      .catch(() => { setData(null); setLoading(false); });
+    fetch(`/api/confirm/${encodeURIComponent(token)}`, { cache: "no-store" })
+      .then(async (r) => {
+        if (r.status === 404) { setData(null); setLoadFailed(false); setLoading(false); return; }
+        if (!r.ok) throw new Error("load");
+        setData(await r.json()); setLoadFailed(false); setLoading(false);
+      })
+      .catch(() => { setLoadFailed(true); setLoading(false); });
 
   useEffect(() => { if (token) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token]);
 
@@ -128,6 +140,15 @@ export default function ConfirmPage() {
   };
 
   if (loading) return <div className="grid min-h-screen place-items-center bg-navy-50 text-sm text-navy-500">Loading…</div>;
+  if (!data && loadFailed) return (
+    <div className="grid min-h-screen place-items-center bg-navy-50 p-6 text-center">
+      <div>
+        <p className="text-lg font-bold text-navy-900">No connection</p>
+        <p className="mt-1 text-sm text-navy-500">Couldn&rsquo;t load this job. Check your signal and try again.</p>
+        <button type="button" className="btn-primary mt-4" onClick={() => { setLoading(true); load(); }}>Try again</button>
+      </div>
+    </div>
+  );
   if (!data) return (
     <div className="grid min-h-screen place-items-center bg-navy-50 p-6 text-center">
       <div>
@@ -178,7 +199,7 @@ export default function ConfirmPage() {
                       </select>
                     )}
                     {!s.started && (
-                      <button type="button" className="btn-primary col-span-2 justify-center" disabled={busy === s.key} onClick={() => act(s.key, "arrived", {}, "Marked as arrived.")}>I&rsquo;ve arrived</button>
+                      <button type="button" className="btn-primary col-span-2 justify-center" disabled={busy === s.key} onClick={() => window.confirm("Mark yourself as arrived on site?") && act(s.key, "arrived", {}, "Marked as arrived.")}>I&rsquo;ve arrived</button>
                     )}
                     {s.started && !s.finished && (
                       <button type="button" className="btn-primary col-span-2 justify-center" disabled={busy === s.key} onClick={() => window.confirm("Is the work finished?") && act(s.key, "finished", {}, "Marked as finished — please upload the certificate when it's ready.")}>Work finished</button>
@@ -191,7 +212,7 @@ export default function ConfirmPage() {
                 {data.canUpload && (
                   <label className="btn-outline mt-2 w-full cursor-pointer justify-center text-sm">
                     {busy === s.key ? "Sending…" : s.finished ? "Upload the certificate" : "Upload certificate or photo"}
-                    <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { upload(s.key, e.target.files?.[0]); e.target.value = ""; }} />
+                    <input type="file" accept="application/pdf,image/*" multiple className="hidden" onChange={(e) => { uploadAll(s.key, e.target.files); e.target.value = ""; }} />
                   </label>
                 )}
                 {data.open && <button type="button" className="mt-2 text-xs font-semibold text-navy-500 underline" disabled={busy === s.key} onClick={() => decline(s.key, true)}>I can no longer do this job</button>}
@@ -208,7 +229,9 @@ export default function ConfirmPage() {
         ))}
         {note && <p className="text-center text-sm font-semibold text-brand-700">{note}</p>}
         {error && <p className="text-center text-sm font-semibold text-rose-600">{error}</p>}
-        <p className="pb-8 text-center text-xs text-navy-400">Can&rsquo;t do it? Message the office so it can be reassigned.</p>
+        <p className="pb-8 text-center text-xs text-navy-400">
+          Problem or question? Call the office on <a href={`tel:${String(invoiceConfig.phone).replace(/[^\d+]/g, "")}`} className="font-semibold text-navy-600">{String(invoiceConfig.phone).replace(/^\+44\s?/, "0")}</a>.
+        </p>
       </div>
     </div>
   );
