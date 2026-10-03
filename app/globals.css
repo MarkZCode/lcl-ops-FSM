@@ -1501,6 +1501,24 @@ html { background-color: var(--surface-page); }
   .glass-bar { background: rgba(255, 255, 255, 0.94); }
   .dark .glass-bar { background: rgba(28, 28, 30, 0.94); }
 }
+/* Android: the @supports check above passes on phones that then don't draw
+   the blur at all (seen on an Oppo A5s — the page showed straight through
+   the tab bar, text and all). Solid surfaces there, no blur to fail. */
+html[data-android] .glass-bar {
+  background: rgba(255, 255, 255, 0.97);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html[data-android].dark .glass-bar { background: rgba(28, 28, 30, 0.97); }
+html[data-android] .glass-bar::before { display: none; }
+html[data-android] .glass-pill { background: rgba(13, 134, 10, 0.10); }
+html[data-android].dark .glass-pill { background: rgba(255, 255, 255, 0.14); }
+html[data-android] .backdrop-blur,
+html[data-android] .backdrop-blur-sm,
+html[data-android] .backdrop-blur-md {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
 
 
 /* The tab bar steps aside while the menu is open, so nothing in the menu is

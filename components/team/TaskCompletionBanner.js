@@ -67,14 +67,37 @@ export default function TaskCompletionBanner() {
   const d = daysUntilDue(task);
   const dueLabel = d == null ? null : d < 0 ? `${Math.abs(d)}d overdue` : d === 0 ? "Due today" : `${d}d left`;
 
+  const actions = (
+    <>
+      <a
+        href={`/team?tab=board&task=${task.id}`}
+        className="inline-flex shrink-0 items-center justify-center rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-white/10 dark:text-slate-200"
+        title="Open task detail"
+      >
+        <FiExternalLink className="mr-1 h-3 w-3" />Open task
+      </a>
+      <button
+        onClick={markDone}
+        disabled={saving}
+        className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+      >
+        <FiCheck className="mr-1 h-3 w-3" />{saving ? "Saving…" : "Mark done"}
+      </button>
+    </>
+  );
+
+  // On a phone the buttons go on their own row UNDER the task. They used to
+  // share one row with it, which on a 360px Android screen left the task
+  // text 38px wide — "From task", "Urgent" and "Due today" stacked on top
+  // of each other and ran into the buttons.
   return (
     <div className="sticky top-0 z-30 border-b border-amber-200 bg-amber-50 px-4 py-2.5 dark:border-amber-500/30 dark:bg-amber-500/10 sm:px-8">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+      <div className="mx-auto flex max-w-6xl items-start gap-3 sm:items-center">
         <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-amber-500 text-white">
           <FiCheckSquare className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">From task</span>
             <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${p.chip}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${p.dot}`} />{p.label}
@@ -85,25 +108,13 @@ export default function TaskCompletionBanner() {
               </span>
             )}
           </div>
-          <p className="truncate text-sm font-semibold text-navy-900 dark:text-white">{task.title}</p>
+          <p className="line-clamp-2 break-words text-sm font-semibold text-navy-900 dark:text-white sm:truncate">{task.title}</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:hidden">{actions}</div>
         </div>
-        <a
-          href={`/team?tab=board&task=${task.id}`}
-          className="shrink-0 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-navy-700 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-white/10 dark:text-slate-200"
-          title="Open task detail"
-        >
-          <FiExternalLink className="inline h-3 w-3 mr-1" />Open task
-        </a>
-        <button
-          onClick={markDone}
-          disabled={saving}
-          className="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
-        >
-          <FiCheck className="inline h-3 w-3 mr-1" />{saving ? "Saving…" : "Mark done"}
-        </button>
+        <div className="hidden items-center gap-2 sm:flex">{actions}</div>
         <button
           onClick={() => { clearTaskParam(); setDismissed(true); }}
-          className="shrink-0 rounded-lg p-1 text-navy-500 hover:bg-white/50 dark:hover:bg-white/10"
+          className="-mr-1 shrink-0 rounded-lg p-1.5 text-navy-500 hover:bg-white/50 dark:hover:bg-white/10"
           aria-label="Dismiss"
         >
           <FiX className="h-4 w-4" />

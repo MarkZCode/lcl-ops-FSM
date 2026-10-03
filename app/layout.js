@@ -71,7 +71,10 @@ export default function RootLayout({ children }) {
               // be wrong, instead of the shell painting one frame against a
               // vh/dvh unit that mobile Safari has repeatedly gotten wrong
               // for this app. ViewportHeightFix keeps it updated after this.
-              "try{var t=localStorage.getItem('lcl-theme');var isDark=t!=='light';if(isDark)document.documentElement.classList.add('dark');var m=document.createElement('meta');m.name='theme-color';m.content=isDark?'#0a0a0a':'#f6f6f7';document.head.appendChild(m);document.documentElement.style.setProperty('--app-height',window.innerHeight+'px')}catch(e){document.documentElement.classList.add('dark')}",
+              // data-android: many Android phones (Oppo, budget Samsungs)
+              // accept backdrop-filter but never draw it, so "glass" there is
+              // just see-through — globals.css gives them solid surfaces.
+              "try{var t=localStorage.getItem('lcl-theme');var isDark=t!=='light';if(isDark)document.documentElement.classList.add('dark');var m=document.createElement('meta');m.name='theme-color';m.content=isDark?'#0a0a0a':'#f6f6f7';document.head.appendChild(m);document.documentElement.style.setProperty('--app-height',window.innerHeight+'px');if(/Android/i.test(navigator.userAgent))document.documentElement.setAttribute('data-android','')}catch(e){document.documentElement.classList.add('dark')}",
           }}
         />
       </head>
