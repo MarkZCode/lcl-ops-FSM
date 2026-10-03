@@ -10,6 +10,8 @@ import { daysUntilDue, priorityMeta } from "@/lib/tasks";
 const initials = (n) => String(n || "?").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 const isOpen = (t) => t && t.status !== "done" && t.source !== "prospect_renewal";
 const short = (n) => String(n || "").split("@")[0];
+// Late = its exact time has passed, or its day has.
+const isLate = (t) => (t.dueAt ? new Date(t.dueAt).getTime() < Date.now() : (daysUntilDue(t) ?? 1) < 0);
 
 function sections(list, personId) {
   const fromTeam = [], late = [], today = [], later = [];
@@ -17,7 +19,7 @@ function sections(list, personId) {
     const d = daysUntilDue(t);
     const byPerson = t.createdBy?.id && t.createdBy.id !== "system" && t.createdBy.id !== personId;
     if (byPerson) fromTeam.push(t);
-    else if (d != null && d < 0) late.push(t);
+    else if (isLate(t)) late.push(t);
     else if (d === 0) today.push(t);
     else later.push(t);
   }
@@ -31,7 +33,7 @@ function sections(list, personId) {
   ].filter(([, rows]) => rows.length);
 }
 
-export default function TeamOverview({ tasks, team, userId, onOpen, onDone, loading }) {
+export default function TeamOverview({ tasks, team, userId, isAdmin = false, onOpen, onDone, onTakeOver, loading }) {
   const [person, setPerson] = useState(userId || "");
   const open = useMemo(() => tasks.filter(isOpen), [tasks]);
   const people = useMemo(() => {
@@ -39,10 +41,10 @@ export default function TeamOverview({ tasks, team, userId, onOpen, onDone, load
     const rest = team.filter((p) => p.id !== userId);
     const rows = [...(me ? [{ ...me, you: true }] : []), ...rest].map((p) => {
       const mine = open.filter((t) => t.assigneeId === p.id);
-      return { ...p, open: mine.length, late: mine.filter((t) => (daysUntilDue(t) ?? 1) < 0).length };
+      return { ...p, open: mine.length, late: mine.filter(isLate).length };
     });
     const unassigned = open.filter((t) => !t.assigneeId).length;
-    if (unassigned) rows.push({ id: "__none", name: "Unassigned", role: "", open: unassigned, late: 0 });
+    if (unassigned && isAdmin) rows.push({ id: "__none", name: "Unassigned", role: "", open: unassigned, late: 0 });
     return rows;
   }, [team, open, userId]);
 
@@ -91,7 +93,8 @@ export default function TeamOverview({ tasks, team, userId, onOpen, onDone, load
             <ul className="card divide-y divide-navy-100 overflow-hidden p-0 dark:divide-white/10">
               {rows.map((t) => {
                 const d = daysUntilDue(t);
-                const when = d == null ? "" : d < 0 ? `${Math.abs(d)}d late` : d === 0 ? "Today" : d === 1 ? "Tomorrow" : `In ${d} days`;
+                const late = isLate(t);
+                const when = d == null ? "" : d < 0 ? `${Math.abs(d)}d late` : d === 0 ? (late ? "Late" : "Today") : d === 1 ? "Tomorrow" : `In ${d} days`;
                 const byPerson = t.createdBy?.id && t.createdBy.id !== "system" && t.createdBy.id !== current.id;
                 const meta = [byPerson ? `From ${short(t.createdBy.name)}` : "", t.linkedTo?.label || "", String(t.notes || "").split("\n")[0]].filter(Boolean).join(" · ");
                 return (
@@ -104,13 +107,19 @@ export default function TeamOverview({ tasks, team, userId, onOpen, onDone, load
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                           <span className="truncate text-sm font-semibold text-navy-900 dark:text-white">{t.title}</span>
-                          {t.priority === "urgent" && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${priorityMeta("urgent").chip}`}>Urgent</span>}
+                          {t.flaggedAt && <span className="shrink-0 rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Left too long</span>}
+                          {t.priority === "urgent" && !t.flaggedAt && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${priorityMeta("urgent").chip}`}>Urgent</span>}
                         </span>
                         {meta && <span className="mt-0.5 block truncate text-xs text-navy-500 dark:text-slate-400">{meta}</span>}
                       </span>
-                      {when && <span className={`shrink-0 text-xs font-semibold ${d < 0 ? "text-rose-600 dark:text-rose-400" : d === 0 ? "text-amber-600 dark:text-amber-400" : "text-navy-400"}`}>{when}</span>}
+                      {when && <span className={`shrink-0 text-xs font-semibold ${late ? "text-rose-600 dark:text-rose-400" : d === 0 ? "text-amber-600 dark:text-amber-400" : "text-navy-400"}`}>{when}</span>}
                       <LuChevronRight className="h-4 w-4 shrink-0 text-navy-300" />
                     </button>
+                    {isAdmin && onTakeOver && !current.you && (
+                      <button type="button" onClick={() => onTakeOver(t)} className="shrink-0 rounded-full border border-navy-200 px-2.5 py-1 text-xs font-semibold text-navy-600 hover:border-navy-400 dark:border-white/15 dark:text-slate-300">
+                        Take over
+                      </button>
+                    )}
                   </li>
                 );
               })}

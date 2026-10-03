@@ -21,7 +21,7 @@ import {
   SNOOZE_OPTIONS, snoozeTask,
 } from "@/lib/tasks";
 
-export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team = [] }) {
+export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team = [], onTakeOver = null, userId = null }) {
   const { logActivity } = useStore();
   const { user } = useAuth();
   const [notes, setNotes] = useState("");
@@ -47,6 +47,7 @@ export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team 
       status: nextStatus,
       completedAt: nextStatus === "done" ? new Date().toISOString() : null,
       completedBy: nextStatus === "done" ? { id: user.id, name: user.name || user.email } : null,
+      ...(nextStatus !== "done" ? { dismissed: undefined } : {}),
       updates: [
         ...(task.updates || []),
         { at: new Date().toISOString(), by: { id: user.id, name: user.name || user.email }, kind: "status", text: `Marked ${statusMeta(nextStatus).label.toLowerCase()}` },
@@ -109,9 +110,15 @@ export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team 
           {task.status === "done" && (
             <button className="btn-outline" onClick={() => setStatus("open")}>Reopen</button>
           )}
-          <button className="btn-outline ml-auto text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => onDelete(task)}>
-            <FiTrash2 /> <span className="hidden sm:inline">Delete</span>
-          </button>
+          {/* Admins supervise: step in on someone else's task. */}
+          {onTakeOver && task.status !== "done" && task.assigneeId !== userId && (
+            <button className="btn-outline" onClick={() => onTakeOver(task)}>Take over</button>
+          )}
+          {task.status !== "done" && (
+            <button className="btn-outline ml-auto text-rose-600 border-rose-200 hover:bg-rose-50" onClick={() => onDelete(task)} title="Remove — not needed">
+              <FiTrash2 /> <span className="hidden sm:inline">Remove</span>
+            </button>
+          )}
         </div>
       }
     >

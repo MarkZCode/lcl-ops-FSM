@@ -104,10 +104,14 @@ function TeamInner() {
       authedFetch("/api/team/list").then((r) => r.json()).catch(() => ({ users: [] })),
     ]);
     // The retired one-per-prospect renewal chases are not shown anywhere.
-    setTasks((rows || []).map((r) => r.data).filter((t) => t && t.source !== "prospect_renewal"));
+    // Admins supervise, so they see everyone's; an agent sees their own,
+    // the ones open to everyone, and the ones they gave someone.
+    const admin = user?.role === "admin";
+    setTasks((rows || []).map((r) => r.data).filter((t) => t && t.source !== "prospect_renewal"
+      && (admin || !t.assigneeId || t.assigneeId === user?.id || t.createdBy?.id === user?.id)));
     setTeam(teamRes.users || []);
     setLoading(false);
-  }, []);
+  }, [user?.id, user?.role]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -199,20 +203,53 @@ function TeamInner() {
     }).catch(() => {});
   };
 
+  const me = () => ({ id: user.id, name: user.name || user.email });
+  // Ticking done only closes the task — it never changes the job. A slip
+  // of the finger is undone from the toast for 8 seconds, or with Reopen.
   const toggleDone = async (task) => {
+    const reopening = task.status === "done";
+    const at = new Date().toISOString();
     await saveTask({
       ...task,
-      status: task.status === "done" ? "open" : "done",
-      completedAt: task.status === "done" ? null : new Date().toISOString(),
-      completedBy: task.status === "done" ? null : { id: user.id, name: user.name || user.email },
+      status: reopening ? "open" : "done",
+      completedAt: reopening ? null : at,
+      completedBy: reopening ? null : me(),
+      dismissed: reopening ? undefined : task.dismissed,
+      updates: [...(task.updates || []), { at, by: me(), kind: "status", text: reopening ? "Reopened" : "Marked done" }],
     });
+    if (!reopening) toast.undo("Marked done", () => saveTask(task));
   };
 
+  // "Remove" — for a task that shouldn't exist. An automatic task is closed
+  // as not needed (deleting it would only let the engine raise it again a
+  // minute later); it stays away until the job changes. A task someone
+  // typed is deleted. Either can be undone from the toast.
   const removeTask = async (task) => {
-    if (!await ask(`Delete task "${task.title}"?`)) return;
-    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+    const auto = !!task.autoKey || task.createdBy?.id === "system";
+    if (!await ask({
+      title: "Remove this task?",
+      body: auto ? "It's closed as not needed and won't come back unless the job changes. Nothing on the job is changed." : "It's deleted. Nothing on the job is changed.",
+      confirmLabel: "Remove",
+    })) return;
     setOpenTask(null);
-    await supabase.from("tasks").delete().eq("id", task.id);
+    if (auto) {
+      const at = new Date().toISOString();
+      await saveTask({ ...task, status: "done", dismissed: true, completedAt: at, completedBy: me(),
+        updates: [...(task.updates || []), { at, by: me(), kind: "status", text: "Removed — not needed" }] });
+    } else {
+      setTasks((prev) => prev.filter((t) => t.id !== task.id));
+      await supabase.from("tasks").delete().eq("id", task.id);
+    }
+    toast.undo("Task removed", () => saveTask(task));
+  };
+
+  // An admin stepping in on someone else's task.
+  const takeOver = async (task) => {
+    const at = new Date().toISOString();
+    await saveTask({ ...task, assigneeId: user.id, assigneeName: user.name || user.email,
+      escalatedFrom: [...(task.escalatedFrom || []), { id: task.assigneeId || null, name: task.assigneeName || "", at }],
+      updates: [...(task.updates || []), { at, by: me(), kind: "status", text: `Taken over from ${task.assigneeName || "everyone"}` }] });
+    toast.undo(`Taken over from ${task.assigneeName || "everyone"}`, () => saveTask(task));
   };
 
   const setStatus = async (taskId, nextStatus) => {
@@ -318,17 +355,33 @@ function TeamInner() {
     setTasks((prev) => prev.map((t) => updated.find((u) => u.id === t.id) || t));
     clearSelection();
     await supabase.from("tasks").upsert(updated.map((t) => ({ id: t.id, data: t })));
-    toast.success(`Marked ${ids.length} done`);
+    toast.undo(`Marked ${ids.length} done`, () => restore(affected));
   };
 
+  // Put tasks back exactly as they were (the Undo on a bulk action).
+  const restore = async (list) => {
+    setTasks((prev) => [...list, ...prev.filter((t) => !list.some((x) => x.id === t.id))]);
+    await supabase.from("tasks").upsert(list.map((t) => ({ id: t.id, data: t })));
+  };
+
+  // Same rule as removing one: automatic tasks are closed as not needed
+  // (so they don't come straight back), typed ones are deleted.
   const bulkDelete = async () => {
     const ids = [...selected];
     if (!ids.length) return;
-    if (!await ask(`Delete ${ids.length} task${ids.length === 1 ? "" : "s"}? This can't be undone.`)) return;
-    setTasks((prev) => prev.filter((t) => !selected.has(t.id)));
+    if (!await ask({ title: `Remove ${ids.length} task${ids.length === 1 ? "" : "s"}?`, body: "Nothing on the jobs is changed. You can undo straight after.", confirmLabel: "Remove" })) return;
+    const affected = tasks.filter((t) => selected.has(t.id));
+    const auto = affected.filter((t) => t.autoKey || t.createdBy?.id === "system");
+    const typed = affected.filter((t) => !auto.includes(t));
+    const at = new Date().toISOString();
+    const by = { id: user.id, name: user.name || user.email };
+    const closed = auto.map((t) => ({ ...t, status: "done", dismissed: true, completedAt: at, completedBy: by, updatedAt: at,
+      updates: [...(t.updates || []), { at, by, kind: "status", text: "Removed — not needed" }] }));
+    setTasks((prev) => prev.filter((t) => !typed.some((x) => x.id === t.id)).map((t) => closed.find((c) => c.id === t.id) || t));
     clearSelection();
-    await supabase.from("tasks").delete().in("id", ids);
-    toast.success(`Deleted ${ids.length}`);
+    if (closed.length) await supabase.from("tasks").upsert(closed.map((t) => ({ id: t.id, data: t })));
+    if (typed.length) await supabase.from("tasks").delete().in("id", typed.map((t) => t.id));
+    toast.undo(`Removed ${ids.length}`, () => restore(affected));
   };
 
   // Clear stale selections when the filter changes (a row you can't see
@@ -349,7 +402,7 @@ function TeamInner() {
         subtitle="Who is doing what"
         actions={
           <button className="btn-primary" onClick={openNew}>
-            <FiPlus /> Assign a task
+            <FiPlus /> {user?.role === "admin" ? "Assign a task" : "Add a task"}
           </button>
         }
       />
@@ -376,7 +429,7 @@ function TeamInner() {
         {tab === "activity" ? (
           <AgentActivity />
         ) : tab === "people" ? (
-          <TeamOverview tasks={tasks} team={team} userId={user?.id} onOpen={setOpenTask} onDone={toggleDone} loading={loading} />
+          <TeamOverview tasks={tasks} team={user?.role === "admin" ? team : team.filter((p) => p.id === user?.id)} userId={user?.id} isAdmin={user?.role === "admin"} onOpen={setOpenTask} onDone={toggleDone} onTakeOver={takeOver} loading={loading} />
         ) : (
           <>
             {/* Filter bar shared by Board + List */}
@@ -437,6 +490,8 @@ function TeamInner() {
         onSave={saveTask}
         onDelete={removeTask}
         team={team}
+        onTakeOver={user?.role === "admin" ? takeOver : null}
+        userId={user?.id}
       />
     </>
   );

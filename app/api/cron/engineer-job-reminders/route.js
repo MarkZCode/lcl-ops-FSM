@@ -59,8 +59,13 @@ export async function GET(request) {
     .map((u) => ({ id: u.id, name: u.user_metadata?.name || u.email, role: normRole(u.app_metadata?.role), created_at: u.created_at }))
     .filter((u) => u.role === "admin")
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  const adminId = admins[0]?.id || null;
-  const adminName = admins[0]?.name || null;
+  // The office nudge goes to an agent (admins supervise, they don't get
+  // routine tasks). No agent at all → open to everyone.
+  const agents = users
+    .filter((u) => u.app_metadata?.role === "agent")
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const officeId = agents[0]?.id || null;
+  const officeName = agents[0] ? agents[0].user_metadata?.name || agents[0].email : "Everyone";
 
   // Engineer record → matching login, by email (same match rule as lib/scope.js).
   const engineerById = new Map((engineerRows || []).map((r) => [r.id, r.data]));
@@ -122,16 +127,16 @@ export async function GET(request) {
       });
     }
 
-    // Layer 2 — always also nudge admin by name, so the FSM actively urges
+    // Layer 2 — always also nudge the office (an agent) by name, so the FSM actively urges
     // a human check-in even if the engineer's own push never lands.
-    if (adminId) {
+    {
       const titlePrefix = job.engineerConfirmed ? "" : "⚠ NEVER CONFIRMED — ";
       created.push({
         id: newId(),
         title: `${titlePrefix}Remind ${engineerName} — today's job at ${time}${client?.name ? ` · ${client.name}` : ""}`,
         notes: `${addressLine ? `${addressLine} · ` : ""}${service}${!engineerUserId ? " · engineer has no login on file — call/message them directly" : ""}${!job.engineerConfirmed ? " · this engineer never marked the job confirmed" : ""}`,
-        assigneeId: adminId,
-        assigneeName: adminName,
+        assigneeId: officeId,
+        assigneeName: officeName,
         dueDate: todayKey,
         priority: "urgent",
         reminderCadence: "aggressive",

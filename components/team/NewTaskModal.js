@@ -12,6 +12,9 @@ import { FiPlus, FiLink, FiX, FiSearch } from "react-icons/fi";
 import Modal from "@/components/Modal";
 import { useStore } from "@/lib/store";
 import { PRIORITIES, CADENCES, LINK_KINDS } from "@/lib/tasks";
+import { useAuth } from "@/lib/auth";
+import { getJobLines } from "@/lib/format";
+import { statusMeta } from "@/lib/constants";
 
 const LINK_TYPES = [
   { kind: "none",     label: "Not linked" },
@@ -23,6 +26,13 @@ const LINK_TYPES = [
 
 export default function NewTaskModal({ open, onClose, team, prefill, onCreate }) {
   const { prospects, clients, jobs, engineers } = useStore();
+  const { user } = useAuth();
+  // Who can be given a task: an admin can give one to anyone (agents
+  // listed first — they do the work); an agent can only add to their own list.
+  const isAdmin = user?.role === "admin";
+  const people = isAdmin
+    ? [...team.filter((t) => t.role !== "admin"), ...team.filter((t) => t.role === "admin")]
+    : team.filter((t) => t.id === user?.id);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
@@ -38,7 +48,7 @@ export default function NewTaskModal({ open, onClose, team, prefill, onCreate })
     if (!open) return;
     setTitle(prefill?.title || "");
     setNotes(prefill?.notes || "");
-    setAssigneeId(prefill?.assigneeId || "");
+    setAssigneeId(prefill?.assigneeId || (isAdmin ? (team.find((t) => t.role === "agent")?.id || "") : user?.id || ""));
     setDueDate(prefill?.dueDate || defaultDueDate(prefill?.dueOffsetDays));
     setPriority(prefill?.priority || "normal");
     setCadence(prefill?.cadence || "daily");
@@ -96,8 +106,8 @@ export default function NewTaskModal({ open, onClose, team, prefill, onCreate })
           <div className="sm:col-span-2">
             <label className="label">Assign to</label>
             <select className="input" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-              <option value="">Everyone</option>
-              {team.map((t) => (
+              {isAdmin && <option value="">Everyone</option>}
+              {people.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}{t.role === "admin" ? " (admin)" : ""}</option>
               ))}
             </select>
@@ -177,8 +187,26 @@ function defaultDueDate(offsetDays) {
 
 function poolFor(kind, { prospects, clients, jobs, engineers }) {
   if (kind === "prospect") return (prospects || []).map((p) => ({ id: p.id, label: p.nameOnCert || p.ownerName || "—", sub: p.address || "" }));
-  if (kind === "client")   return (clients   || []).map((c) => ({ id: c.id, label: c.name || "—", sub: c.company || c.email || "" }));
-  if (kind === "job")      return (jobs      || []).map((j) => ({ id: j.id, label: j.id, sub: (j.services || []).join(", ") || j.status || "" }));
+  if (kind === "client")   return (clients   || []).map((c) => ({ id: c.id, label: c.name || "—", sub: [c.phone, c.company || c.email, (c.properties || [])[0]?.postcode].filter(Boolean).join(" · "), find: [c.phone, c.email, ...(c.properties || []).map((p) => `${p.label} ${p.postcode}`)].join(" ") }));
+  // A job is found and shown by WHO it is for and WHERE — nobody remembers
+  // job numbers. Newest first.
+  if (kind === "job") {
+    const byId = new Map((clients || []).map((c) => [c.id, c]));
+    return [...(jobs || [])]
+      .sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")))
+      .map((j) => {
+        const c = byId.get(j.clientId);
+        const prop = (c?.properties || []).find((p) => p.id === j.propertyId);
+        const where = prop ? [prop.label !== prop.postcode ? prop.label : "", prop.postcode].filter(Boolean).join(", ") : "";
+        const services = getJobLines(j).filter((l) => !["PARKING", "CONGESTION"].includes(l.code)).map((l) => l.name).join(", ");
+        return {
+          id: j.id,
+          label: `${c?.name || "No client"} — ${j.id}`,
+          sub: [where, services, statusMeta(j.status)?.label || j.status].filter(Boolean).join(" · "),
+          find: [c?.phone, c?.email].join(" "),
+        };
+      });
+  }
   if (kind === "engineer") return (engineers || []).map((e) => ({ id: e.id, label: e.name || e.id, sub: e.email || "" }));
   return [];
 }
@@ -189,7 +217,7 @@ function EntityPicker({ kind, pool, selected, onSelect }) {
     const query = q.trim().toLowerCase();
     if (!query) return pool.slice(0, 8);
     return pool
-      .filter((r) => `${r.label} ${r.sub}`.toLowerCase().includes(query))
+      .filter((r) => `${r.label} ${r.sub} ${r.find || ""}`.toLowerCase().includes(query))
       .slice(0, 20);
   }, [q, pool]);
 
@@ -216,7 +244,7 @@ function EntityPicker({ kind, pool, selected, onSelect }) {
           className="input pl-9"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder={`Search ${LINK_KINDS[kind]?.label.toLowerCase() || "record"}…`}
+          placeholder={kind === "job" ? "Search by client name, postcode, address or job number…" : `Search ${LINK_KINDS[kind]?.label.toLowerCase() || "record"}…`}
         />
       </div>
       {results.length > 0 ? (

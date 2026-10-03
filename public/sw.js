@@ -3,7 +3,7 @@
 // Next.js JS/CSS chunks are NOT cached here — Vercel CDN + content-hash
 // filenames handle that. Caching chunks caused stale-chunk loops after
 // redeployments (old cached files served forever).
-const CACHE_VERSION = "lcl-ops-v154";
+const CACHE_VERSION = "lcl-ops-v155";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline";
 

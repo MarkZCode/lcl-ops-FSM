@@ -317,7 +317,7 @@ export async function GET(request) {
   const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" }).format(now);
   const outreachOpen = (tasksRes.data || []).some((r) => r.data && r.data.status !== "done" && r.data.source === "outreach_daily");
   if (dueProspects > 0 && !["Sat", "Sun"].includes(weekday) && !outreachOpen && state.outreachDate !== todayKey) {
-    const owner = agents[0] ? pickAgent() : { id: adminId, name: adminName };
+    const owner = agents[0] ? pickAgent() : { id: null, name: "Everyone" };
     makeTask({
       title: "Renewal outreach — today's WhatsApp chases",
       notes: `${dueProspects} prospect${dueProspects === 1 ? "" : "s"} due or overdue. Chase today's batch (10–15) from Prospects and log what each said.`,
@@ -347,8 +347,8 @@ export async function GET(request) {
       makeTask({
         title: `Send ${monthKey} campaign — ${seg.label}`,
         notes: `Start of month: bulk-email the ${seg.label} for renewal outreach.`,
-        assigneeId: adminId,
-        assigneeName: adminName,
+        // An agent sends it (admins only supervise); none → everyone.
+        ...(agents[0] ? (({ id, name }) => ({ assigneeId: id, assigneeName: name }))(pickAgent()) : { assigneeId: null, assigneeName: "Everyone" }),
         dueDate: isoDatePlusDays(now, 3),
         priority: "urgent",
         cadence: "aggressive",

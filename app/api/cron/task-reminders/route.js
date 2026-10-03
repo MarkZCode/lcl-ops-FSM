@@ -1,7 +1,8 @@
 // Vercel cron — runs several times a day to nudge assignees about overdue
 // or due-today tasks. Cadence is per-task:
 //   • daily      — one push at ~8am UK if not already pushed today
-//   • aggressive — three pushes at ~8am / ~2pm / ~6pm UK on overdue days
+//   • aggressive — three pushes a day (~9am / ~3pm / ~7pm UK) from the day
+//                  it's given until it's done, on top of the instant push
 //   • once       — never re-pushed here (assignment push is the only ping)
 //
 // Uses task.lastRemindedAt to dedupe within the same UK-clock slot so a
@@ -92,18 +93,18 @@ export async function GET(request) {
     if (!t || t.status === "done") continue;
     const cadence = t.reminderCadence || "daily";
     if (!slot.cadences.includes(cadence)) continue;
-    if (!t.dueDate) continue;
-    // Only fire while the task is due today or overdue — no early nagging.
-    const due = new Date(t.dueDate + "T23:59:59");
-    if (due > now) continue;
+    // Daily: only once it's due today or overdue — no early nagging.
+    // Aggressive: every slot from the day it was given, whatever the due date.
+    const due = t.dueDate ? new Date(t.dueDate + "T23:59:59") : null;
+    if (cadence !== "aggressive" && (!due || due > now)) continue;
     // Dedup: skip if already reminded in THIS slot on THIS UK date.
     if (t.lastReminderSlot === stamp && !force) continue;
 
     const target = t.assigneeId ? subsByUser.get(t.assigneeId) || [] : everyoneSubs;
     if (!target.length) continue;
 
-    const overdueDays = Math.floor((now - due) / 86400_000);
-    const overdueLabel = overdueDays > 0 ? `${overdueDays}d overdue` : "Due today";
+    const overdueDays = due ? Math.floor((now - due) / 86400_000) : 0;
+    const overdueLabel = !due ? "Still open" : due > now ? (ukDateStr(due) === ukDateStr(now) ? "Due today" : `Due ${new Date(t.dueDate + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}`) : overdueDays > 0 ? `${overdueDays}d overdue` : "Due today";
     const payload = {
       title: t.priority === "urgent" ? "URGENT task reminder" : "Task reminder",
       body: `${t.title}\n${overdueLabel}${t.assigneeName ? ` · assigned to ${t.assigneeName}` : ""}`,
