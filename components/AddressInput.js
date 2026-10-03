@@ -4,7 +4,8 @@
 // "Flat 3, 12 Bury St"). Picking one fills the address and, if it's empty,
 // the postcode. Suggestions come from /api/address (free map data — every
 // street is there, house numbers only sometimes, so the number you type is
-// kept). You can always just type the address and ignore the list.
+// kept), or — with an Ideal Postcodes key — exact Royal Mail addresses down
+// to the flat. You can always just type the address and ignore the list.
 import { useEffect, useRef, useState } from "react";
 
 export default function AddressInput({ value, onChange, onPick, postcode = "", className = "input", placeholder = "Address", ...rest }) {
@@ -38,11 +39,21 @@ export default function AddressInput({ value, onChange, onPick, postcode = "", c
     return () => document.removeEventListener("mousedown", away);
   }, []);
 
-  const pick = (o) => {
-    onChange(o.label);
-    onPick?.(o);
+  // An exact (Royal Mail) suggestion is fetched in full on pick — its lines
+  // and postcode; the free kind already carries what it has.
+  const pick = async (o) => {
     setOpen(false);
     setOptions([]);
+    let chosen = o;
+    if (o.udprn) {
+      try {
+        const r = await fetch(`/api/address?udprn=${encodeURIComponent(o.udprn)}`);
+        const d = await r.json();
+        if (d?.address) chosen = d.address;
+      } catch {}
+    }
+    onChange(chosen.label);
+    onPick?.(chosen);
   };
 
   return (

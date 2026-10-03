@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FaHardHat } from "react-icons/fa";
 import { FiMail, FiMapPin, FiPhone, FiChevronLeft, FiChevronRight, FiArrowRight, FiRefreshCw } from "react-icons/fi";
-import { addMonths, format, isSameDay, parseISO } from "date-fns";
+import { addMonths, format, parseISO } from "date-fns";
 import { supabase } from "@/lib/supabase";
 import PageHeader from "@/components/PageHeader";
 import DispatchMap from "@/components/DispatchMap";
@@ -14,7 +14,11 @@ import DispatchMap from "@/components/DispatchMap";
 const DONE = ["completed", "invoiced", "paid"];
 const gbp = (n) => `£${(Number(n) || 0).toFixed(2)}`;
 const when = (job) => { try { return job.scheduledAt ? parseISO(job.scheduledAt) : null; } catch { return null; } };
-const dayLabel = (d) => d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
+// Same UK calendar day (a phone abroad, or a server clock, mustn't move a job
+// between "Today" and "Coming up").
+const ukDay = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(d);
+const isSameDay = (a, b) => ukDay(a) === ukDay(b);
+const dayLabel = (d) => d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/London" });
 
 export default function EngineerPortal() {
   const [data, setData] = useState(null);
@@ -145,7 +149,7 @@ export default function EngineerPortal() {
                 {days.map((d) => <option key={d} value={d}>{dayLabel(parseISO(d))}</option>)}
               </select>
             )}
-            <DispatchMap stops={stops} />
+            <DispatchMap stops={stops} engineerView />
             <p className="text-xs text-navy-400">Jobs appear on the map once you have confirmed them.</p>
           </>
         )}

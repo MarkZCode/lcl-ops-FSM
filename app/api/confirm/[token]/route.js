@@ -45,7 +45,7 @@ function view(job, engineerById, clientPostcode) {
         finished: v ? v.status === "completed" : job.status === "completed",
       };
     });
-  return { id: job.id, open, area: clientPostcode, scopes };
+  return { id: job.id, open, canUpload: job.status !== "cancelled", area: clientPostcode, scopes };
 }
 
 async function postcodeArea(job) {
@@ -74,14 +74,15 @@ export async function POST(req, { params }) {
   if (!sc || !sc.engineerId || sc.engineerId === "unassigned") {
     return NextResponse.json({ error: "That part of the job isn't open to confirm." }, { status: 409 });
   }
-  if (["completed", "invoiced", "paid", "cancelled"].includes(job.status)) {
+  // A finished job still takes the certificate upload; nothing else.
+  if (job.status === "cancelled" || (["completed", "invoiced", "paid"].includes(job.status) && body.action !== "upload")) {
     return NextResponse.json({ error: "This job is already closed." }, { status: 409 });
   }
   const now = new Date().toISOString();
   const who = engineerById(sc.engineerId)?.name || "Engineer";
 
   // ── On the day, from the same link (only once they've confirmed) ──
-  if (["location", "late", "arrived", "finished", "upload"].includes(body.action)) {
+  if (["on_way", "location", "late", "arrived", "finished", "upload"].includes(body.action)) {
     if (!scopeAccepted(job, sc)) return NextResponse.json({ error: "Confirm the job first." }, { status: 409 });
     const visitKey = String(sc.key).startsWith("visit:") ? sc.key.slice(6) : null;
     const save = async (patch, activityTitle, detail = "") => {
@@ -102,6 +103,16 @@ export async function POST(req, { params }) {
       for (const k of Object.keys(map)) if (Date.now() - new Date(map[k]?.at || 0).getTime() > 86400_000) delete map[k];
       map[sc.engineerId] = { lat, lng, at: now, jobId: job.id, name: who };
       await supabaseAdmin.from("app_settings").upsert({ id: "engineer_live", data: map });
+      return NextResponse.json({ ok: true });
+    }
+
+    // "On my way" — recorded on the job whether or not the phone shares its
+    // location: the client's link shows "your engineer is on the way" and the
+    // office is told. Location (below) is an extra for the dispatch map.
+    if (body.action === "on_way") {
+      if (job.onTheWayAt && Date.now() - new Date(job.onTheWayAt).getTime() < 6 * 3600_000) return NextResponse.json({ ok: true, already: true });
+      if (!(await save({ onTheWayAt: now, runningLate: null }, `${who} is on the way`))) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
+      await pushToAll({ title: "Engineer on the way", body: `${who} is on the way to ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` }, { kind: "engineer_progress" });
       return NextResponse.json({ ok: true });
     }
 

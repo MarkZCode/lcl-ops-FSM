@@ -15,7 +15,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getJobLines, lineTotal } from "@/lib/format";
-import { lineSizeLabel } from "@/lib/jobCard";
+import { lineSizeLabel, windowStr } from "@/lib/jobCard";
 import { quoteMissing, intakeFieldsFor, bookingMissing } from "@/lib/gates";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
@@ -84,6 +84,8 @@ export async function GET(_request, { params }) {
     canAccept: job.status === "quote" && !job.acceptedAt,
     // Their own appointment, and whether they can still ask to move it.
     scheduledAt: job.scheduledAt || null,
+    // The arrival window the client is given ("9am–12pm, morning").
+    window: job.scheduledAt ? windowStr(job).replace(/^\((.*?)\)\s*(.*)$/, (m, range, part) => (part ? `${range} (${part})` : range)) : "",
     canRequestChange: job.status === "scheduled" && !!job.scheduledAt,
     changeRequestedAt: job.changeRequestedAt || null,
     postcode: property?.postcode || "",
@@ -91,8 +93,10 @@ export async function GET(_request, { params }) {
     questions: job.status === "quote" && job.acceptedAt && !job.clientDetailsAt ? questions : [],
     detailsSentAt: job.clientDetailsAt || null,
     // Only once the office has pressed "on the way" / the engineer said so.
-    onTheWay: job.status !== "completed" && !!job.onTheWayAt && Date.now() - new Date(job.onTheWayAt).getTime() < 6 * 3600_000,
-    runningLate: job.runningLate && Date.now() - new Date(job.runningLate.at).getTime() < 6 * 3600_000 ? job.runningLate.minutes : null,
+    // Both stop once the engineer is on site (or done) — a finished job was
+    // still telling the client the engineer was running late.
+    onTheWay: job.status === "scheduled" && !!job.onTheWayAt && Date.now() - new Date(job.onTheWayAt).getTime() < 6 * 3600_000,
+    runningLate: job.status === "scheduled" && job.runningLate && Date.now() - new Date(job.runningLate.at).getTime() < 6 * 3600_000 ? job.runningLate.minutes : null,
     // Their certificate, once the job is paid and it has been sent — the
     // same files the office checked, never one flagged as doubtful.
     certificates: certified ? (job.attachments || []).filter((f) => isPdf(f) && f.url && f.check?.postcode !== "missing").map((f) => ({ name: f.name, url: f.url })) : [],

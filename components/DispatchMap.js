@@ -43,7 +43,7 @@ const STYLE = `
 `;
 
 // stops: [{ id, jobId, postcode, label, time, engineerId, engineerName, colour, n }]
-export default function DispatchMap({ stops = [] }) {
+export default function DispatchMap({ stops = [], engineerView = false }) {
   const el = useRef(null);
   const mapRef = useRef(null);
   // Tap a name under the map to zoom to that engineer's jobs; "All of
@@ -197,7 +197,7 @@ export default function DispatchMap({ stops = [] }) {
         <p className="text-[11px] text-navy-400">
           <button type="button" className="mr-2 font-semibold text-brand-600 hover:underline" onClick={() => focus(null)}>All of London</button>
           {note ? `${note} ` : ""}{live > 0 ? `${live} engineer${live === 1 ? "" : "s"} sharing location (diamond). ` : ""}
-          Dots are on the postcode, numbered in visiting order; distances are straight lines. Red = no engineer yet, grey ? = accepted but not booked.
+          Dots are on the postcode, numbered in visiting order; distances are straight lines.{engineerView ? "" : " Red = no engineer yet, grey ? = accepted but not booked."}
         </p>
       </div>
     </div>

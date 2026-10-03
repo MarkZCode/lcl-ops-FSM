@@ -300,6 +300,7 @@ export default function SharePage() {
             <p className="mt-0.5 text-base font-bold text-navy-900">
               {new Date(job.scheduledAt).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/London" })}
             </p>
+            {job.window && <p className="text-sm text-navy-700">Arrival: {job.window}</p>}
             {job.changeRequestedAt ? (
               <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-brand-800">We&rsquo;ve got your request to move it and will be in touch to confirm a new time.</p>
             ) : job.canRequestChange && !moveOpen ? (

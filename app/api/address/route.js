@@ -1,5 +1,11 @@
 // Address suggestions for the address boxes (components/AddressInput.js).
 //
+// EXACT addresses (Royal Mail PAF, every flat and door) come from Ideal
+// Postcodes when IDEAL_POSTCODES_API_KEY is set in Vercel. Searching as you
+// type is free with them; one credit (~4p) is spent only when an address is
+// picked (`?udprn=` resolves it to its full lines and postcode).
+// Without the key — or if it fails or runs out of credit — it falls back to:
+//
 // Free OpenStreetMap data (Photon, by komoot) — no account or key. It knows
 // every street and its postcode, but many London buildings have no house
 // number in it, so a typed house/flat number is kept at the front of each
@@ -11,13 +17,51 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 
 const UK_BBOX = "-8.7,49.8,1.9,60.9";
 
+const IDEAL = "https://api.ideal-postcodes.co.uk/v1";
+const idealKey = () => process.env.IDEAL_POSTCODES_API_KEY || "";
+
+// A picked Ideal Postcodes address → its lines and postcode (one credit).
+async function resolveUdprn(udprn) {
+  const r = await fetch(`${IDEAL}/udprn/${encodeURIComponent(udprn)}?api_key=${encodeURIComponent(idealKey())}`);
+  const d = await r.json();
+  const a = d?.result;
+  if (!a?.postcode) return null;
+  return { label: [a.line_1, a.line_2, a.line_3, a.post_town].filter(Boolean).join(", "), postcode: a.postcode, exact: true };
+}
+
+// Exact suggestions, narrowed to the postcode district if one is known.
+async function idealSuggest(q, postcode) {
+  const outward = postcode ? postcode.replace(/\s/g, "").slice(0, -3) || postcode : "";
+  const r = await fetch(`${IDEAL}/autocomplete/addresses?api_key=${encodeURIComponent(idealKey())}&query=${encodeURIComponent(q)}&limit=8${outward.length >= 2 ? `&postcode_outward=${encodeURIComponent(outward)}` : ""}`);
+  const d = await r.json();
+  if (d?.code !== 2000 || !Array.isArray(d?.result?.hits)) return null;
+  return d.result.hits.map((h) => ({ label: h.suggestion, postcode: "", udprn: h.udprn, exact: true }));
+}
+
 export async function GET(request) {
   const limited = rateLimitOr429("address", { limit: 60, windowMs: 60_000 });
   if (limited) return limited;
   const url = new URL(request.url);
+  const udprn = url.searchParams.get("udprn");
+  if (udprn) {
+    if (!idealKey() || !/^\d{1,12}$/.test(udprn)) return NextResponse.json({ error: "Not available" }, { status: 400 });
+    try {
+      const a = await resolveUdprn(udprn);
+      return a ? NextResponse.json({ address: a }) : NextResponse.json({ error: "Not found" }, { status: 404 });
+    } catch {
+      return NextResponse.json({ error: "Lookup failed" }, { status: 502 });
+    }
+  }
   const q = String(url.searchParams.get("q") || "").trim().slice(0, 120);
   const postcode = String(url.searchParams.get("postcode") || "").trim().toUpperCase().slice(0, 10);
   if (q.length < 3) return NextResponse.json({ results: [] });
+
+  if (idealKey()) {
+    try {
+      const hits = await idealSuggest(q, postcode);
+      if (hits && hits.length) return NextResponse.json({ results: hits, source: "paf" });
+    } catch {}
+  }
 
   // A leading house/flat number ("45", "Flat 3, 12", "12A") the data may lack.
   const lead = (q.match(/^((flat|apartment|unit)\s*\w+,?\s*)?\d+[a-z]?\b,?/i) || [""])[0].replace(/,\s*$/, "").trim();

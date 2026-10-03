@@ -37,9 +37,18 @@ export default function ConfirmPage() {
     }
   };
 
-  // "On my way": shares where this phone is, for as long as the page is open.
-  const share = (key) => {
-    if (!navigator.geolocation) { setError("This phone can't share its location."); return; }
+  // "On my way": tells the office and the client straight away, then (if
+  // the phone allows) shares where it is for as long as the page is open.
+  const share = async (key) => {
+    setError("");
+    try {
+      const r = await fetch(`/api/confirm/${encodeURIComponent(token)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key, action: "on_way" }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); setError(d.error || "Couldn't send that — please message the office."); return; }
+      setNote("The office and the client know you're on the way.");
+    } catch { setError("No connection — please message the office."); return; }
+    if (!navigator.geolocation) return;
     setSharing(key);
     let last = 0;
     navigator.geolocation.watchPosition(
@@ -52,7 +61,7 @@ export default function ConfirmPage() {
           body: JSON.stringify({ key, action: "location", lat: pos.coords.latitude, lng: pos.coords.longitude }),
         }).catch(() => {});
       },
-      () => { setSharing(""); setError("Location is switched off for this page — allow it in your browser to share it."); },
+      () => { setSharing(""); setNote("The office and the client know you're on the way. (Your location isn't being shared — that's fine.)"); },
       { enableHighAccuracy: true, maximumAge: 30_000 }
     );
   };
@@ -137,10 +146,10 @@ export default function ConfirmPage() {
           </span>
           <div>
             <p className="font-bold text-navy-900">Landlord Compliance London</p>
-            <p className="text-xs text-navy-500">Job offer · {data.id}{data.area ? ` · ${data.area}` : ""}</p>
+            <p className="text-xs text-navy-500">{(data.scopes || []).some((x) => x.confirmed) ? "Your job" : "Job offer"} · {data.id}{data.area ? ` · ${data.area}` : ""}</p>
           </div>
         </div>
-        {!data.open && <div className="card p-4 text-sm text-navy-600">This job is already closed.</div>}
+        {!data.open && <div className="card p-4 text-sm text-navy-600">{data.canUpload ? "This job is finished. If you haven\u2019t sent the certificate yet, upload it below." : "This job was cancelled."}</div>}
         {data.scopes.length === 0 && <div className="card p-4 text-sm text-navy-600">{Object.keys(done).length ? "Thanks for letting us know — the office has been told." : "Nothing on this job is waiting for a confirmation."}</div>}
         {data.scopes.map((s) => (
           <div key={s.key} className="card p-5">
@@ -153,7 +162,7 @@ export default function ConfirmPage() {
                 {/* On the day: tell the office where things are without a call. */}
                 {data.open && (
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    {!s.finished && (
+                    {!s.started && (
                       <button type="button" className="btn-outline justify-center" disabled={!!sharing} onClick={() => share(s.key)}>
                         {sharing === s.key ? "Sharing location…" : "On my way"}
                       </button>
@@ -174,12 +183,16 @@ export default function ConfirmPage() {
                     {s.started && !s.finished && (
                       <button type="button" className="btn-primary col-span-2 justify-center" disabled={busy === s.key} onClick={() => window.confirm("Is the work finished?") && act(s.key, "finished", {}, "Marked as finished — please upload the certificate when it's ready.")}>Work finished</button>
                     )}
-                    <label className="btn-outline col-span-2 cursor-pointer justify-center">
-                      {busy === s.key ? "Sending…" : "Upload certificate or photo"}
-                      <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { upload(s.key, e.target.files?.[0]); e.target.value = ""; }} />
-                    </label>
                     {sharing === s.key && <p className="col-span-2 text-xs text-navy-500">Your location is shared with the office while this page stays open.</p>}
                   </div>
+                )}
+                {/* The certificate usually follows after leaving site — upload
+                    stays open once the work is finished (not on a cancelled job). */}
+                {data.canUpload && (
+                  <label className="btn-outline mt-2 w-full cursor-pointer justify-center text-sm">
+                    {busy === s.key ? "Sending…" : s.finished ? "Upload the certificate" : "Upload certificate or photo"}
+                    <input type="file" accept="application/pdf,image/*" className="hidden" onChange={(e) => { upload(s.key, e.target.files?.[0]); e.target.value = ""; }} />
+                  </label>
                 )}
                 {data.open && <button type="button" className="mt-2 text-xs font-semibold text-navy-500 underline" disabled={busy === s.key} onClick={() => decline(s.key, true)}>I can no longer do this job</button>}
               </>
