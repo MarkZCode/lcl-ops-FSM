@@ -167,6 +167,23 @@ export default function ActivityThread({ job, client }) {
     (a, b) => new Date(a.at) - new Date(b.at)
   );
 
+  // Who spoke last, at a glance: our last message to the client and their
+  // last word to us. Saves scrolling the thread to answer "have we replied?"
+  const ago = (iso) => {
+    const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    return d <= 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`;
+  };
+  const lastOut = [...entries].reverse().find((e) => e.direction !== "in" && ["email", "whatsapp", "call"].includes(e.type));
+  const lastIn = [...entries].reverse().find((e) => e.direction === "in" || e.by === "client" || e.by === "website");
+  const waitingOnUs = lastIn && (!lastOut || new Date(lastIn.at) > new Date(lastOut.at));
+
+  // Open at the newest message, not the oldest.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [job.id, entries.length]);
+
   const pickFile = async (e) => {
     setErr("");
     const f = e.target.files?.[0];
@@ -209,13 +226,20 @@ export default function ActivityThread({ job, client }) {
           {checking ? "Checking…" : "Check for replies"}
         </button>
       </div>
+      {(lastOut || lastIn) && (
+        <p className={`mb-2 rounded-lg px-2.5 py-1.5 text-[11px] ${waitingOnUs ? "bg-amber-50 text-amber-800" : "bg-navy-50 text-navy-500"}`}>
+          {lastOut ? <>We last {lastOut.type === "call" ? "called" : lastOut.type === "whatsapp" ? "WhatsApped" : "emailed"} {ago(lastOut.at)}{typeof lastOut.by === "string" && lastOut.by && !lastOut.by.includes("@") ? ` (${lastOut.by})` : ""}</> : "We haven't messaged them yet"}
+          {lastIn ? <> · client last wrote {ago(lastIn.at)}</> : ""}
+          {waitingOnUs ? <strong> · waiting on us</strong> : ""}
+        </p>
+      )}
       {checkMsg && (
         <p className="mb-2 rounded-lg bg-navy-50 px-2.5 py-1.5 text-[11px] text-navy-500">
           {checkMsg}
         </p>
       )}
 
-      <div className="scroll-area -mx-1 flex-1 space-y-3 overflow-y-auto px-1">
+      <div ref={scrollRef} className="scroll-area -mx-1 flex-1 space-y-3 overflow-y-auto px-1">
         {entries.length === 0 ? (
           <p className="py-6 text-center text-xs text-navy-400">
             No activity yet. Emails you send are logged here, and you can add notes

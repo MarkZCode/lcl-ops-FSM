@@ -12,7 +12,7 @@ import { FiPlus, FiX, FiCheckCircle, FiEdit2, FiTrash2, FiChevronDown, FiExterna
 import { gbp } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import {
-  EXPENSE_GROUPS, EXPENSE_CATEGORIES, DRAWINGS, categoryOf, groupOf, isLegacyCategory, suggestCategory, summarise, expensesCsv,
+  EXPENSE_GROUPS, EXPENSE_CATEGORIES, DRAWINGS, categoryOf, groupOf, isLegacyCategory, suggestCategory, summarise, expensesCsv, recurringActiveIn, isDrawing,
 } from "@/lib/expenses";
 
 const GROUP_TONE = {
@@ -124,6 +124,11 @@ export default function ExpensesPanel({ expenses, breakdown, rangeLabel, revenue
   const feeRows = rows.filter((r) => r.e.category === "Bank Transfer Fees");
   const feeTotal = feeRows.reduce((s, r) => s + r.amount, 0);
   const otherRows = rows.filter((r) => r.e.category !== "Bank Transfer Fees");
+  // What runs every month right now (subscriptions, phone numbers…) — the
+  // floor the month starts from before a single job is done.
+  const thisMonth = today().slice(0, 7);
+  const fixed = expenses.filter((e) => !isDrawing(e) && recurringActiveIn(e, thisMonth));
+  const fixedTotal = fixed.reduce((t, e) => t + (Number(e.amount) || 0), 0);
   const pct = (v) => (revenue > 0 ? `${Math.round((v / revenue) * 100)}% of revenue` : "");
 
   const Row = ({ r }) => {
@@ -164,14 +169,14 @@ export default function ExpensesPanel({ expenses, breakdown, rangeLabel, revenue
       </div>
 
       {toReview.length > 0 && !reviewOpen && (
-        <button onClick={openReview} className="flex w-full items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-left text-sm text-amber-900">
+        <button onClick={openReview} className="flex w-full items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-left text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
           <strong>{toReview.length} expense{toReview.length === 1 ? "" : "s"}</strong> filed under the old categories or &ldquo;Other&rdquo;. <span className="ml-auto font-semibold underline">Re-file them</span>
         </button>
       )}
       {reviewOpen && (
-        <div className="border-b border-amber-200 bg-amber-50/60 p-4">
-          <p className="mb-3 text-sm text-navy-700">A category is suggested from each name — check them, change any that are wrong, then save. Anything personal goes in <strong>{DRAWINGS}</strong> so it isn&rsquo;t counted as a business cost.</p>
-          <div className="max-h-[50vh] divide-y divide-amber-100 overflow-y-auto rounded-xl border border-amber-200 bg-white">
+        <div className="border-b border-amber-200 bg-amber-50/60 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <p className="mb-3 text-sm text-navy-700 dark:text-slate-200">A category is suggested from each name — check them, change any that are wrong, then save. Anything personal goes in <strong>{DRAWINGS}</strong> so it isn&rsquo;t counted as a business cost.</p>
+          <div className="max-h-[50vh] divide-y divide-amber-100 overflow-y-auto rounded-xl border border-amber-200 bg-white dark:divide-white/10 dark:border-white/10 dark:bg-white/[0.03]">
             {toReview.map((e) => (
               <div key={e.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
                 <div className="min-w-0 flex-1">
@@ -190,7 +195,7 @@ export default function ExpensesPanel({ expenses, breakdown, rangeLabel, revenue
       )}
 
       {editing && (
-        <div className="border-b border-brand-100 bg-brand-50/50 p-4">
+        <div className="border-b border-brand-100 bg-brand-50/50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="lg:col-span-2">
               <label className="label">What was it</label>
@@ -291,6 +296,7 @@ export default function ExpensesPanel({ expenses, breakdown, rangeLabel, revenue
 
       <p className="border-t border-navy-100 px-5 py-3 text-[11px] text-navy-400">
         A one-off expense counts in the period its date falls in. A monthly one counts in every month from its date until the month it was stopped.
+        {fixed.length ? ` Fixed every month right now: ${gbp(fixedTotal)} (${fixed.length} recurring).` : ""}
         {drawingsTotal > 0 ? ` Owner drawings this period: ${gbp(drawingsTotal)} — not included in the total or in profit.` : ""}
       </p>
     </div>

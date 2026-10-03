@@ -18,6 +18,8 @@ export async function GET(request) {
       id: u.id,
       name: u.user_metadata?.name || u.email,
       role: normRole(u.app_metadata?.role),
+      // Away through this date (YYYY-MM-DD) — shown on the Team page.
+      awayUntil: typeof u.user_metadata?.away_until === "string" ? u.user_metadata.away_until : "",
     }))
     .filter((u) => u.role !== "engineer") // engineers don't use the Tasks feature
     .sort((a, b) => a.name.localeCompare(b.name));

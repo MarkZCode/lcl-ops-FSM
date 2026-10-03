@@ -16,6 +16,7 @@ import {
 } from "react-icons/fi";
 import DetailSlideOver from "@/components/DetailSlideOver";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import {
   priorityMeta, statusMeta, cadenceMeta, daysUntilDue, LINK_KINDS, SOURCE_LABELS,
   SNOOZE_OPTIONS, snoozeTask,
@@ -72,6 +73,16 @@ export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team 
       ],
     });
     setComment("");
+    // Whoever the task belongs to (or whoever set it) hears about the comment.
+    const to = task.assigneeId && task.assigneeId !== user.id ? task.assigneeId
+      : task.createdBy?.id && !["system", user.id].includes(task.createdBy.id) ? task.createdBy.id : null;
+    if (to && supabase) {
+      supabase.auth.getSession().then(({ data }) => fetch("/api/tasks/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data?.session?.access_token || ""}` },
+        body: JSON.stringify({ assigneeId: to, taskId: task.id, title: `${task.title}: “${text.slice(0, 120)}”`, heading: `${String(user.name || user.email).split("@")[0]} commented` }),
+      })).catch(() => {});
+    }
   };
 
   return (

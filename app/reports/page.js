@@ -99,6 +99,9 @@ function ReportsInner() {
   // first frame rather than flashing P&L and then switching.
   const [view, setView] = useState(() => {
     if (expensesOnly) return "expenses";
+    // A link can open a tab directly: /reports?tab=expenses
+    const asked = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("tab") : null;
+    if (REPORT_TABS.some((t) => t.k === asked)) return asked;
     const saved = loadSavedView();
     return REPORT_TABS.some((t) => t.k === saved?.tab) ? saved.tab : "pnl";
   });

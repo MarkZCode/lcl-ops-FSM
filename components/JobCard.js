@@ -128,7 +128,8 @@ export default function JobCard({ job, onJobCard, compact = false, owner, unseen
         {property && (
           <p className="flex items-center gap-2 min-w-0">
             <FiMapPin className="shrink-0 text-brand-400" />
-            <span className="truncate min-w-0">{property.label}, {property.postcode}</span>
+            {/* An address that is only the postcode would read "SE10 9QF, SE10 9QF". */}
+            <span className="truncate min-w-0">{[property.label, property.postcode].filter((v, i, a) => v && a.findIndex((x) => String(x || "").replace(/\s/g, "").toUpperCase() === String(v).replace(/\s/g, "").toUpperCase()) === i).join(", ")}</span>
           </p>
         )}
         <p className="flex items-center gap-2">

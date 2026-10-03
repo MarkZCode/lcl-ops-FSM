@@ -99,6 +99,17 @@ export default function JobDetailPage() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [emailTemplateOverride, setEmailTemplateOverride] = useState(null);
+  // Other windows (e.g. Edit job after changing a sent quote) can ask for
+  // the email window: window event "lcl-send-email" { jobId, template }.
+  useEffect(() => {
+    const on = (e) => {
+      if (e.detail?.jobId !== decodeURIComponent(String(id || ""))) return;
+      setEmailTemplateOverride(e.detail.template || null);
+      setEmailOpen(true);
+    };
+    window.addEventListener("lcl-send-email", on);
+    return () => window.removeEventListener("lcl-send-email", on);
+  }, [id]);
   // The page is split into tabs so it shows what you came for instead of
   // everything at once. "all" is the old single long page.
   const [tab, setTabState] = useState("overview");
@@ -694,6 +705,15 @@ export default function JobDetailPage() {
                   {veryStale ? " · chase" : ""}
                 </span>
               );
+            })()}
+            {/* Time in the CURRENT stage — a job can be a month old but only
+                stuck since yesterday, or new and already stuck. */}
+            {(() => {
+              const cur = [...(job.statusHistory || [])].reverse().find((h) => h.status === job.status && !h.exitedAt);
+              if (!cur?.enteredAt || job.status === "quote" || ["paid", "cancelled"].includes(job.status)) return null;
+              const d = Math.floor((Date.now() - new Date(cur.enteredAt).getTime()) / 86400000);
+              if (d < 1) return null;
+              return <span className={`pill ${d >= 7 ? "pill-amber" : "pill-neutral"}`} title={`In this stage since ${new Date(cur.enteredAt).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}`}>{d === 1 ? "1 day" : `${d} days`} in {statusMeta(job.status)?.label?.toLowerCase() || job.status}</span>;
             })()}
           </div>
           <div className="flex flex-wrap items-center gap-2">

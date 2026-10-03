@@ -98,7 +98,7 @@ export default function StaffPay({ expenses = [], addExpense, removeExpense }) {
       </div>
 
       {editing && (
-        <div className="border-b border-brand-100 bg-brand-50/50 p-4">
+        <div className="border-b border-brand-100 bg-brand-50/50 p-4 dark:border-white/10 dark:bg-white/[0.04]">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <div className="lg:col-span-2"><label className="label">Name</label><input className="input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} autoFocus /></div>
             <div><label className="label">Role</label><input className="input" placeholder="e.g. Office agent" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} /></div>

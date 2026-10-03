@@ -86,6 +86,8 @@ export default function DashboardTasks() {
       escalatedFrom: [...(task.escalatedFrom || []), { id: task.assigneeId || null, name: task.assigneeName || "", at }],
       updates: [...(task.updates || []), { at, by: { id: user.id, name: user.name || user.email }, kind: "status", text: `Taken over from ${task.assigneeName || "everyone"}` }] });
     toast.undo(`Taken over from ${task.assigneeName || "everyone"}`, () => save(task));
+    // Tell the person it was taken from, so nobody does it twice.
+    if (task.assigneeId && task.assigneeId !== user.id) authedFetch("/api/tasks/notify", { method: "POST", body: JSON.stringify({ assigneeId: task.assigneeId, taskId: task.id, title: task.title, heading: `${String(user.name || user.email).split("@")[0]} took this over from you` }) }).catch(() => {});
   };
 
   if (!user) return null;

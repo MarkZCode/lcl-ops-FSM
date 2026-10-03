@@ -41,12 +41,16 @@ export default function TeamOverview({ tasks, team, userId, isAdmin = false, onO
     const rest = team.filter((p) => p.id !== userId);
     const rows = [...(me ? [{ ...me, you: true }] : []), ...rest].map((p) => {
       const mine = open.filter((t) => t.assigneeId === p.id);
-      return { ...p, open: mine.length, late: mine.filter(isLate).length };
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+      const doneToday = tasks.filter((t) => t.status === "done" && t.assigneeId === p.id && !t.dismissed && t.completedBy?.id && t.completedBy.id !== "system"
+        && t.completedAt && new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date(t.completedAt)) === today).length;
+      const away = p.awayUntil && p.awayUntil >= today;
+      return { ...p, open: mine.length, late: mine.filter(isLate).length, doneToday, away };
     });
     const unassigned = open.filter((t) => !t.assigneeId).length;
     if (unassigned && isAdmin) rows.push({ id: "__none", name: "Unassigned", role: "", open: unassigned, late: 0 });
     return rows;
-  }, [team, open, userId]);
+  }, [team, open, userId, tasks]);
 
   const current = people.find((p) => p.id === (person || userId)) || people[0];
   const list = current ? open.filter((t) => (current.id === "__none" ? !t.assigneeId : t.assigneeId === current.id)) : [];
@@ -67,7 +71,9 @@ export default function TeamOverview({ tasks, team, userId, isAdmin = false, onO
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold">{p.you ? "You" : short(p.name)}</span>
                 <span className={`block text-xs ${active ? "opacity-80" : "text-navy-500 dark:text-slate-400"}`}>
+                  {p.away ? <span className={active ? "" : "font-semibold text-amber-600"}>Away · </span> : ""}
                   {p.open} open{p.late ? <span className={active ? "" : "font-semibold text-rose-600 dark:text-rose-400"}> · {p.late} late</span> : ""}
+                  {p.doneToday ? <span className={active ? "" : "text-brand-600"}> · {p.doneToday} done today</span> : ""}
                 </span>
               </span>
             </button>

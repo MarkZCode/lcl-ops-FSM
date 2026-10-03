@@ -252,6 +252,16 @@ export default function ClientDetailPage() {
                 {client.preferredContact && <span className="inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">Prefers {client.preferredContact}</span>}
                 {Number(client.discountPercent) > 0 && <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">{client.discountPercent}% portfolio discount</span>}
               </p>
+              {/* Last contact either way, across all their jobs. */}
+              {(() => {
+                const acts = clientJobs.flatMap((j) => j.activity || []);
+                const latest = (f) => acts.filter(f).reduce((m, a) => (!m || a.at > m ? a.at : m), null);
+                const out = latest((a) => a.direction !== "in" && ["email", "whatsapp", "call"].includes(a.type));
+                const inn = latest((a) => a.direction === "in" || a.by === "client");
+                if (!out && !inn) return null;
+                const ago = (iso) => { const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); return d <= 0 ? "today" : d === 1 ? "yesterday" : `${d} days ago`; };
+                return <p className="text-xs text-navy-500">{out ? `We last contacted them ${ago(out)}` : "Not contacted yet"}{inn ? ` · they last wrote ${ago(inn)}` : ""}</p>;
+              })()}
               {(client.tags || []).length > 0 && (
                 <p className="flex flex-wrap gap-1.5">
                   {client.tags.map((t) => <span key={t} className={`rounded-full px-2 py-0.5 text-xs font-semibold ${t === "Slow payer" || t === "Do not chase" ? "bg-rose-50 text-rose-700" : "bg-navy-100 text-navy-600"}`}>{t}</span>)}

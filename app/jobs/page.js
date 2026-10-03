@@ -219,8 +219,15 @@ export default function JobsPage() {
 
   const isTodo = statusFilter === "todo" || statusFilter.startsWith("todo:");
 
+  // A live job nobody has touched for a week — no message, note or change.
+  const STUCK_DAYS = 7;
+  const lastTouch = (j) => Math.max(new Date(j.updatedAt || j.createdAt || 0).getTime(), ...(j.activity || []).map((a) => new Date(a.at || 0).getTime()));
+  const isStuck = (j) => !["completed", "invoiced", "paid", "cancelled"].includes(j.status) && Date.now() - lastTouch(j) > STUCK_DAYS * 86400000;
+  const stuckCount = useMemo(() => jobs.filter(isStuck).length, [jobs]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const jobMatchesStatus = (job, targetStatus) => {
     if (targetStatus === "todo") return nextByJob.has(job.id);
+    if (targetStatus === "todo:stuck") return isStuck(job);
     if (targetStatus === "todo:mine") return nextByJob.has(job.id) && isMine(job.id);
     if (targetStatus.startsWith("todo:")) return nextByJob.get(job.id)?.group === targetStatus.slice(5);
     if (targetStatus.startsWith("quote:")) return job.status === "quote" && quoteStage(job, undefined, clientOf(job)) === targetStatus.slice(6);
@@ -394,6 +401,7 @@ export default function JobsPage() {
             <option value="">Needs doing…</option>
             <option value="todo">Anything ({todoCounts.todo || 0})</option>
             {todoCounts.mine > 0 && <option value="todo:mine">Mine ({todoCounts.mine})</option>}
+            {stuckCount > 0 && <option value="todo:stuck">Not touched for {STUCK_DAYS}+ days ({stuckCount})</option>}
             {ACTION_GROUPS.filter((g) => todoCounts[g.key]).map((g) => (
               <option key={g.key} value={`todo:${g.key}`}>{g.label} ({todoCounts[g.key]})</option>
             ))}

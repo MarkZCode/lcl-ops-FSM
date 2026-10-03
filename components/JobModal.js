@@ -7,6 +7,7 @@ import Modal from "./Modal";
 import ClientModal from "./ClientModal";
 import ConfirmDialog from "./ConfirmDialog";
 import { useStore } from "@/lib/store";
+import { toast } from "@/lib/toast";
 import {
   UNASSIGNED_ENGINEER,
   STATUS_ORDER,
@@ -830,6 +831,20 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
 
         {/* Services */}
         <div>
+          {/* Same client, a job still open for one of the same services —
+              probably a second quote by mistake. Links to the existing one. */}
+          {(() => {
+            if (isEdit || !form.clientId) return null;
+            const codes = new Set(form.lines.map((l) => l.code).filter((c) => !["PARKING", "CONGESTION", "CUSTOM"].includes(c)));
+            const open = jobs.filter((j) => j.clientId === form.clientId && !["paid", "cancelled"].includes(j.status) && getJobLines(j).some((l) => codes.has(l.code)));
+            if (!open.length) return null;
+            return (
+              <p className="mb-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <FiAlertTriangle className="mt-0.5 shrink-0" />
+                <span>This client already has {open.map((j, i) => <span key={j.id}>{i ? ", " : ""}<a className="font-semibold underline" href={`/jobs/${j.id}`} target="_blank" rel="noreferrer">{j.id}</a></span>)} open for the same service. Check it isn&rsquo;t the same work before creating another.</span>
+              </p>
+            );
+          })()}
           <label className="label">Services</label>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {catalog.map((s) => {
@@ -1532,7 +1547,19 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
       confirmLabel="Yes, change it"
       cancelLabel="Go back"
       onCancel={() => setQuoteChanges(null)}
-      onConfirm={() => { setQuoteChanges(null); doSave(); }}
+      onConfirm={() => {
+        setQuoteChanges(null);
+        doSave();
+        // A quote the client already has is now out of date — offer to send
+        // the corrected one straight away (the email window, quote template).
+        if (job?.quoteSentAt || job?.acceptedAt) {
+          const jobId = job.id;
+          setTimeout(() => toast("Quote changed — the client has the old one", "info", {
+            duration: 10000,
+            action: { label: "Send corrected quote", run: () => window.dispatchEvent(new CustomEvent("lcl-send-email", { detail: { jobId, template: "quote" } })) },
+          }), 300);
+        }
+      }}
     />
     <ClientModal
       open={editClientOpen}

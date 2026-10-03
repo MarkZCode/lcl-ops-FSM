@@ -115,6 +115,12 @@ export default function NewTaskModal({ open, onClose, team, prefill, onCreate })
           <div>
             <label className="label">Due date</label>
             <input type="date" className="input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+            <div className="mt-1.5 flex gap-1">
+              {[["Today", 0], ["Tomorrow", 1], ["Next week", 7]].map(([l, n]) => (
+                <button key={l} type="button" onClick={() => setDueDate(dayFromNow(n))}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${dueDate === dayFromNow(n) ? "border-navy-800 bg-navy-800 text-white" : "border-navy-200 text-navy-600"}`}>{l}</button>
+              ))}
+            </div>
           </div>
           <div>
             <label className="label">Priority</label>
@@ -177,6 +183,11 @@ export default function NewTaskModal({ open, onClose, team, prefill, onCreate })
       </div>
     </Modal>
   );
+}
+
+// UK calendar date n days from today.
+function dayFromNow(n) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date(Date.now() + n * 86400000));
 }
 
 function defaultDueDate(offsetDays) {

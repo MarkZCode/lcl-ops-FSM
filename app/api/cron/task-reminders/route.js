@@ -127,9 +127,38 @@ export async function GET(request) {
     }
   }
 
+  // Evening: one summary for each admin of how the team's day went — who
+  // finished what, what's still open, what's late. Weekdays only.
+  let digest = 0;
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", weekday: "short" }).format(now);
+  if (slot.key === "evening" && !["Sat", "Sun"].includes(weekday)) {
+    const { data: usersRes } = await supabaseAdmin.auth.admin.listUsers({ perPage: 200 });
+    const users = usersRes?.users || [];
+    const admins = users.filter((u) => u.app_metadata?.role === "admin").map((u) => u.id);
+    const agents = users.filter((u) => u.app_metadata?.role === "agent");
+    const today = ukDateStr(now);
+    const all = (taskRows || []).map((r) => r.data).filter(Boolean);
+    const lines = agents.map((a) => {
+      const name = String(a.user_metadata?.name || a.email).split("@")[0];
+      const mine = all.filter((t) => t.assigneeId === a.id);
+      const done = mine.filter((t) => t.status === "done" && !t.dismissed && t.completedAt && ukDateStr(new Date(t.completedAt)) === today).length;
+      const open = mine.filter((t) => t.status !== "done");
+      const late = open.filter((t) => (t.dueAt ? new Date(t.dueAt) < now : t.dueDate && t.dueDate < today)).length;
+      return `${name}: ${done} done · ${open.length} open${late ? ` · ${late} late` : ""}`;
+    });
+    if (lines.length) {
+      for (const sub of everyoneSubs.filter((x) => admins.includes(x.user_id))) {
+        const r = await sendPush(sub, { title: "Team today", body: lines.join("\n"), url: "/team?tab=people" });
+        if (r.ok) digest++;
+        if (r.gone) dead.push(sub.id);
+      }
+    }
+  }
+
   if (dead.length) await supabaseAdmin.from("push_subscriptions").delete().in("id", dead);
 
   return NextResponse.json({
+    digest,
     ok: true,
     slot: slot.key,
     tasksNotified,

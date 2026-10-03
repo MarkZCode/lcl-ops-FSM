@@ -49,6 +49,7 @@ const SETTINGS_NAV = [
   { id: "config", label: "Configuration" },
   { id: "profile", label: "Users & access" },
   { id: "engineers", label: "Engineers" },
+  { id: "finance", label: "Staff, salaries & expenses" },
   { id: "services", label: "Service catalogue & pricing" },
   { id: "push", label: "Notifications, away & backup" },
   { id: "auto-notify", label: "Auto-notifications" },
@@ -64,6 +65,7 @@ const SETTINGS_FIND = [
   ["Saved WhatsApp replies", "config"], ["Bank accounts", "config"], ["Email and templates", "config"], ["Who changed a setting", "config"],
   ["Users, passwords and access", "profile"], ["Set someone as away", "profile"], ["What each role can do", "profile"],
   ["Engineers", "engineers"], ["Service prices", "services"],
+  ["Staff salaries", "finance"], ["Expense categories", "finance"], ["Owner drawings", "finance"],
   ["Notifications on this device", "push"], ["Away (me)", "push"], ["Download a backup", "push"], ["Test email, notification and backup", "push"],
   ["Payment chasers, renewal quotes, statements", "auto-notify"], ["Automatic emails on status change", "auto-notify"],
   ["Gmail connection", "gmail"], ["Data and reset", "data"],
@@ -91,12 +93,6 @@ const integrations = [
   },
   // ---- Phase 2 (next) ----
   {
-    icon: FiCreditCard,
-    name: "Stripe payments",
-    desc: "Card payment links on invoices, auto-marking jobs paid. Needs your Stripe keys.",
-    phase: "Phase 2",
-  },
-  {
     icon: FiMessageSquare,
     name: "WhatsApp auto-send",
     desc: "Proven working on a test number. Final step: register the LCL business number for templated confirmations & reminders.",
@@ -104,9 +100,9 @@ const integrations = [
   },
   {
     icon: FiUsers,
-    name: "Engineer mobile app",
-    desc: "On-site app for engineers to view their day, upload certs and submit parking receipts from their phone.",
-    phase: "Phase 2",
+    name: "Engineer portal",
+    desc: "Engineers sign in to see only their own jobs, the day's map and their pay — no customer prices or office data. On-my-way, running late and uploads from the engineer link.",
+    phase: "Live",
   },
   // ---- Phase 3 (later) ----
   {
@@ -642,6 +638,16 @@ function SettingsInner() {
             <div>
               <p className="text-sm font-semibold text-navy-900">Engineers are managed on the Engineers page</p>
               <p className="text-xs text-navy-500">Add, edit and remove engineers, their services, areas, paperwork and pay there.</p>
+            </div>
+            <span className="text-sm font-semibold text-brand-600">Open →</span>
+          </Link>
+        </SettingsGroup>
+
+        <SettingsGroup title="Staff, salaries &amp; expenses" id="finance" openOnLoad={deepLinked === "finance"}>
+          <Link href="/reports?tab=expenses" className="card-hover flex items-center justify-between gap-4 p-5">
+            <div>
+              <p className="text-sm font-semibold text-navy-900">Staff, salaries and company expenses live in Reports → Expenses</p>
+              <p className="text-xs text-navy-500">Add office staff and their pay, record each month&rsquo;s salary, log and re-file expenses. Owner drawings are kept out of profit.</p>
             </div>
             <span className="text-sm font-semibold text-brand-600">Open →</span>
           </Link>

@@ -32,6 +32,7 @@ import PageHeader from "@/components/PageHeader";
 import InvoiceArchive from "@/components/InvoiceArchive";
 
 const TABS = [
+  { key: "new", label: "What's new", icon: FiBell },
   { key: "workflow", label: "Full workflow", icon: FiActivity },
   { key: "guide", label: "User guide", icon: FiBookOpen },
   { key: "templates", label: "Document templates", icon: FiFileText },
@@ -83,6 +84,7 @@ export default function HelpPage() {
           </div>
         </div>
 
+        {tab === "new" && <WhatsNew />}
         {tab === "workflow" && <WorkflowGuide />}
         {tab === "guide" && <UserGuide />}
         {tab === "templates" && <DocTemplates />}
@@ -198,6 +200,38 @@ function WorkflowGuide() {
   );
 }
 
+/* ---------- What's new ---------- */
+// Plain-English changes the team should know about, newest first. Add to the
+// top when something changes how people work.
+const CHANGES = [
+  { when: "October 2026", items: [
+    "Expenses are grouped (Staff, Cost of jobs, Running costs, Bank & money) and owner drawings are kept out of profit. Old expenses can be re-filed in one go.",
+    "Staff & salaries in Reports → Expenses: record each person's pay every month.",
+    "Tasks go to agents only; admins supervise and can take over. Undo after ticking done; 'Remove' for tasks that shouldn't exist.",
+    "Your dashboard lists only what's due today or late.",
+    "Changing a quote's services or total asks first. If the client already has it, you're offered 'Send corrected quote'.",
+    "Never put a price in a WhatsApp message — the price is only in the emailed quote.",
+    "New saved replies: corrected quote, gentle follow-up, visit tomorrow, no access, payment received, renewal due.",
+    "Jobs → Needs doing → 'Not touched for 7+ days' finds forgotten jobs.",
+    "The job's Communication panel says who spoke last and whether the client is waiting on us.",
+  ] },
+];
+
+function WhatsNew() {
+  return (
+    <div className="space-y-4">
+      {CHANGES.map((c) => (
+        <div key={c.when} className="card p-5">
+          <h3 className="mb-3 text-sm font-bold text-navy-900">{c.when}</h3>
+          <ul className="list-disc space-y-1.5 pl-5 text-sm text-navy-700">
+            {c.items.map((t) => <li key={t}>{t}</li>)}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ---------- User guide ---------- */
 function UserGuide() {
   const sections = [
@@ -229,7 +263,7 @@ function UserGuide() {
       steps: [
         "Dispatch is your daily hub — pick a day from the mini calendar; each engineer has a column.",
         "Drag a job card between engineers to reassign it. Days with jobs show a green dot.",
-        "Manage your engineers in Settings → Engineers: add their grade, postcode/areas, services covered, their % cut (LCL standard 40%) and whether they're VAT registered.",
+        "Manage your engineers on the Engineers page: their postcode/areas, services covered, pay and whether they're VAT registered.",
         "If an engineer is VAT registered, 20% VAT is added on top of their share (the customer invoice is never affected) — shown on each job's Financials and in Reports.",
         "Switch Dispatch to the Week view to see every engineer's whole week at a glance (engineers as rows, days as columns).",
         "On a job with several services you can assign a different engineer to each line.",
@@ -240,7 +274,8 @@ function UserGuide() {
       title: "Quotes, invoices & payment",
       steps: [
         "On a job, 'Quote' makes a branded quote PDF (valid 30 days). 'Invoice' makes the invoice with bank details and an auto-incrementing number.",
-        "When a client accepts a quote, click 'Accept quote' to move it to Scheduled.",
+        "When a client accepts — online through their link, or by phone/WhatsApp — the quote card's 'Client accepted' records it. The job isn't booked until an engineer has confirmed the date.",
+        "Changing the services or total of a quote always asks first and lists exactly what will change. If the client already has the quote, the app offers to send the corrected one.",
         "Mark a job invoiced/paid in the Payment panel. Upload a screenshot of the client's payment as proof.",
         "Bank transfer (BACS) details and the job reference are shown for the client to pay.",
         "Waiving a parking or congestion charge keeps the original amount visible on the invoice, struck through and marked 'Discounted', but it adds £0 to the total.",
@@ -261,9 +296,9 @@ function UserGuide() {
       title: "Renewal reminders",
       steps: [
         "When you mark a job completed/paid, its certificate expiry is worked out automatically — or auto-read from an uploaded certificate PDF.",
-        "The Dashboard's 'Certificate renewals' panel lists certs expiring within 60 days. Use 'Remind' per client or 'Send all' to bulk-send.",
+        "Certificates coming up for renewal are picked up by the renewal outreach (Prospects) and the saved WhatsApp reply 'Certificate renewal due'.",
         "Recurring jobs: on a completed job you can auto-create next year's job at cert expiry, so annual renewals never slip.",
-        "The Dashboard also flags overdue invoices (invoiced & unpaid 7+ days) with one-click payment chasers.",
+        "Unpaid invoices show as a next step on the job ('Chase payment') and in the weekly email of who owes what.",
       ],
     },
     {
@@ -272,7 +307,7 @@ function UserGuide() {
       steps: [
         "Choose Day / Week / Month / Year and step through time. The headline cards show Revenue, Collected, Net Profit (after engineer costs) and Avg job value.",
         "The P&L breakdown shows: Gross Revenue → minus Engineer Costs → Net after engineers → minus Company Expenses → True Net Profit with margin %.",
-        "Add company expenses (phone bills, salaries, software, domain, insurance etc.) with a category and date. Mark recurring expenses and they appear in every period automatically.",
+        "Company expenses are on the Expenses tab — see 'Expenses, salaries & owner drawings' below.",
         "The Engineer pay table shows each engineer's revenue share, labour cut, VAT (if registered) and parking reimbursements — with a totals row.",
         "Switch to the Pipeline tab for quote→booked→paid conversion rates and your top services.",
       ],
@@ -293,7 +328,7 @@ function UserGuide() {
       title: "Logins, access & security",
       steps: [
         "Sign in with your username (e.g. 'mark') or email — both work. Google Sign-In is also available on the login screen.",
-        "Admins see everything. Agents (engineers) see only Dispatch and Jobs — no Dashboard, Reports, Clients, Engineers or Settings.",
+        "Admins see everything. Agents are office staff — they see what their permissions allow (set per person in Settings → Users & access). Engineers sign in to their own portal: only their jobs, the map and their pay.",
         "New logins from an unknown device or IP automatically trigger a security alert email to your account.",
         "Admins manage users in Settings → Users & access: add name, username, email, role and password. Upload a profile photo from the Edit button.",
         "Give an engineer the same email on their login and their Engineer record to restrict them to their own jobs only.",
@@ -304,9 +339,33 @@ function UserGuide() {
       title: "Engineers section",
       steps: [
         "The Engineers section (sidebar) shows your full roster with type, trade, contact, % cut, VAT status, jobs completed and revenue.",
-        "Add or edit engineers directly here — no need to go into Settings. Set their cut % (default 40%) and tick VAT registered if they charge VAT on their share.",
+        "Add or edit engineers here. Set their pay and tick VAT registered if they charge VAT on their share (internal only — never shown to clients).",
         "Revenue and job counts update automatically from completed/invoiced/paid jobs assigned to each engineer.",
         "To scope an engineer to their own jobs only: use the same email address for their login account and their Engineer record.",
+      ],
+    },
+    {
+      icon: FiUsers,
+      title: "Tasks & team",
+      steps: [
+        "The app raises a task whenever a job needs something (reply, quote, book, chase payment…) and closes it by itself when the job moves on.",
+        "Automatic tasks go to agents only. Admins supervise: they see everyone's list on Team → People and get a push when a task is left too long.",
+        "If an agent doesn't pick a task up in time it moves to another agent once; after that it is flagged 'Left too long' and an admin can 'Take over' (the agent is told).",
+        "Ticking a task done only closes the task — it never changes the job. 'Undo' appears for 8 seconds; 'Reopen' is in the task.",
+        "'Remove' is for a task that shouldn't exist. An automatic one stays away unless the job changes.",
+        "Dashboards list only what is due today or late. Reminder options: one notification; daily until done; or aggressive — straight away, then about 9am, 3pm and 7pm each day.",
+        "Admins can give a task to anyone; agents add tasks to their own list. Search for the job by client name, postcode or address.",
+      ],
+    },
+    {
+      icon: FiDollarSign,
+      title: "Expenses, salaries & owner drawings",
+      steps: [
+        "Reports → Expenses. Every expense is filed in a group: Staff, Cost of jobs, Running costs, Bank & money, Other — the category is suggested from the name as you type.",
+        "Owner drawings (personal money taken out) are listed but NOT counted as a business cost or taken off profit.",
+        "Staff & salaries: add each office person on salary with their monthly or weekly pay, then 'Record salary' each month — it becomes a Staff salaries expense and the month shows who is still to be paid.",
+        "A monthly expense counts from the month of its date until the month it was stopped ('Stopped after'). Old entries under the previous category names can be re-filed in one go.",
+        "CSV downloads the period's expenses for the accountant. Engineers are paid per job in Engineer pay, not here.",
       ],
     },
   ];

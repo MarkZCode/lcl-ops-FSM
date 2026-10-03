@@ -14,7 +14,10 @@ export async function POST(request) {
     return NextResponse.json({ skipped: true, reason: "Push not configured" });
   }
 
-  const { assigneeId, title, taskId, priority } = await request.json().catch(() => ({}));
+  // `heading` replaces the default "X gave you a task" (e.g. "Zain took over
+  // a task of yours"); such a heads-up isn't a reminder, so it doesn't stamp
+  // lastRemindedAt.
+  const { assigneeId, title, taskId, priority, heading } = await request.json().catch(() => ({}));
   if (!title) return NextResponse.json({ error: "Missing title" }, { status: 400 });
 
   // Load the full task so we can deep-link to its linked FSM record if any.
@@ -29,7 +32,7 @@ export async function POST(request) {
   const { data: subs } = await query;
 
   const payload = {
-    title: assigneeId
+    title: heading ? String(heading).slice(0, 80) : assigneeId
       ? `${priority === "urgent" ? "Urgent — " : ""}${task?.createdBy?.name && task.createdBy.id !== "system" ? `${String(task.createdBy.name).split("@")[0]} gave you a task` : "New task for you"}`
       : "New team task",
     body: task?.linkedTo?.label ? `${title} · ${task.linkedTo.label}` : title,
@@ -49,7 +52,7 @@ export async function POST(request) {
   // Stamp lastRemindedAt so the reminder cron treats the assignment push as
   // today's notification for this task — avoids double-pinging the assignee
   // if the digest runs shortly after they were just assigned it.
-  if (taskId) {
+  if (taskId && !heading) {
     const { data: row } = await supabaseAdmin.from("tasks").select("data").eq("id", taskId).maybeSingle();
     if (row?.data) {
       const next = { ...row.data, lastRemindedAt: new Date().toISOString() };
