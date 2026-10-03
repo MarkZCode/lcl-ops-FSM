@@ -16,7 +16,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getJobLines, lineTotal } from "@/lib/format";
 import { lineSizeLabel } from "@/lib/jobCard";
-import { quoteMissing, intakeFieldsFor } from "@/lib/gates";
+import { quoteMissing, intakeFieldsFor, bookingMissing } from "@/lib/gates";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -193,16 +193,28 @@ export async function POST(request, { params }) {
     const { error: dErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: withDetails });
     if (dErr) return NextResponse.json({ error: "Couldn't send that — please call us." }, { status: 502 });
     // The address goes onto the property, but only where we had none.
-    if (address && job.clientId) {
-      const { data: cRow } = await supabaseAdmin.from("clients").select("id,data").eq("id", job.clientId).maybeSingle();
-      const c = cRow?.data;
+    const { data: cRow } = job.clientId ? await supabaseAdmin.from("clients").select("id,data").eq("id", job.clientId).maybeSingle() : { data: null };
+    let client = cRow?.data || null;
+    if (address && client) {
+      const c = client;
       const flat = (v) => String(v || "").replace(/\s/g, "").toUpperCase();
       if (c && (c.properties || []).some((p) => p.id === job.propertyId && (!flat(p.label) || flat(p.label) === flat(p.postcode)))) {
         const props = c.properties.map((p) => (p.id === job.propertyId ? { ...p, label: address } : p));
         await supabaseAdmin.from("clients").upsert({ id: cRow.id, data: { ...c, properties: props } });
+        client = { ...c, properties: props };
       }
     }
-    await pushToAll({ title: "Booking details received", body: `${job.id} — the client sent their address, access and preferred date. Book it in.`, url: `/jobs/${job.id}` }, { kind: "quote_accepted" });
+    // The alert says exactly what arrived and what is still missing — never
+    // a stock sentence that claims more than the client actually sent.
+    const sent = [address && "address", certName && "name for the certificate", (accessName || accessPhone) && "access contact", date && "preferred date", answered.length && "property details"].filter(Boolean);
+    const property = (client?.properties || []).find((p) => p.id === job.propertyId) || null;
+    const still = [...bookingMissing(withDetails, { client, property }), ...quoteMissing(withDetails, { client, property }, { all: true }).filter((m) => m.key !== "address" && m.key !== "name" && m.key !== "postcode")].map((m) => m.label);
+    const list = (a) => (a.length > 1 ? `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}` : a[0] || "");
+    await pushToAll({
+      title: still.length ? "Client sent some details" : "Booking details complete",
+      body: `${job.id} — client sent: ${list(sent)}.${still.length ? ` Still missing: ${list(still)}.` : " Everything needed is in — book it."}`,
+      url: `/jobs/${job.id}`,
+    }, { kind: "quote_accepted" });
     await runTaskSync({ force: true });
     return NextResponse.json({ ok: true, detailsSentAt: at });
   }

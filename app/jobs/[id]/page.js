@@ -1616,13 +1616,13 @@ export default function JobDetailPage() {
             <ActivityThread job={job} client={client} />
           </div>
 
-          {/* Change history — who changed the price, date, engineer or status */}
+          {/* Change history — who changed the price, date, engineer, status or services */}
           {(job.changeLog || []).length > 0 && (
             <details className="card p-5" hidden={!on("messages")}>
               <summary className="cursor-pointer section-label text-sm">Change history ({job.changeLog.length})</summary>
               <ul className="mt-3 space-y-2 text-xs">
                 {[...job.changeLog].reverse().slice(0, 60).map((c, i) => {
-                  const label = { price: "Price", discount: "Discount", status: "Status", engineerId: "Engineer", scheduledAt: "Appointment" }[c.field] || c.field;
+                  const label = { price: "Price", discount: "Discount", status: "Status", engineerId: "Engineer", scheduledAt: "Appointment", services: "Services" }[c.field] || c.field;
                   const show = (v) => (c.field === "engineerId" ? (v === "unassigned" ? "unassigned" : engineerById(v)?.name || v) : c.field === "status" ? statusMeta(v)?.label || v : v);
                   return (
                     <li key={i} className="border-b border-navy-100 pb-2 last:border-0">
