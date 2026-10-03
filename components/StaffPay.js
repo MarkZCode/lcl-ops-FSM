@@ -7,13 +7,23 @@
 // P&L like any other cost and the month shows who has and hasn't been paid.
 // The staff list is its own settings row (`staff`) — engineers are paid
 // per job in Engineer pay, not here.
+//
+// Everyone with an office login (anyone who isn't an engineer) shows up here
+// by themselves — Oscar, Lisa, any account made later — so nobody has to be
+// typed in twice. Their row just needs the pay filling in; someone who isn't
+// on a salary (the owner, say) can be marked "Not on salary" to tuck away.
 import { useEffect, useMemo, useState } from "react";
-import { FiPlus, FiEdit2, FiCheckCircle, FiX, FiUserMinus } from "react-icons/fi";
+import { FiPlus, FiEdit2, FiCheckCircle, FiX, FiUserMinus, FiEyeOff } from "react-icons/fi";
 import { supabase } from "@/lib/supabase";
 import { gbp } from "@/lib/format";
 import { toast } from "@/lib/toast";
 
-const blank = { name: "", role: "", salary: "", frequency: "monthly", payDay: "", startDate: "" };
+async function authedFetch(url) {
+  const { data } = (await supabase?.auth.getSession()) || {};
+  return fetch(url, { headers: { Authorization: `Bearer ${data?.session?.access_token || ""}` } });
+}
+
+const blank = { name: "", role: "", salary: "", frequency: "monthly", payDay: "", startDate: "", userId: "" };
 const ukToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
 const ord = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th"}`;
 const monthLabel = (k) => new Date(`${k}-15T12:00:00Z`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
@@ -24,6 +34,12 @@ export default function StaffPay({ expenses = [], addExpense, removeExpense }) {
   const [editing, setEditing] = useState(null); // id | "new"
   const [form, setForm] = useState(blank);
   const [month, setMonth] = useState(ukToday().slice(0, 7));
+  const [accounts, setAccounts] = useState([]);
+  const [showHidden, setShowHidden] = useState(false);
+
+  useEffect(() => {
+    authedFetch("/api/team/list").then((r) => r.json()).then((d) => setAccounts(Array.isArray(d?.users) ? d.users : [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!supabase) { setLoaded(true); return; }
@@ -45,7 +61,7 @@ export default function StaffPay({ expenses = [], addExpense, removeExpense }) {
     const salary = Number(form.salary);
     if (!form.name.trim() || !(salary > 0)) return;
     const row = { ...form, name: form.name.trim(), role: form.role.trim(), salary, payDay: form.payDay ? Number(form.payDay) : "" };
-    if (editing === "new") persist([...staff, { ...row, id: "st-" + Date.now().toString(36), active: true }]);
+    if (editing === "new" || String(editing).startsWith("acct:")) persist([...staff, { ...row, id: "st-" + Date.now().toString(36), active: true }]);
     else persist(staff.map((s) => (s.id === editing ? { ...s, ...row } : s)));
     setEditing(null);
   };
@@ -60,8 +76,21 @@ export default function StaffPay({ expenses = [], addExpense, removeExpense }) {
     return m;
   }, [expenses, month]);
 
+  // Office accounts that don't have a staff row yet. Matched by account id,
+  // or by name for rows typed in by hand before this existed.
+  const lc = (v) => String(v || "").trim().toLowerCase();
+  const linked = (a) => staff.find((s) => s.userId === a.id || (!s.userId && lc(s.name) === lc(a.name)));
+  const pending = accounts.filter((a) => !linked(a));
+  const hidden = staff.filter((s) => s.noSalary);
+  // A linked row follows the account's current name (renamed in Settings →
+  // Users, it changes here too).
+  const nameOf = (s) => { const a = s.userId && accounts.find((x) => x.id === s.userId); return a && !/@/.test(a.name) ? a.name : s.name; };
+  const roleLabel = (r) => (r === "admin" ? "Admin" : "Office agent");
+  const setUp = (a) => { setEditing(`acct:${a.id}`); setForm({ ...blank, name: /@/.test(a.name) ? "" : a.name, role: roleLabel(a.role), userId: a.id }); };
+  const notOnSalary = (a) => persist([...staff, { id: "st-" + Date.now().toString(36), userId: a.id, name: a.name, noSalary: true, active: true }]);
+
   const due = (s) => (s.frequency === "weekly" ? Math.round(s.salary * 52 / 12 * 100) / 100 : s.salary);
-  const active = staff.filter((s) => s.active !== false);
+  const active = staff.filter((s) => s.active !== false && !s.noSalary);
   const totalDue = active.reduce((t, s) => t + due(s), 0);
   const totalPaid = active.reduce((t, s) => t + (paidIn.get(s.id) || []).reduce((a, e) => a + (Number(e.amount) || 0), 0), 0);
 
@@ -119,10 +148,26 @@ export default function StaffPay({ expenses = [], addExpense, removeExpense }) {
 
       {!loaded ? (
         <p className="p-6 text-center text-sm text-navy-400">Loading…</p>
-      ) : !active.length ? (
+      ) : !active.length && !pending.length ? (
         <p className="p-6 text-center text-sm text-navy-400">No staff added yet. Add each person on salary (not engineers — they&rsquo;re paid per job) and record their pay here each month.</p>
       ) : (
         <>
+          {pending.length > 0 && (
+            <ul className="divide-y divide-amber-100 border-b border-amber-100 bg-amber-50/40 dark:bg-amber-500/5">
+              {pending.map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                  <div className="min-w-0 flex-1 basis-48">
+                    <p className="truncate text-sm font-semibold text-navy-900">{a.name}<span className="font-normal text-navy-500"> · {roleLabel(a.role)}</span></p>
+                    <p className="text-xs text-amber-700">Has an FSM login — no pay set yet</p>
+                  </div>
+                  <span className="flex shrink-0 gap-1.5">
+                    <button className="btn-primary py-1 text-xs" onClick={() => setUp(a)}>Set pay</button>
+                    <button className="btn-outline py-1 text-xs" title="Not paid a salary (e.g. the owner) — hides this row" onClick={() => notOnSalary(a)}><FiEyeOff /> Not on salary</button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
           <ul className="divide-y divide-navy-100">
             {active.map((s) => {
               const paid = paidIn.get(s.id) || [];
@@ -131,7 +176,7 @@ export default function StaffPay({ expenses = [], addExpense, removeExpense }) {
               return (
                 <li key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-navy-900">{s.name}{s.role ? <span className="font-normal text-navy-500"> · {s.role}</span> : null}</p>
+                    <p className="truncate text-sm font-semibold text-navy-900">{nameOf(s)}{s.role ? <span className="font-normal text-navy-500"> · {s.role}</span> : null}</p>
                     <p className="text-xs text-navy-500">{gbp(s.salary)} {s.frequency === "weekly" ? "a week" : "a month"}{s.payDay ? ` · paid on the ${ord(Number(s.payDay))}` : ""}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${owed === 0 ? "bg-brand-50 text-brand-700" : "bg-amber-50 text-amber-700"}`}>
@@ -146,6 +191,23 @@ export default function StaffPay({ expenses = [], addExpense, removeExpense }) {
               );
             })}
           </ul>
+          {hidden.length > 0 && (
+            <div className="border-t border-navy-100 px-5 py-2 text-xs text-navy-500">
+              <button className="font-semibold text-brand-600" onClick={() => setShowHidden((v) => !v)}>
+                {showHidden ? "Hide" : "Show"} {hidden.length} not on salary
+              </button>
+              {showHidden && (
+                <ul className="mt-2 space-y-1">
+                  {hidden.map((s) => (
+                    <li key={s.id} className="flex items-center gap-2">
+                      <span className="flex-1">{s.name}</span>
+                      <button className="font-semibold text-brand-600" onClick={() => persist(staff.filter((x) => x.id !== s.id))}>Put back</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           <p className="border-t border-navy-100 px-5 py-3 text-xs text-navy-500">
             {monthLabel(month)}: <strong className="text-navy-800">{gbp(totalPaid)}</strong> paid of <strong className="text-navy-800">{gbp(totalDue)}</strong> in salaries{totalDue - totalPaid > 0.005 ? ` · ${gbp(totalDue - totalPaid)} still to pay` : " · everyone paid"}.
           </p>
