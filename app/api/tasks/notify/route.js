@@ -5,7 +5,27 @@
 import { NextResponse } from "next/server";
 import { requireUser, supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendPush, webPushConfigured } from "@/lib/webPush";
-import { taskDeepLink } from "@/lib/tasks";
+import { taskDeepLink, daysUntilDue } from "@/lib/tasks";
+
+const looksLikeEmail = (v) => /@|^[a-z0-9._-]{12,}$/i.test(String(v || "").trim()) && !/\s/.test(String(v || "").trim());
+
+// The person who gave the task, by their NAME. Tasks store whatever the app
+// knew at the time, which for an account with no name set was the email —
+// so the notification read "businessforzainsajjad gave yo…". Look the name
+// up now; if there still isn't a real one, leave the sender out rather
+// than show an email.
+async function senderName(createdBy) {
+  if (!createdBy || createdBy.id === "system") return null;
+  let name = createdBy.name;
+  if (looksLikeEmail(name) && createdBy.id) {
+    try {
+      const { data } = await supabaseAdmin.auth.admin.getUserById(createdBy.id);
+      name = data?.user?.user_metadata?.name || name;
+    } catch {}
+  }
+  name = String(name || "").trim();
+  return name && !looksLikeEmail(name) ? name.split(/\s+/)[0] : null;
+}
 
 export async function POST(request) {
   const user = await requireUser(request);
@@ -31,12 +51,23 @@ export async function POST(request) {
   if (assigneeId) query = query.eq("user_id", assigneeId);
   const { data: subs } = await query;
 
+  // Short and readable on a lock screen: who it's from in the title, what
+  // to do first in the body, then who/which job and when it's due. Android
+  // cuts the title at ~35 characters, so the long bit never goes there.
+  const from = assigneeId && !heading ? await senderName(task?.createdBy) : null;
+  const urgent = priority === "urgent";
+  const d = task ? daysUntilDue(task) : null;
+  const due = d == null ? "" : d < 0 ? `${Math.abs(d)} day${d === -1 ? "" : "s"} overdue` : d === 0 ? "due today" : d === 1 ? "due tomorrow" : "";
+  const what = String(title).trim().replace(/^./, (c) => c.toUpperCase());
   const payload = {
-    title: heading ? String(heading).slice(0, 80) : assigneeId
-      ? `${priority === "urgent" ? "Urgent — " : ""}${task?.createdBy?.name && task.createdBy.id !== "system" ? `${String(task.createdBy.name).split("@")[0]} gave you a task` : "New task for you"}`
-      : "New team task",
-    body: task?.linkedTo?.label ? `${title} · ${task.linkedTo.label}` : title,
+    title: heading
+      ? String(heading).slice(0, 80)
+      : assigneeId
+        ? `${urgent ? "Urgent task" : "New task"}${from ? ` from ${from}` : " for you"}`
+        : "New team task",
+    body: [what, task?.linkedTo?.label, due].filter(Boolean).join(" · "),
     url: taskDeepLink(task || (taskId ? { id: taskId } : null)),
+    actions: [{ action: "open", title: "Open task" }],
   };
 
   let sent = 0;

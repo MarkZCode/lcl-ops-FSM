@@ -3,7 +3,7 @@
 // Next.js JS/CSS chunks are NOT cached here — Vercel CDN + content-hash
 // filenames handle that. Caching chunks caused stale-chunk loops after
 // redeployments (old cached files served forever).
-const CACHE_VERSION = "lcl-ops-v162";
+const CACHE_VERSION = "lcl-ops-v163";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline";
 
@@ -88,7 +88,11 @@ self.addEventListener("push", (event) => {
       await self.registration.showNotification(payload.title, {
         body: payload.body,
         icon: "/icon-192.png",
-        badge: "/favicon-32.png",
+        // Android draws the badge in the status bar as a white silhouette —
+        // a full-colour favicon came out as a blank blob.
+        badge: "/badge-96.png",
+        // A button of our own replaces Chrome's bare "SITE SETTINGS" row.
+        ...(Array.isArray(payload.actions) ? { actions: payload.actions.slice(0, 2) } : {}),
         // A unique tag per push: one shared tag made every new push REPLACE
         // the previous one, and some browsers skip re-alerting on a replace.
         tag: `lcl-${Date.now()}`,
