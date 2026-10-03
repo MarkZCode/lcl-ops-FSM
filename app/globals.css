@@ -1505,20 +1505,23 @@ html { background-color: var(--surface-page); }
    the blur at all (seen on an Oppo A5s — the page showed straight through
    the tab bar, text and all). Solid surfaces there, no blur to fail. */
 html[data-android] .glass-bar {
-  background: rgba(255, 255, 255, 0.97);
+  background: #ffffff;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
-html[data-android].dark .glass-bar { background: rgba(28, 28, 30, 0.97); }
+html[data-android].dark .glass-bar { background: #1c1c1e; }
 html[data-android] .glass-bar::before { display: none; }
-html[data-android] .glass-pill { background: rgba(13, 134, 10, 0.10); }
-html[data-android].dark .glass-pill { background: rgba(255, 255, 255, 0.14); }
+html[data-android] .glass-pill { background: #e7f3e6; }
+html[data-android].dark .glass-pill { background: #34343a; }
 html[data-android] .backdrop-blur,
 html[data-android] .backdrop-blur-sm,
 html[data-android] .backdrop-blur-md {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
 }
+/* The phone top bar (Sidebar.js) is 85% opaque by inline style and leaned on
+   the blur for the rest. */
+html[data-android] .backdrop-blur-md { background-color: var(--surface-card) !important; }
 
 
 /* The tab bar steps aside while the menu is open, so nothing in the menu is
