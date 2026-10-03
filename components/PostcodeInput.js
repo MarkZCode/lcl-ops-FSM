@@ -11,20 +11,22 @@ export default function PostcodeInput({ value, onChange, onPick, className = "in
   const [options, setOptions] = useState([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  const [busy, setBusy] = useState(false);
   const seq = useRef(0);
   const boxRef = useRef(null);
 
   useEffect(() => {
     const q = String(value || "").trim();
-    if (!open || q.replace(/\s/g, "").length < 2) { setOptions([]); return; }
+    if (!open || q.replace(/\s/g, "").length < 2) { setOptions([]); setBusy(false); return; }
     const mine = ++seq.current;
+    setBusy(true);
     const t = setTimeout(async () => {
       try {
         const r = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(q)}/autocomplete?limit=8`);
         const d = await r.json();
-        if (mine === seq.current) { setOptions(Array.isArray(d?.result) ? d.result : []); setActive(-1); }
+        if (mine === seq.current) { setOptions(Array.isArray(d?.result) ? d.result : []); setActive(-1); setBusy(false); }
       } catch {
-        if (mine === seq.current) setOptions([]);
+        if (mine === seq.current) { setOptions([]); setBusy(false); }
       }
     }, 180);
     return () => clearTimeout(t);
@@ -64,6 +66,15 @@ export default function PostcodeInput({ value, onChange, onPick, className = "in
         aria-expanded={open && options.length > 0}
         aria-autocomplete="list"
       />
+      {/* Before there's a list, say how it works — the box looked like a
+          plain text field and nobody knew postcodes could be picked. */}
+      {open && !options.length && (() => {
+        const typed = String(value || "").replace(/\s/g, "").length;
+        const exact = /^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i.test(String(value || "").trim());
+        if (exact) return null;
+        const msg = typed < 2 ? "Start typing the postcode — e.g. SE10 9 — then pick it from the list" : busy ? "Looking up postcodes…" : "No postcode starts like that — check it";
+        return <p className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-navy-200 bg-white px-3 py-2 text-xs text-navy-500 shadow-lg dark:bg-[#141414]">{msg}</p>;
+      })()}
       {open && options.length > 0 && (
         <ul role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-navy-200 bg-white py-1 text-sm shadow-lg dark:bg-[#141414]">
           {options.map((pc, i) => (
