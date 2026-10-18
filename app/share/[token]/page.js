@@ -314,9 +314,17 @@ export default function SharePage() {
         )}
 
         {/* On the day */}
-        {(job.onTheWay || job.runningLate) && (
+        {(job.onTheWay || job.runningLate || job.arrived || job.status === "completed") && (
           <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
-            {job.runningLate ? <>Your engineer is running about <strong>{job.runningLate} minutes</strong> late. Sorry for the wait.</> : <><strong>Your engineer is on the way.</strong> Please make sure someone is there to let them in.</>}
+            {job.arrived ? (
+              <p><strong>Your engineer is on site</strong> carrying out the inspection.</p>
+            ) : job.status === "completed" ? (
+              <p><strong>Inspection completed.</strong> Your certificate and report are being prepared by the office.</p>
+            ) : job.runningLate ? (
+              <p>Your engineer is running about <strong>{job.runningLate} minutes</strong> late. Sorry for the wait.</p>
+            ) : (
+              <p><strong>Your engineer is on the way.</strong> Please make sure someone is there to let them in.</p>
+            )}
           </div>
         )}
 

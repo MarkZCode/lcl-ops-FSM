@@ -27,15 +27,21 @@ export default function EngineerPortal() {
   const [month, setMonth] = useState(() => new Date());
   const [mapDay, setMapDay] = useState("");
 
-  const load = useCallback(async (m) => {
+  const [selectedEngId, setSelectedEngId] = useState("");
+  const load = useCallback(async (m, engId) => {
     setError("");
     try {
       const { data: s } = (await supabase?.auth.getSession()) || {};
-      const r = await fetch(`/api/portal?month=${format(m, "yyyy-MM")}`, { cache: "no-store", headers: { Authorization: `Bearer ${s?.session?.access_token || ""}` } });
+      const params = new URLSearchParams({ month: format(m, "yyyy-MM") });
+      const targetEng = engId !== undefined ? engId : selectedEngId;
+      if (targetEng) params.set("engineerId", targetEng);
+      const r = await fetch(`/api/portal?${params.toString()}`, { cache: "no-store", headers: { Authorization: `Bearer ${s?.session?.access_token || ""}` } });
       if (!r.ok) throw new Error(r.status === 401 ? "Please sign in again." : "Couldn't load your jobs — check your connection.");
-      setData(await r.json());
+      const json = await r.json();
+      setData(json);
+      if (json?.engineer?.id && !targetEng) setSelectedEngId(json.engineer.id);
     } catch (e) { setError(String(e.message || e)); }
-  }, []);
+  }, [selectedEngId]);
   useEffect(() => { load(month); }, [load, month]);
 
   if (error && !data) {
@@ -131,6 +137,23 @@ export default function EngineerPortal() {
       <PageHeader icon={FaHardHat} title="My jobs" subtitle={`${me.name} · ${today.length} today · ${upcoming.length} coming up`}
         actions={<button type="button" className="btn-outline" onClick={() => load(month)} aria-label="Refresh"><FiRefreshCw /></button>} />
       <div className="page space-y-5 lg:max-w-[1100px]">
+        {data.isAdmin && (data.availableEngineers || []).length > 0 && (
+          <div className="card flex flex-wrap items-center justify-between gap-3 p-3">
+            <span className="text-xs font-semibold text-navy-600">Admin view — select engineer:</span>
+            <select
+              className="input h-9 w-auto text-xs font-semibold text-navy-800"
+              value={me.id}
+              onChange={(e) => {
+                setSelectedEngId(e.target.value);
+                load(month, e.target.value);
+              }}
+            >
+              {data.availableEngineers.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="inline-flex rounded-full border border-navy-200 bg-white p-1 text-sm dark:border-white/10 dark:bg-white/[0.04]">
           {[["jobs", "My jobs"], ["map", "Map"], ["pay", "My pay"]].map(([k, label]) => (
             <button key={k} type="button" onClick={() => setTab(k)}
@@ -168,8 +191,13 @@ export default function EngineerPortal() {
               <p className="min-w-[9rem] text-center text-sm font-semibold text-navy-900">{format(month, "MMMM yyyy")}</p>
               <button type="button" className="btn-outline !px-2.5" onClick={() => setMonth((m) => addMonths(m, 1))} aria-label="Next month"><FiChevronRight /></button>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {[["Earned this month", pay.earned, "For work done in the month"], ["Paid to you", pay.paid, "Payments recorded this month"], ["Still to be paid", pay.due, "For this month's work"]].map(([label, v, sub]) => (
+            <div className={`grid grid-cols-1 gap-3 ${pay.upcoming > 0 ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+              {[
+                ["Earned this month", pay.earned, "For finished work in the month"],
+                ...(pay.upcoming > 0 ? [["Upcoming work", pay.upcoming, "Estimated for scheduled jobs"]] : []),
+                ["Paid to you", pay.paid, "Payments recorded this month"],
+                ["Still to be paid", pay.due, "For this month's work"]
+              ].map(([label, v, sub]) => (
                 <div key={label} className="card p-4">
                   <p className="text-xs font-semibold text-navy-500">{label}</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums text-navy-900">{gbp(v)}</p>
@@ -191,7 +219,7 @@ export default function EngineerPortal() {
                       </span>
                       <span className="shrink-0 text-right">
                         <span className="block font-bold tabular-nums text-navy-900">{gbp(d.amount)}</span>
-                        <span className={`text-[11px] font-semibold ${d.settled ? "text-brand-700" : "text-amber-700"}`}>{d.settled ? "Paid" : "Due"}</span>
+                        <span className={`text-[11px] font-semibold ${d.isUpcoming ? "text-blue-700" : d.settled ? "text-brand-700" : "text-amber-700"}`}>{d.isUpcoming ? "Upcoming" : d.settled ? "Paid" : "Due"}</span>
                       </span>
                     </li>
                   ))}

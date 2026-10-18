@@ -9,6 +9,10 @@ export const dynamic = "force-dynamic";
 export async function GET(request) {
   const user = await requireUser(request);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const data = await buildPortal(user.email, new URL(request.url).searchParams.get("month"));
+  const url = new URL(request.url);
+  const month = url.searchParams.get("month");
+  const engineerId = url.searchParams.get("engineerId");
+  const role = user.app_metadata?.role || "engineer";
+  const data = await buildPortal(user.email, month, { engineerId, role });
   return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
 }

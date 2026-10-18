@@ -35,7 +35,9 @@ function view(job, engineerById, clientPostcode) {
     .filter((sc) => sc.engineerId && sc.engineerId !== "unassigned")
     .map((sc) => {
       const v = sc.visitId ? (job.visits || []).find((x) => x.id === sc.visitId) : null;
-      const raw = v ? (v.scheduledAt ? dateLine({ ...job, ...v }) : "") : (job.scheduledAt ? dateLine(job) : "");
+      const raw = v
+        ? (v.scheduledAt ? dateLine({ ...job, ...v }) : (job.preferredDate ? `Preferred: ${dateLine({ ...job, scheduledAt: job.preferredDate })}` : ""))
+        : (job.scheduledAt ? dateLine(job) : (job.preferredDate ? `Preferred: ${dateLine({ ...job, scheduledAt: job.preferredDate })}` : ""));
       // "Tomorrow (9am–12pm) morning" → "Tomorrow, 9am–12pm (morning)"
       const when = raw.replace(/^(\S+(?: \d+ \w+)?) \((.*?)\)\s*(.*)$/, (m, day, range, part) => `${day}, ${range}${part ? ` (${part})` : ""}`);
       return {
@@ -180,7 +182,16 @@ export async function POST(req, { params }) {
   if (scopeAccepted(job, sc)) return NextResponse.json({ ok: true, already: true });
 
   const patch = setScopeConfirmed(job, sc.key, true, engineerById);
-  if (patch.engineerConfirmed && job.status === "quote") patch.status = "scheduled";
+  if (patch.engineerConfirmed) {
+    if (job.status === "quote") patch.status = "scheduled";
+    if (!job.scheduledAt && job.preferredDate) {
+      const time = job.preferredSlot === "Afternoon" ? "13:00:00.000Z" : "09:00:00.000Z";
+      patch.scheduledAt = `${job.preferredDate}T${time}`;
+      patch.windowPart = job.preferredSlot || "Morning";
+      patch.windowFrom = job.preferredSlot === "Afternoon" ? "13:00" : "08:00";
+      patch.windowTo = job.preferredSlot === "Afternoon" ? "18:00" : "13:00";
+    }
+  }
   patch.offerLog = [...(job.offerLog || []), { engineerId: sc.engineerId, key: sc.key, status: "accepted", at: now }];
   const name = engineerById(sc.engineerId)?.name || "Engineer";
   patch.activity = [

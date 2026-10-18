@@ -99,9 +99,12 @@ export async function GET(_request, { params }) {
     // still telling the client the engineer was running late.
     onTheWay: job.status === "scheduled" && !!job.onTheWayAt && Date.now() - new Date(job.onTheWayAt).getTime() < 6 * 3600_000,
     runningLate: job.status === "scheduled" && job.runningLate && Date.now() - new Date(job.runningLate.at).getTime() < 6 * 3600_000 ? job.runningLate.minutes : null,
-    // Their certificate, once the job is paid and it has been sent — the
-    // same files the office checked, never one flagged as doubtful.
-    certificates: certified ? (job.attachments || []).filter((f) => isPdf(f) && f.url && f.check?.postcode !== "missing").map((f) => ({ name: f.name, url: f.url })) : [],
+    arrived: job.status === "in_progress" || (job.visits || []).some((v) => v.status === "in_progress"),
+    completed: ["completed", "invoiced", "paid"].includes(job.status),
+    preferredDate: job.preferredDate || null,
+    preferredSlot: job.preferredSlot || null,
+    // Their certificate, once the job is paid or completed and available
+    certificates: (certified || ["completed", "invoiced", "paid"].includes(job.status)) ? (job.attachments || []).filter((f) => isPdf(f) && f.url && f.check?.postcode !== "missing").map((f) => ({ name: f.name, url: f.url })) : [],
     // Cancelled services aren't shown; a discount is its own line so the
     // list adds up to the total.
     lines: getJobLines(job).filter((l) => !l.cancelled).map((l, i) => ({
