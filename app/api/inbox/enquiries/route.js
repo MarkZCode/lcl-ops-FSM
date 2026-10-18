@@ -20,7 +20,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // Recruiting mail (engineers@) is never a customer enquiry.
-const SKIP_MAILBOXES = new Set(["engineers"]);
+// Recruiting mail (engineers@) and general info mail (info@) are never customer enquiries.
+const SKIP_MAILBOXES = new Set(["engineers", "info"]);
 
 // Several open tabs all poll; one real scan per minute per instance is plenty.
 let lastRun = 0;
