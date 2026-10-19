@@ -411,6 +411,18 @@ export default function JobDetailPage() {
     updateJob(job.id, { acceptedAt, quoteHoldUntil: null });
     toast.success(`Quote accepted. Next: ${b[0]}.`, { duration: 7000 });
   };
+  const unacceptQuote = () => {
+    if (!job) return;
+    updateJob(job.id, { acceptedAt: null, status: "quote" });
+    logActivity(job.id, { type: "status", title: "Quote un-accepted (moved back to quoting)", by: who() });
+    toast.success("Quote moved back to quoting.");
+  };
+  const clearHold = () => {
+    if (!job) return;
+    updateJob(job.id, { quoteHoldUntil: null });
+    logActivity(job.id, { type: "status", title: "Hold cleared — follow-up resumed", by: who() });
+    toast.success("Hold cleared.");
+  };
   const pinNote = () => {
     const text = window.prompt("Note to pin to the top of this job (leave empty to remove):", job.pinnedNote || "");
     if (text === null) return;
@@ -876,12 +888,18 @@ export default function JobDetailPage() {
                     Client will get back by {new Date(job.quoteHoldUntil).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} — no chasing until then.
                   </p>
                 )}
-                {stage !== "accepted" && (
+                {stage === "accepted" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button className="btn-outline py-1.5 text-xs text-navy-600" onClick={unacceptQuote}>Undo acceptance (move back to quoting)</button>
+                    {job.quoteHoldUntil && <button className="btn-outline py-1.5 text-xs text-navy-600" onClick={clearHold}>Clear hold</button>}
+                  </div>
+                ) : (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {stage === "new" && (
                       <button className="btn-outline py-1.5 text-xs" onClick={markQuoteSent}>Sent on WhatsApp / phone</button>
                     )}
                     <button className="btn-outline py-1.5 text-xs" onClick={() => setHoldOpen(true)}>Client will get back…</button>
+                    {job.quoteHoldUntil && <button className="btn-outline py-1.5 text-xs text-navy-600" onClick={clearHold}>Clear hold</button>}
                     <button className="btn-outline py-1.5 text-xs" onClick={acceptQuote}>Client accepted</button>
                     <button className="btn-outline py-1.5 text-xs text-rose-600" onClick={() => setCancelOpen(true)}>Client declined</button>
                   </div>

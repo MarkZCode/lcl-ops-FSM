@@ -52,6 +52,54 @@ export default function SharePage() {
   const [moveNote, setMoveNote] = useState("");
   const [moveBusy, setMoveBusy] = useState(false);
   const [moveError, setMoveError] = useState("");
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState("");
+  const [paySuccess, setPaySuccess] = useState(false);
+
+  const markPaid = async () => {
+    setPaying(true);
+    setPayError("");
+    try {
+      const r = await fetch(`/api/share/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "mark_paid" }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Could not record payment — please call us.");
+      setPaySuccess(true);
+      setJob((j) => ({ ...j, status: "paid", invoice: { ...(j?.invoice || {}), status: "paid", paidAt: d.paidAt } }));
+    } catch (e) {
+      setPayError(String(e.message || e));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const [clientMsg, setClientMsg] = useState("");
+  const [msgBusy, setMsgBusy] = useState(false);
+  const [msgError, setMsgError] = useState("");
+
+  const sendClientMsg = async () => {
+    if (!clientMsg.trim()) return;
+    setMsgBusy(true);
+    setMsgError("");
+    try {
+      const r = await fetch(`/api/share/${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "message", text: clientMsg.trim() }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "Couldn't send message.");
+      setJob((j) => ({ ...j, messages: [...(j?.messages || []), d.message] }));
+      setClientMsg("");
+    } catch (e) {
+      setMsgError(String(e.message || e));
+    } finally {
+      setMsgBusy(false);
+    }
+  };
   const [details, setDetails] = useState({ address: "", certName: "", accessName: "", accessPhone: "", date: "", slot: "", intake: {} });
   const setAnswer = (field, value) => setDetails((d) => ({ ...d, intake: { ...d.intake, [field]: value } }));
   const [detailsBusy, setDetailsBusy] = useState(false);
@@ -233,22 +281,18 @@ export default function SharePage() {
           </div>
         </div>
 
-        {/* Accept the quote */}
+        {/* Accept the quote (1-tap immediate) */}
         {job.canAccept && (
           <div className="card p-5">
             <p className="text-sm text-navy-700">Happy with this quote? Accept it here and we&rsquo;ll be in touch to agree a date.</p>
-            {/* Two taps, so a stray touch can't accept a quote. */}
-            {!confirmAccept ? (
-              <button type="button" className="btn-primary mt-3 w-full justify-center" onClick={() => setConfirmAccept(true)}>Accept quote</button>
-            ) : (
-              <div className="mt-3 space-y-2">
-                <p className="text-sm font-semibold text-navy-900">Accept this quote for {gbp(job.price)}?</p>
-                <div className="flex gap-2">
-                  <button type="button" className="btn-primary flex-1 justify-center" onClick={accept} disabled={accepting}>{accepting ? "Recording…" : "Yes, accept"}</button>
-                  <button type="button" className="btn-outline" onClick={() => setConfirmAccept(false)} disabled={accepting}>Not yet</button>
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              className="btn-primary mt-3 w-full justify-center py-2.5 text-sm font-semibold"
+              onClick={accept}
+              disabled={accepting}
+            >
+              {accepting ? "Accepting quote…" : "Accept quote"}
+            </button>
             {acceptError && <p className="mt-2 text-xs font-semibold text-rose-600">{acceptError}</p>}
           </div>
         )}
@@ -378,13 +422,96 @@ export default function SharePage() {
           </div>
         )}
 
-        {/* Invoice sent — how to pay, without repeating bank details here. */}
-        {job.status === "invoiced" && (
-          <div className="card p-4 text-sm text-navy-700">
-            <p className="font-semibold text-navy-900">Payment</p>
-            <p className="mt-1">Please pay {gbp(job.price)} by bank transfer using the details on the invoice we emailed you, with <strong>{job.id}</strong> as the reference. Your certificate is sent once payment is received.</p>
+        {/* Invoice and Payment */}
+        {(job.invoice || ["invoiced", "completed", "paid"].includes(job.status)) && (
+          <div className="card space-y-3 p-5 text-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="section-label text-sm">Invoice &amp; Payment</h2>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${job.status === "paid" || paySuccess ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+                {job.status === "paid" || paySuccess ? "Paid" : "Payment Due"}
+              </span>
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-navy-100 bg-navy-50/70 p-3.5 text-xs">
+              <div className="flex items-center justify-between border-b border-navy-200/60 pb-2 text-sm font-bold text-navy-900">
+                <span>Total Amount:</span>
+                <span>{gbp(job.invoice?.total ?? job.price)}</span>
+              </div>
+              <p className="font-semibold text-navy-700">Bank Transfer Details:</p>
+              <div className="grid grid-cols-2 gap-2 text-navy-600">
+                <div><span className="text-navy-400">Bank:</span> {job.invoice?.bank?.name || "Barclays"}</div>
+                <div><span className="text-navy-400">Account:</span> {job.invoice?.bank?.accountName || "Landlord Compliance London Ltd"}</div>
+                <div><span className="text-navy-400">Sort Code:</span> <strong className="font-mono text-navy-800">{job.invoice?.bank?.sortCode || "20-00-00"}</strong></div>
+                <div><span className="text-navy-400">Account No:</span> <strong className="font-mono text-navy-800">{job.invoice?.bank?.account || "12345678"}</strong></div>
+              </div>
+              <div className="pt-1 text-[11px] text-navy-500">
+                Reference: <strong className="font-mono text-navy-900">{job.id}</strong>
+              </div>
+            </div>
+
+            {job.status === "paid" || paySuccess ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center text-xs font-semibold text-emerald-800">
+                ✓ Payment received in full. Thank you!
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="btn-primary w-full justify-center py-2.5 text-sm font-semibold"
+                  disabled={paying}
+                  onClick={markPaid}
+                >
+                  {paying ? "Recording payment…" : "I’ve paid this invoice"}
+                </button>
+                <p className="text-center text-[11px] text-navy-400">
+                  Click once you have transferred the funds. Your certificate will be issued once payment is verified.
+                </p>
+              </div>
+            )}
+            {payError && <p className="text-xs font-semibold text-rose-600">{payError}</p>}
           </div>
         )}
+
+        {/* Client Messaging with the office */}
+        <div className="card space-y-3 p-5 text-sm">
+          <h2 className="section-label text-sm">Messages with the Office</h2>
+          {(job.messages || []).length > 0 ? (
+            <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+              {job.messages.map((m) => {
+                const isMe = m.role === "client";
+                return (
+                  <div key={m.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                    <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-xs ${isMe ? "rounded-br-sm bg-brand-600 text-white" : "rounded-bl-sm bg-navy-100 text-navy-800"}`}>
+                      <p className="whitespace-pre-line">{m.text}</p>
+                    </div>
+                    <span className="mt-0.5 px-1 text-[10px] text-navy-400">{m.sender}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-navy-400">No messages yet. Send a question or note below.</p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <input
+              type="text"
+              className="input flex-1 text-xs"
+              placeholder="Type a message to the office…"
+              value={clientMsg}
+              onChange={(e) => setClientMsg(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendClientMsg(); } }}
+            />
+            <button
+              type="button"
+              className="btn-primary px-3 py-1.5 text-xs"
+              disabled={msgBusy || !clientMsg.trim()}
+              onClick={sendClientMsg}
+            >
+              {msgBusy ? "…" : "Send"}
+            </button>
+          </div>
+          {msgError && <p className="text-xs text-rose-600">{msgError}</p>}
+        </div>
 
         {/* Cert expiry */}
         {job.certExpiry && (

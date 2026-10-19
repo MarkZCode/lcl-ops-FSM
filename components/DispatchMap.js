@@ -82,22 +82,38 @@ export default function DispatchMap({ stops = [], engineerView = false }) {
           document.head.appendChild(st);
         }
         const withPc = stops.filter((s) => s.postcode);
+        const neededPcs = [...new Set(withPc.map((s) => s.postcode))].filter((pc) => !PC_CACHE.has(pc));
         const [{ default: L }, res] = await Promise.all([
           import("leaflet"),
-          withPc.length
+          neededPcs.length
             ? fetch("https://api.postcodes.io/postcodes", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ postcodes: [...new Set(withPc.map((s) => s.postcode))] }),
-              }).then((r) => r.json())
+                body: JSON.stringify({ postcodes: neededPcs }),
+              }).then((r) => r.json()).catch(() => ({ result: [] }))
             : Promise.resolve({ result: [] }),
         ]);
         if (off || !el.current) return;
+        for (const r of res.result || []) {
+          if (r.result) PC_CACHE.set(r.query, [r.result.latitude, r.result.longitude]);
+        }
         const at = {};
-        for (const r of res.result || []) if (r.result) at[r.query] = [r.result.latitude, r.result.longitude];
+        for (const s of withPc) {
+          if (PC_CACHE.has(s.postcode)) at[s.postcode] = PC_CACHE.get(s.postcode);
+        }
         const placed = withPc.filter((s) => at[s.postcode]);
 
         map = L.map(el.current, { scrollWheelZoom: false, zoomSnap: 0.25 });
+        // Fix grey tile scrambling on tab change or mount
+        setTimeout(() => { if (!off && map) map.invalidateSize(); }, 150);
+        setTimeout(() => { if (!off && map) map.invalidateSize(); }, 500);
+        let ro = null;
+        if (typeof ResizeObserver !== "undefined" && el.current) {
+          ro = new ResizeObserver(() => {
+            if (!off && map) map.invalidateSize();
+          });
+          ro.observe(el.current);
+        }
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OpenStreetMap contributors" }).addTo(map);
 
         const routes = {};
@@ -163,7 +179,7 @@ export default function DispatchMap({ stops = [], engineerView = false }) {
         if (!off) setState("error");
       }
     })();
-    return () => { off = true; mapRef.current = null; if (timer) clearInterval(timer); if (map) map.remove(); };
+    return () => { off = true; mapRef.current = null; if (timer) clearInterval(timer); if (typeof ro !== "undefined" && ro) ro.disconnect(); if (map) map.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 

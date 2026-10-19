@@ -120,9 +120,15 @@ export default function IntakePanel({ job, client, property }) {
               {fields.map((f) => (
                 <div key={f.field} className={f.input === "chips" || f.input === "text" ? "sm:col-span-2" : ""}>
                   <label className="label">{f.title}</label>
-                  {f.input === "number" && (
-                    <input type="number" min="0" className="input" defaultValue={intake[f.field] ?? ""} onBlur={(e) => e.target.value !== String(intake[f.field] ?? "") && set(f.field, e.target.value === "" ? "" : Number(e.target.value))} />
-                  )}
+                  {f.input === "number" && (() => {
+                    const fallbackBeds = f.field === "bedrooms"
+                      ? (intake.bedrooms ?? (job.lineItems || []).find((l) => ["EICR", "FRA"].includes(l.code))?.bedroomCount ?? parseInt((job.lineItems || []).find((l) => ["EICR", "FRA"].includes(l.code))?.tier) ?? (property?.beds > 0 ? property.beds : ""))
+                      : "";
+                    const val = intake[f.field] ?? fallbackBeds;
+                    return (
+                      <input type="number" min="0" className="input" defaultValue={val ?? ""} onBlur={(e) => e.target.value !== String(intake[f.field] ?? "") && set(f.field, e.target.value === "" ? "" : Number(e.target.value))} />
+                    );
+                  })()}
                   {f.input === "text" && (
                     <input className="input" defaultValue={intake[f.field] || ""} onBlur={(e) => e.target.value !== (intake[f.field] || "") && set(f.field, e.target.value.trim())} />
                   )}

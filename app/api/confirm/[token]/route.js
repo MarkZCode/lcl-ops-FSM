@@ -26,31 +26,68 @@ async function load(token) {
   const { data: engRows } = await supabaseAdmin.from("engineers").select("id,data");
   const engineers = (engRows || []).map((r) => r.data).filter(Boolean);
   const engineerById = (id) => engineers.find((e) => e.id === id);
-  return { row: data, job: data.data, engineerById };
+  let client = null;
+  if (data.data.clientId) {
+    const { data: cRow } = await supabaseAdmin.from("clients").select("data").eq("id", data.data.clientId).maybeSingle();
+    client = cRow?.data || null;
+  }
+  return { row: data, job: data.data, engineerById, client };
 }
 
-function view(job, engineerById, clientPostcode) {
+function view(job, engineerById, clientPostcode, client) {
   const open = !["completed", "invoiced", "paid", "cancelled"].includes(job.status);
+  const todayUk = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+
   const scopes = confirmationScopes(job, engineerById)
     .filter((sc) => sc.engineerId && sc.engineerId !== "unassigned")
     .map((sc) => {
       const v = sc.visitId ? (job.visits || []).find((x) => x.id === sc.visitId) : null;
+      const sched = v?.scheduledAt || job.scheduledAt;
+      const schedDateUk = sched ? new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date(sched)) : "";
+      const isToday = !!schedDateUk && schedDateUk === todayUk;
+
       const raw = v
         ? (v.scheduledAt ? dateLine({ ...job, ...v }) : (job.preferredDate ? `Preferred: ${dateLine({ ...job, scheduledAt: job.preferredDate })}` : ""))
         : (job.scheduledAt ? dateLine(job) : (job.preferredDate ? `Preferred: ${dateLine({ ...job, scheduledAt: job.preferredDate })}` : ""));
-      // "Tomorrow (9am–12pm) morning" → "Tomorrow, 9am–12pm (morning)"
       const when = raw.replace(/^(\S+(?: \d+ \w+)?) \((.*?)\)\s*(.*)$/, (m, day, range, part) => `${day}, ${range}${part ? ` (${part})` : ""}`);
       return {
         key: sc.key,
         engineer: engineerById(sc.engineerId)?.name || "Engineer",
         services: sc.sub || sc.label,
         when,
+        isToday,
         confirmed: scopeAccepted(job, sc),
         started: v ? ["in_progress", "completed"].includes(v.status) : ["in_progress", "completed"].includes(job.status),
         finished: v ? v.status === "completed" : job.status === "completed",
       };
     });
-  return { id: job.id, open, canUpload: job.status !== "cancelled", area: clientPostcode, scopes };
+
+  const anyConfirmed = scopes.some((s) => s.confirmed);
+  const property = (client?.properties || []).find((p) => p.id === job.propertyId) || null;
+  const fullAddress = property?.label || property?.address || clientPostcode || "";
+  const propertyDetails = anyConfirmed ? {
+    address: fullAddress,
+    accessName: job.accessName || property?.accessName || "",
+    accessPhone: job.accessPhone || property?.accessPhone || "",
+    accessNotes: job.accessNotes || property?.accessNotes || job.propertyNotes || job.notes || "",
+    scheduledAt: job.scheduledAt || null,
+  } : null;
+
+  return {
+    id: job.id,
+    open,
+    canUpload: job.status !== "cancelled",
+    area: clientPostcode,
+    propertyDetails,
+    scopes,
+    messages: (job.messages || []).map((m) => ({
+      id: m.id,
+      at: m.at,
+      sender: m.sender || (m.role === "engineer" ? "You" : "Office / Client"),
+      role: m.role || "office",
+      text: m.text || m.detail || "",
+    })),
+  };
 }
 
 async function postcodeArea(job) {
@@ -64,7 +101,7 @@ async function postcodeArea(job) {
 export async function GET(_req, { params }) {
   const found = await load(params?.token);
   if (!found) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(view(found.job, found.engineerById, await postcodeArea(found.job)), { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(view(found.job, found.engineerById, await postcodeArea(found.job), found.client), { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req, { params }) {
@@ -85,6 +122,39 @@ export async function POST(req, { params }) {
   }
   const now = new Date().toISOString();
   const who = engineerById(sc.engineerId)?.name || "Engineer";
+
+  // Engineer message
+  if (body.action === "message") {
+    const text = String(body.text || "").trim().slice(0, 1000);
+    if (!text) return NextResponse.json({ error: "Please enter a message." }, { status: 400 });
+    const msg = {
+      id: "msg-" + Date.now().toString(36),
+      at: now,
+      sender: who,
+      role: "engineer",
+      text,
+    };
+    const act = {
+      id: "act-" + Date.now().toString(36),
+      at: now,
+      by: who,
+      type: "note",
+      direction: "in",
+      title: `Message from ${who} (Engineer)`,
+      detail: text,
+    };
+    const next = {
+      ...job,
+      messages: [...(job.messages || []), msg],
+      activity: [...(job.activity || []), act],
+      updatedAt: now,
+    };
+    const { error: mErr } = await supabaseAdmin.from("jobs").upsert({ id: row.id, data: next });
+    if (mErr) return NextResponse.json({ error: "Couldn't send message — please call us." }, { status: 502 });
+    await pushToAll({ title: `Engineer message (${who})`, body: `${job.id}: ${text.slice(0, 100)}`, url: `/jobs/${job.id}` }, { kind: "engineer_message" });
+    await within(runTaskSync({ force: true }));
+    return NextResponse.json({ ok: true, message: msg });
+  }
 
   // ── On the day, from the same link (only once they've confirmed) ──
   if (["on_way", "location", "late", "arrived", "finished", "upload"].includes(body.action)) {
@@ -131,8 +201,17 @@ export async function POST(req, { params }) {
     if (body.action === "arrived" || body.action === "finished") {
       const done = body.action === "finished";
       const patch = visitKey
-        ? { visits: (job.visits || []).map((v) => (v.id === visitKey ? { ...v, status: done ? "completed" : "in_progress", ...(done ? { completedAt: now } : { startedAt: now }) } : v)) }
-        : done ? { status: "completed", completedAt: now } : { status: "in_progress", startedAt: now };
+        ? {
+            visits: (job.visits || []).map((v) =>
+              v.id === visitKey
+                ? { ...v, status: done ? "completed" : "in_progress", ...(done ? { completedAt: now } : { startedAt: now, arrivedAt: now }) }
+                : v
+            ),
+            ...(done ? {} : { engineerArrivedAt: now }),
+          }
+        : done
+        ? { status: "completed", completedAt: now }
+        : { status: "in_progress", startedAt: now, engineerArrivedAt: now };
       if (!(await save(patch, done ? `${who} finished on site${sc.sub ? ` — ${sc.sub}` : ""}` : `${who} arrived on site`))) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
       await pushToAll({ title: done ? "Engineer finished" : "Engineer arrived", body: `${who} ${done ? "has finished" : "is on site at"} ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` }, { kind: "engineer_progress" });
       await within(runTaskSync({ force: true }));
@@ -149,7 +228,7 @@ export async function POST(req, { params }) {
     const { error: upErr } = await supabaseAdmin.storage.from(JOB_FILES_BUCKET).upload(path, Buffer.from(base64, "base64"), { contentType, upsert: false });
     if (upErr) return NextResponse.json({ error: "Upload failed — please send it to the office instead." }, { status: 502 });
     const { data: pub } = supabaseAdmin.storage.from(JOB_FILES_BUCKET).getPublicUrl(path);
-    const file = { id: "att-" + Date.now().toString(36), name: safe, type: contentType, size: Math.round(base64.length * 0.75), url: pub.publicUrl, path, addedAt: now, by: who, fromEngineer: true };
+    const file = { id: "att-" + Date.now().toString(36), name: safe, type: contentType, category: body.category || (contentType === "application/pdf" ? "certificate" : "evidence"), size: Math.round(base64.length * 0.75), url: pub.publicUrl, path, addedAt: now, by: who, fromEngineer: true };
     if (!(await save({ attachments: [file, ...(job.attachments || [])] }, `${who} uploaded ${safe}`))) return NextResponse.json({ error: "Couldn't save that — please send it to the office." }, { status: 502 });
     await pushToAll({ title: "Certificate uploaded", body: `${who} uploaded a document for ${job.id} — check it and send it.`, url: `/jobs/${job.id}` }, { kind: "engineer_progress" });
     await within(runTaskSync({ force: true }));
