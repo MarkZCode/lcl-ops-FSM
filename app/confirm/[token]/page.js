@@ -141,6 +141,10 @@ export default function ConfirmPage() {
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Something went wrong — please message the office.");
       setDone((x) => ({ ...x, [key]: true }));
+      setNote("Job declined. The office has been notified and this job is removed from your schedule. Returning to Engineer Portal…");
+      setTimeout(() => {
+        window.location.href = "/portal";
+      }, 1200);
       await load();
     } catch (e) {
       setError(String(e.message || e));

@@ -241,48 +241,45 @@ export async function POST(req, { params }) {
   if (body.action === "decline") {
     const was = scopeAccepted(job, sc);
     const patch = was ? setScopeConfirmed(job, sc.key, false, engineerById) : {};
-    if (sc.key === "job") {
-      patch.engineerId = "unassigned";
-      patch.lineItems = (job.lineItems || []).map((l) =>
-        (l.engineerId === sc.engineerId || !l.engineerId || l.engineerId === "unassigned")
-          ? { ...l, engineerId: "unassigned" }
-          : l
+
+    // 1. Completely unassign line items for this engineer or scope
+    patch.lineItems = (job.lineItems || []).map((l) =>
+      (l.engineerId === sc.engineerId || l.id === sc.lineId || l.id === sc.key || (String(sc.key).startsWith("line:") && l.id === sc.key.slice(5)) || (sc.key === "job" && (!l.engineerId || l.engineerId === "unassigned")))
+        ? { ...l, engineerId: "unassigned" }
+        : l
+    );
+
+    // 2. Completely unassign visits for this engineer or scope if job has visits
+    if (Array.isArray(job.visits) && job.visits.length) {
+      patch.visits = job.visits.map((v) =>
+        (v.engineerId === sc.engineerId || `visit:${v.id}` === sc.key || v.id === sc.visitId)
+          ? { ...v, engineerId: "unassigned", engineerConfirmedAt: null, status: "pending" }
+          : v
       );
-      if (job.status === "scheduled") patch.status = "quote";
-    } else if (String(sc.key).startsWith("visit:")) {
-      const vKey = sc.key.slice(6);
-      const targetVisit = (job.visits || []).find((x) => x.id === vKey);
-      patch.visits = (patch.visits || job.visits || []).map((v) =>
-        v.id === vKey ? { ...v, engineerId: "unassigned", engineerConfirmedAt: null, status: "pending" } : v
-      );
-      if (targetVisit?.lineIds?.length) {
-        patch.lineItems = (job.lineItems || []).map((l) =>
-          targetVisit.lineIds.includes(l.id) ? { ...l, engineerId: "unassigned" } : l
-        );
-      }
-      const remainingEngVisits = (patch.visits || job.visits || []).filter(
-        (v) => v.engineerId && v.engineerId !== "unassigned" && v.status !== "cancelled"
-      );
-      if (remainingEngVisits.length === 0) {
-        patch.engineerId = "unassigned";
-        if (job.status === "scheduled") patch.status = "quote";
-      }
-    } else if (String(sc.key).startsWith("line:")) {
-      const lineId = sc.key.slice(5);
-      patch.lineItems = (job.lineItems || []).map((l) => (l.id === lineId ? { ...l, engineerId: "unassigned" } : l));
-      const remainingEngLines = (patch.lineItems || job.lineItems || []).filter(
-        (l) => l.engineerId === sc.engineerId && !isAddonCode(l.code)
-      );
-      if (remainingEngLines.length === 0 && job.engineerId === sc.engineerId) {
-        patch.engineerId = "unassigned";
-        if (job.status === "scheduled") patch.status = "quote";
-      }
     }
+
+    // 3. Reset top-level engineerId if it matches this engineer or scope was 'job'
+    if (job.engineerId === sc.engineerId || sc.key === "job") {
+      patch.engineerId = "unassigned";
+    }
+
+    // 4. Remove all card confirmations for this engineer and key
     const cards = { ...(job.cardConfirmations || {}) };
     delete cards[sc.key];
     delete cards[sc.engineerId];
+    if (sc.visitId) delete cards[`visit:${sc.visitId}`];
+    if (sc.lineId) delete cards[`line:${sc.lineId}`];
     patch.cardConfirmations = cards;
     patch.engineerConfirmed = false;
+
+    // 5. If no other assigned engineer remains on schedulable lines, revert scheduled to quote
+    const remainingAssigned = (patch.lineItems || []).filter(
+      (l) => l.engineerId && l.engineerId !== "unassigned" && !isAddonCode(l.code)
+    );
+    if (remainingAssigned.length === 0 && job.status === "scheduled") {
+      patch.status = "quote";
+    }
+
     patch.offerLog = [...(job.offerLog || []), { engineerId: sc.engineerId, key: sc.key, status: was ? "cancelled" : "declined", at: now }];
     patch.activity = [
       ...(job.activity || []),
