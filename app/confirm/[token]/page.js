@@ -99,15 +99,19 @@ export default function ConfirmPage() {
   useEffect(() => { if (token) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token]);
 
   const decline = async (key, confirmed) => {
-    const reason = window.prompt(confirmed ? "You've already confirmed this job. Why can't you do it now?" : "Not able to take it? Add a short reason (optional).");
-    if (reason === null) return;
+    const ok = window.confirm(
+      confirmed
+        ? "You've already confirmed this job. Are you sure you can't do it now? The office will be notified."
+        : "Are you sure you can't take this job? The office will be notified so another engineer can be found."
+    );
+    if (!ok) return;
     setBusy(key);
     setError("");
     try {
       const r = await fetch(`/api/confirm/${encodeURIComponent(token)}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, action: "decline", reason }),
+        body: JSON.stringify({ key, action: "decline", reason: "" }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Something went wrong — please message the office.");
@@ -151,9 +155,14 @@ export default function ConfirmPage() {
   );
   if (!data) return (
     <div className="grid min-h-screen place-items-center bg-navy-50 p-6 text-center">
-      <div>
+      <div className="max-w-sm space-y-3">
         <p className="text-lg font-bold text-navy-900">Link not found</p>
-        <p className="mt-1 text-sm text-navy-500">This job link is no longer active. Message the office if you think that&rsquo;s wrong.</p>
+        <p className="text-sm text-navy-500">This job link is no longer active. Message the office if you think that&rsquo;s wrong.</p>
+        <div className="pt-2">
+          <a href="/portal" className="btn-primary inline-flex items-center justify-center gap-2 py-2 px-4 text-xs">
+            Return to Engineer Portal →
+          </a>
+        </div>
       </div>
     </div>
   );
@@ -161,17 +170,48 @@ export default function ConfirmPage() {
   return (
     <div className="min-h-screen bg-navy-50 p-4">
       <div className="mx-auto max-w-lg space-y-4">
-        <div className="flex items-center gap-3 py-4">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white shadow-sm ring-1 ring-navy-100 dark:!bg-white">
-            <LogoMark className="h-7 w-7" variant="light" />
-          </span>
-          <div>
-            <p className="font-bold text-navy-900">Landlord Compliance London</p>
-            <p className="text-xs text-navy-500">{(data.scopes || []).some((x) => x.confirmed) ? "Your job" : "Job offer"} · {data.id}{data.area ? ` · ${data.area}` : ""}</p>
+        <div className="flex items-center justify-between py-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-white shadow-sm ring-1 ring-navy-100 dark:!bg-white">
+              <LogoMark className="h-7 w-7" variant="light" />
+            </span>
+            <div>
+              <p className="font-bold text-navy-900">Landlord Compliance London</p>
+              <p className="text-xs text-navy-500">{(data.scopes || []).some((x) => x.confirmed) ? "Your job" : "Job offer"} · {data.id}{data.area ? ` · ${data.area}` : ""}</p>
+            </div>
           </div>
+          <a href="/portal" className="flex items-center gap-1.5 rounded-lg border border-navy-200 bg-white px-3 py-1.5 text-xs font-semibold text-navy-700 shadow-sm transition hover:border-navy-300 hover:bg-navy-50">
+            <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+            Engineer Portal
+          </a>
         </div>
         {!data.open && <div className="card p-4 text-sm text-navy-600">{data.canUpload ? "This job is finished. If you haven\u2019t sent the certificate yet, upload it below." : "This job was cancelled."}</div>}
-        {data.scopes.length === 0 && <div className="card p-4 text-sm text-navy-600">{Object.keys(done).length ? "Thanks for letting us know — the office has been told." : "Nothing on this job is waiting for a confirmation."}</div>}
+        {data.scopes.length === 0 && (
+          <div className="card space-y-4 p-6 text-center">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-700">
+              <svg className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-base font-bold text-navy-900">
+                {Object.keys(done).length ? "Job offer declined" : "Nothing waiting for confirmation"}
+              </p>
+              <p className="mt-1 text-sm text-navy-600">
+                {Object.keys(done).length
+                  ? "Thanks for letting us know. The office has been notified and this job has been removed from your list."
+                  : "This job is not currently waiting for your confirmation."}
+              </p>
+            </div>
+            <div className="pt-2">
+              <a href="/portal" className="btn-primary inline-flex w-full items-center justify-center gap-2 py-2.5 text-sm sm:w-auto sm:px-6">
+                Back to Engineer Portal →
+              </a>
+            </div>
+          </div>
+        )}
         {data.scopes.map((s) => (
           <div key={s.key} className="card p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-navy-400">{s.engineer}</p>
@@ -180,6 +220,9 @@ export default function ConfirmPage() {
             {s.confirmed ? (
               <>
                 <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700">{s.finished ? "Finished — thank you." : "Confirmed — thank you. The full job card will follow."}</p>
+                <a href="/portal" className="btn-outline mt-2 inline-flex w-full items-center justify-center gap-1.5 py-2 text-xs font-semibold">
+                  View in Engineer Portal →
+                </a>
                 {/* On the day: tell the office where things are without a call. */}
                 {data.open && (
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">

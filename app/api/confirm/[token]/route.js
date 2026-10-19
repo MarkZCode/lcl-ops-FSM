@@ -162,10 +162,48 @@ export async function POST(req, { params }) {
   if (body.action === "decline") {
     const was = scopeAccepted(job, sc);
     const patch = was ? setScopeConfirmed(job, sc.key, false, engineerById) : {};
-    if (sc.key === "job") patch.engineerId = "unassigned";
-    else if (String(sc.key).startsWith("visit:")) {
-      patch.visits = (patch.visits || job.visits || []).map((v) => (`visit:${v.id}` === sc.key ? { ...v, engineerId: "unassigned", engineerConfirmedAt: null } : v));
+    if (sc.key === "job") {
+      patch.engineerId = "unassigned";
+      patch.lineItems = (job.lineItems || []).map((l) =>
+        (l.engineerId === sc.engineerId || !l.engineerId || l.engineerId === "unassigned")
+          ? { ...l, engineerId: "unassigned" }
+          : l
+      );
+      if (job.status === "scheduled") patch.status = "quote";
+    } else if (String(sc.key).startsWith("visit:")) {
+      const vKey = sc.key.slice(6);
+      const targetVisit = (job.visits || []).find((x) => x.id === vKey);
+      patch.visits = (patch.visits || job.visits || []).map((v) =>
+        v.id === vKey ? { ...v, engineerId: "unassigned", engineerConfirmedAt: null, status: "pending" } : v
+      );
+      if (targetVisit?.lineIds?.length) {
+        patch.lineItems = (job.lineItems || []).map((l) =>
+          targetVisit.lineIds.includes(l.id) ? { ...l, engineerId: "unassigned" } : l
+        );
+      }
+      const remainingEngVisits = (patch.visits || job.visits || []).filter(
+        (v) => v.engineerId && v.engineerId !== "unassigned" && v.status !== "cancelled"
+      );
+      if (remainingEngVisits.length === 0) {
+        patch.engineerId = "unassigned";
+        if (job.status === "scheduled") patch.status = "quote";
+      }
+    } else if (String(sc.key).startsWith("line:")) {
+      const lineId = sc.key.slice(5);
+      patch.lineItems = (job.lineItems || []).map((l) => (l.id === lineId ? { ...l, engineerId: "unassigned" } : l));
+      const remainingEngLines = (patch.lineItems || job.lineItems || []).filter(
+        (l) => l.engineerId === sc.engineerId && !isAddonCode(l.code)
+      );
+      if (remainingEngLines.length === 0 && job.engineerId === sc.engineerId) {
+        patch.engineerId = "unassigned";
+        if (job.status === "scheduled") patch.status = "quote";
+      }
     }
+    const cards = { ...(job.cardConfirmations || {}) };
+    delete cards[sc.key];
+    delete cards[sc.engineerId];
+    patch.cardConfirmations = cards;
+    patch.engineerConfirmed = false;
     patch.offerLog = [...(job.offerLog || []), { engineerId: sc.engineerId, key: sc.key, status: was ? "cancelled" : "declined", at: now }];
     patch.activity = [
       ...(job.activity || []),
@@ -182,6 +220,12 @@ export async function POST(req, { params }) {
   if (scopeAccepted(job, sc)) return NextResponse.json({ ok: true, already: true });
 
   const patch = setScopeConfirmed(job, sc.key, true, engineerById);
+  if (sc.key === "job") {
+    patch.engineerId = sc.engineerId;
+    patch.lineItems = (job.lineItems || []).map((l) =>
+      (!l.engineerId || l.engineerId === "unassigned") ? { ...l, engineerId: sc.engineerId } : l
+    );
+  }
   if (patch.engineerConfirmed) {
     if (job.status === "quote") patch.status = "scheduled";
     if (!job.scheduledAt && job.preferredDate) {
