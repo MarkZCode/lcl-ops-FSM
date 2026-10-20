@@ -1524,7 +1524,7 @@ export default function JobDetailPage() {
                   {job.scheduledAt ? dateLine(job) : "Not scheduled"}
                   {(() => {
                     const c = appointmentCertainty(job, blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer").length === 0);
-                    return c ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.key === "confirmed" ? "bg-brand-50 text-brand-700" : "bg-amber-100 text-amber-800"}`}>{c.label}</span> : null;
+                    return c ? <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.key === "confirmed" ? "bg-brand-50 text-brand-700 dark:bg-emerald-950/40 dark:text-emerald-200" : "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"}`}>{c.label}</span> : null;
                   })()}
                 </p>
                 {/* Moving an appointment used to mean Edit → Scheduling, which
@@ -1533,7 +1533,7 @@ export default function JobDetailPage() {
                 {job.scheduledAt && !["completed", "invoiced", "paid", "cancelled"].includes(job.status) && (
                   <button
                     onClick={() => setRescheduleOpen(true)}
-                    className="shrink-0 rounded-lg border border-navy-200 px-2 py-1 text-[11px] font-semibold text-navy-600 transition hover:border-brand-300 hover:text-brand-600"
+                    className="shrink-0 rounded-lg border border-navy-200 px-2 py-1 text-[11px] font-semibold text-navy-600 transition hover:border-brand-300 hover:text-brand-600 dark:border-white/10 dark:text-navy-300"
                     title="Move this job to another date and record why"
                   >
                     Reschedule
@@ -1541,8 +1541,18 @@ export default function JobDetailPage() {
                 )}
               </div>
               {!job.scheduledAt && (job.preferredDate || job.preferredSlot) && (
-                <p className="rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs text-brand-800">
-                  Client asked for: <strong>{[job.preferredDate && (/^\d{4}-\d{2}-\d{2}/.test(job.preferredDate) ? fmtDate(job.preferredDate) : job.preferredDate), job.preferredSlot].filter(Boolean).join(" · ")}</strong>
+                <p className="rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs text-brand-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+                  Client asked for: <strong className="dark:text-emerald-100">{[job.preferredDate && (/^\d{4}-\d{2}-\d{2}/.test(job.preferredDate) ? fmtDate(job.preferredDate) : job.preferredDate), job.preferredSlot].filter(Boolean).join(" · ")}</strong>
+                </p>
+              )}
+              {job.scheduledAt && job.preferredDate && !job.scheduledAt.startsWith(job.preferredDate) && (
+                <p className="rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                  Originally requested: {[job.preferredDate && (/^\d{4}-\d{2}-\d{2}/.test(job.preferredDate) ? fmtDate(job.preferredDate) : job.preferredDate), job.preferredSlot].filter(Boolean).join(" · ")}
+                </p>
+              )}
+              {job.clientDetailsAt && job.scheduledAt && (
+                <p className="flex items-center gap-1.5 text-xs text-brand-700 dark:text-emerald-300">
+                  <FiCheck className="text-brand-600 dark:text-emerald-400" /> Date & slot selected by client
                 </p>
               )}
               <BookingAssist job={job} client={client} property={property} onReschedule={() => setRescheduleOpen(true)} />
@@ -1620,25 +1630,38 @@ export default function JobDetailPage() {
                 })()}
                 <ClientQuickActions job={job} client={client} property={property} engineerConfirmed={blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer").length === 0} />
                 {property && (
-                  <div className="border-t border-navy-100 pt-2.5">
+                  <div className="border-t border-navy-100 pt-2.5 dark:border-white/10">
                     <p className="flex items-start gap-2 text-navy-600">
                       <FiMapPin className="mt-0.5 shrink-0 text-navy-400" />
                       {String(property.label || "").toUpperCase().includes(String(property.postcode || "").toUpperCase()) ? property.label : `${property.label}, ${property.postcode}`}
                     </p>
-                    {(job.accessName || job.accessPhone) && !((job.accessName || client.name) === client.name && String(job.accessPhone || client.phone || "").replace(/\D/g, "") === String(client.phone || "").replace(/\D/g, "")) && (
-                      <div className="ml-6 mt-1.5 border-l-2 border-brand-200 pl-2.5 text-xs text-navy-500">
-                        <p className="font-semibold text-brand-700">Access contact</p>
-                        {job.accessName && <p className="mt-0.5 text-navy-700">{job.accessName}</p>}
-                        {job.accessPhone && (
+                    {Boolean(job.accessName || job.accessPhone || property?.accessName || property?.accessPhone) && (
+                      <div className="ml-6 mt-1.5 border-l-2 border-brand-200 pl-2.5 text-xs text-navy-500 dark:border-emerald-500/30">
+                        <p className="font-semibold text-brand-700 dark:text-emerald-300">Access contact</p>
+                        {(job.accessName || property?.accessName) && (
+                          <p className="mt-0.5 text-navy-700 dark:text-navy-300">{job.accessName || property?.accessName}</p>
+                        )}
+                        {(job.accessPhone || property?.accessPhone) && (
                           <button
                             type="button"
-                            onClick={() => openWhatsAppChat(job.accessPhone)}
+                            onClick={() => openWhatsAppChat(job.accessPhone || property?.accessPhone)}
                             title="Open their WhatsApp chat"
-                            className="flex items-center gap-1.5 text-navy-700 hover:text-[#1ebe5b]"
+                            className="flex items-center gap-1.5 text-navy-700 hover:text-[#1ebe5b] dark:text-navy-300 dark:hover:text-[#25D366]"
                           >
-                            {job.accessPhone} <FaWhatsapp className="text-[#25D366]" />
+                            {job.accessPhone || property?.accessPhone} <FaWhatsapp className="text-[#25D366]" />
                           </button>
                         )}
+                      </div>
+                    )}
+                    {Boolean(job.nameOnCert) && (
+                      <div className="ml-6 mt-1.5 border-l-2 border-brand-200 pl-2.5 text-xs text-navy-500 dark:border-emerald-500/30">
+                        <p className="font-semibold text-brand-700 dark:text-emerald-300">Name on certificate</p>
+                        <p className="mt-0.5 font-medium text-navy-800 dark:text-navy-200">{job.nameOnCert}</p>
+                      </div>
+                    )}
+                    {Boolean(job.clientDetailsAt) && (
+                      <div className="ml-6 mt-2 flex items-center gap-1 text-[11px] font-semibold text-brand-700 dark:text-emerald-300">
+                        <FiCheck className="text-brand-600 dark:text-emerald-400" /> Details received from client link
                       </div>
                     )}
                   </div>

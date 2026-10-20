@@ -17,6 +17,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getJobLines, lineTotal } from "@/lib/format";
 import { lineSizeLabel, windowStr } from "@/lib/jobCard";
 import { quoteMissing, intakeFieldsFor, bookingMissing } from "@/lib/gates";
+import { reconcileJob } from "@/lib/visits";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
 import { within } from "@/lib/within";
@@ -251,7 +252,7 @@ export async function POST(request, { params }) {
     return NextResponse.json({ ok: true, changeRequestedAt: at });
   }
 
-  // The booking details, typed by the client on their link after accepting.
+    // The booking details, typed by the client on their link after accepting.
   if (body?.action === "details") {
     if (job.status !== "quote" || !job.acceptedAt) return NextResponse.json({ error: "These details can't be sent online for this job — please call us." }, { status: 409 });
     const clip = (v, n) => String(v || "").trim().slice(0, n);
@@ -272,37 +273,85 @@ export async function POST(request, { params }) {
     if (!address && !certName && !accessName && !accessPhone && !date && !answered.length) return NextResponse.json({ error: "Please fill in the details first." }, { status: 400 });
     const at = new Date().toISOString();
     const lines = [address && `Address: ${address}`, certName && `Name on certificate: ${certName}`, (accessName || accessPhone) && `Access: ${[accessName, accessPhone].filter(Boolean).join(" · ")}`, date && `Preferred: ${date}${slot ? ` (${slot})` : ""}`, ...answered].filter(Boolean);
-    const withDetails = {
+
+    const time = slot === "Afternoon" ? "13:00:00.000Z" : "09:00:00.000Z";
+    const windowPart = slot || "Morning";
+    const windowFrom = slot === "Afternoon" ? "13:00" : "08:00";
+    const windowTo = slot === "Afternoon" ? "18:00" : "13:00";
+    const scheduledAt = date ? `${date}T${time}` : (job.scheduledAt || null);
+
+    let withDetails = {
       ...job,
       ...(certName ? { nameOnCert: certName } : {}),
       ...(accessName ? { accessName } : {}),
       ...(accessPhone ? { accessPhone } : {}),
-      ...(date ? { preferredDate: date } : {}),
+      ...(accessName || accessPhone ? {
+        accessContacts: [{ name: accessName || "Site contact", phone: accessPhone || "" }],
+      } : {}),
+      ...(date ? {
+        preferredDate: date,
+        scheduledAt,
+        windowPart: job.windowPart || windowPart,
+        windowFrom: job.windowFrom || windowFrom,
+        windowTo: job.windowTo || windowTo,
+      } : {}),
       ...(slot ? { preferredSlot: slot } : {}),
       ...(answered.length ? { intake } : {}),
       clientDetailsAt: at,
       updatedAt: at,
       activity: [...(job.activity || []), { id: "act-" + Date.now().toString(36), at, by: "client", type: "note", title: "Client sent their booking details online", detail: lines.join("\n") }],
     };
-    const { error: dErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: withDetails });
+
+    if (Array.isArray(withDetails.visits) && withDetails.visits.length > 0 && date) {
+      withDetails.visits = withDetails.visits.map((v) => ({
+        ...v,
+        scheduledAt: v.scheduledAt || scheduledAt,
+        windowPart: v.windowPart || windowPart,
+        windowFrom: v.windowFrom || windowFrom,
+        windowTo: v.windowTo || windowTo,
+      }));
+    }
+
+    const nextJob = reconcileJob(job, withDetails, withDetails);
+    const { error: dErr } = await supabaseAdmin.from("jobs").upsert({ id: data.id, data: nextJob });
     if (dErr) return NextResponse.json({ error: "Couldn't send that — please call us." }, { status: 502 });
-    // The address goes onto the property, but only where we had none.
+
+    // The address, access contact, and certificate name go onto the client and property
     const { data: cRow } = job.clientId ? await supabaseAdmin.from("clients").select("id,data").eq("id", job.clientId).maybeSingle() : { data: null };
     let client = cRow?.data || null;
-    if (address && client) {
+    if (client && (address || accessName || accessPhone)) {
       const c = client;
-      const flat = (v) => String(v || "").replace(/\s/g, "").toUpperCase();
-      if (c && (c.properties || []).some((p) => p.id === job.propertyId && (!flat(p.label) || flat(p.label) === flat(p.postcode)))) {
-        const props = c.properties.map((p) => (p.id === job.propertyId ? { ...p, label: address } : p));
-        await supabaseAdmin.from("clients").upsert({ id: cRow.id, data: { ...c, properties: props } });
-        client = { ...c, properties: props };
+      let matchedProp = false;
+      const props = (c.properties || []).map((p) => {
+        if (p.id === job.propertyId) {
+          matchedProp = true;
+          return {
+            ...p,
+            ...(address ? { label: address } : {}),
+            ...(accessName ? { accessName } : {}),
+            ...(accessPhone ? { accessPhone } : {}),
+          };
+        }
+        return p;
+      });
+      if (!matchedProp && job.propertyId) {
+        props.push({
+          id: job.propertyId,
+          label: address || job.postcode || "Property",
+          postcode: job.postcode || "",
+          accessName: accessName || "",
+          accessPhone: accessPhone || "",
+        });
       }
+      await supabaseAdmin.from("clients").upsert({ id: cRow.id, data: { ...c, properties: props } });
+      client = { ...c, properties: props };
     }
+
     // The alert says exactly what arrived and what is still missing — never
     // a stock sentence that claims more than the client actually sent.
     const sent = [address && "address", certName && "name for the certificate", (accessName || accessPhone) && "access contact", date && "preferred date", answered.length && "property details"].filter(Boolean);
     const property = (client?.properties || []).find((p) => p.id === job.propertyId) || null;
-    const still = [...bookingMissing(withDetails, { client, property }), ...quoteMissing(withDetails, { client, property }, { all: true }).filter((m) => m.key !== "address" && m.key !== "name" && m.key !== "postcode")].map((m) => m.label);
+    const still = [...bookingMissing(nextJob, { client, property }), ...quoteMissing(nextJob, { client, property }, { all: true }).filter((m) => m.key !== "address" && m.key !== "name" && m.key !== "postcode")].map((m) => m.label);
     const list = (a) => (a.length > 1 ? `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}` : a[0] || "");
     await pushToAll({
       title: still.length ? "Client sent some details" : "Booking details complete",

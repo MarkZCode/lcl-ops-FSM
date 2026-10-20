@@ -298,7 +298,7 @@ export default function ConfirmPage() {
             <p className="mt-0.5 text-sm text-navy-600">{s.when || "Date to be agreed"}</p>
             {s.confirmed ? (
               <>
-                <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700">{s.finished ? "Finished — thank you." : "Confirmed — thank you. The full job card will follow."}</p>
+                <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200">{s.finished ? "Finished — thank you." : "Confirmed — thank you. The full job card will follow."}</p>
                 <a href="/portal" className="btn-outline mt-2 inline-flex w-full items-center justify-center gap-1.5 py-2 text-xs font-semibold">
                   View in Engineer Portal →
                 </a>
@@ -433,7 +433,7 @@ export default function ConfirmPage() {
             ) : null}
           </div>
         ))}
-        {note && <p className="text-center text-sm font-semibold text-brand-700">{note}</p>}
+        {note && <p className="text-center text-sm font-semibold text-brand-700 dark:text-emerald-300">{note}</p>}
         {error && <p className="text-center text-sm font-semibold text-rose-600">{error}</p>}
         <p className="pb-8 text-center text-xs text-navy-400">
           Problem or question? Call the office on <a href={`tel:${String(invoiceConfig.phone).replace(/[^\d+]/g, "")}`} className="font-semibold text-navy-600">{String(invoiceConfig.phone).replace(/^\+44\s?/, "0")}</a>.

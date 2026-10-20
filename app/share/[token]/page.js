@@ -297,8 +297,8 @@ export default function SharePage() {
           </div>
         )}
         {job.status === "quote" && job.acceptedAt && (
-          <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
-            <strong>Quote accepted</strong> on {fmtDate(job.acceptedAt)}. {job.detailsSentAt ? "Thank you — we have your details and are arranging your appointment with the engineer. We\u2019ll confirm the date and time shortly." : "We\u2019re arranging your appointment and will confirm the date and time shortly."}
+          <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200">
+            <strong className="font-semibold text-brand-900 dark:text-emerald-100">Quote accepted</strong> on {fmtDate(job.acceptedAt)}. {job.detailsSentAt ? "Thank you — we have your details and are arranging your appointment with the engineer. We\u2019ll confirm the date and time shortly." : "We\u2019re arranging your appointment and will confirm the date and time shortly."}
           </div>
         )}
 
@@ -337,7 +337,7 @@ export default function SharePage() {
                 {q.input === "yesno" && (
                   <div className="flex gap-2">
                     {["Yes", "No"].map((v) => (
-                      <button key={v} type="button" onClick={() => setAnswer(q.field, v)} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${details.intake[q.field] === v ? "border-brand-400 bg-brand-50 text-brand-700" : "border-navy-200 text-navy-600"}`}>{v}</button>
+                      <button key={v} type="button" onClick={() => setAnswer(q.field, v)} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${details.intake[q.field] === v ? "border-brand-400 bg-brand-50 text-brand-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200" : "border-navy-200 text-navy-600 dark:border-white/10 dark:text-navy-300"}`}>{v}</button>
                     ))}
                   </div>
                 )}
@@ -345,7 +345,7 @@ export default function SharePage() {
                   <div className="flex flex-wrap gap-2">
                     {(q.options || []).map((o) => {
                       const on = (details.intake[q.field] || []).includes(o);
-                      return <button key={o} type="button" onClick={() => setAnswer(q.field, on ? details.intake[q.field].filter((x) => x !== o) : [...(details.intake[q.field] || []), o])} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${on ? "border-brand-400 bg-brand-50 text-brand-700" : "border-navy-200 text-navy-600"}`}>{o}</button>;
+                      return <button key={o} type="button" onClick={() => setAnswer(q.field, on ? details.intake[q.field].filter((x) => x !== o) : [...(details.intake[q.field] || []), o])} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${on ? "border-brand-400 bg-brand-50 text-brand-700 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-200" : "border-navy-200 text-navy-600 dark:border-white/10 dark:text-navy-300"}`}>{o}</button>;
                     })}
                   </div>
                 )}
@@ -359,15 +359,15 @@ export default function SharePage() {
 
         {/* On the day */}
         {(job.onTheWay || job.runningLate || job.arrived || job.status === "completed") && (
-          <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
+          <div className="card border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200">
             {job.arrived ? (
-              <p><strong>Your engineer is on site</strong> carrying out the inspection.</p>
+              <p><strong className="font-semibold text-brand-900 dark:text-emerald-100">Your engineer is on site</strong> carrying out the inspection.</p>
             ) : job.status === "completed" ? (
-              <p><strong>Inspection completed.</strong> Your certificate and report are being prepared by the office.</p>
+              <p><strong className="font-semibold text-brand-900 dark:text-emerald-100">Inspection completed.</strong> Your certificate and report are being prepared by the office.</p>
             ) : job.runningLate ? (
-              <p>Your engineer is running about <strong>{job.runningLate} minutes</strong> late. Sorry for the wait.</p>
+              <p>Your engineer is running about <strong className="font-semibold text-brand-900 dark:text-emerald-100">{job.runningLate} minutes</strong> late. Sorry for the wait.</p>
             ) : (
-              <p><strong>Your engineer is on the way.</strong> Please make sure someone is there to let them in.</p>
+              <p><strong className="font-semibold text-brand-900 dark:text-emerald-100">Your engineer is on the way.</strong> Please make sure someone is there to let them in.</p>
             )}
           </div>
         )}
@@ -405,7 +405,7 @@ export default function SharePage() {
             </p>
             {job.window && <p className="text-sm text-navy-700">Arrival: {job.window}</p>}
             {job.changeRequestedAt ? (
-              <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-brand-800">We&rsquo;ve got your request to move it and will be in touch to confirm a new time.</p>
+              <p className="mt-3 rounded-lg bg-brand-50 px-3 py-2 text-brand-800 dark:bg-emerald-950/40 dark:text-emerald-200">We&rsquo;ve got your request to move it and will be in touch to confirm a new time.</p>
             ) : job.canRequestChange && !moveOpen ? (
               <button type="button" className="btn-outline mt-3" onClick={() => setMoveOpen(true)}>Need a different date?</button>
             ) : job.canRequestChange ? (
@@ -450,7 +450,7 @@ export default function SharePage() {
             </div>
 
             {job.status === "paid" || paySuccess ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center text-xs font-semibold text-emerald-800">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center text-xs font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-200">
                 ✓ Payment received in full. Thank you!
               </div>
             ) : (
