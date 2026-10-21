@@ -119,10 +119,13 @@ export default function GlobalSearch({ className = "", placeholder = "Search any
       <input
         ref={inputRef}
         value={q}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        // Searching is the moment the 37MB of prospects/leads becomes worth
-        // downloading. Until then no page pays for them.
-        onFocus={() => { setOpen(true); requestBigTables(); }}
+        onChange={(e) => {
+          const val = e.target.value;
+          setQ(val);
+          setOpen(true);
+          if (val.trim().length >= 2) requestBigTables();
+        }}
+        onFocus={() => { setOpen(true); }}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         aria-label="Search everything"
