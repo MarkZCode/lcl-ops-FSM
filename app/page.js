@@ -28,6 +28,7 @@ import CoverageMap from "@/components/CoverageMap";
 import RevenueChart from "@/components/RevenueChart";
 import JobModal from "@/components/JobModal";
 import { useSectionTour } from "@/components/OnboardingTour";
+import { LuScale } from "react-icons/lu";
 import { useAuth } from "@/lib/auth";
 import LogoMark from "@/components/LogoMark";
 import { MoneyCounter } from "@/components/AnimatedCounter";
@@ -84,7 +85,7 @@ const DASH_PANELS = [
 ];
 
 export default function Dashboard() {
-  const { jobs: allJobs, clients, hydrated, engineers, expenses, engineerPayments, financeReady, retryHydrate } = useStore();
+  const { jobs: allJobs, clients, hydrated, engineers, expenses, engineerPayments, engineerDebts = [], financeReady, retryHydrate } = useStore();
 
   // The ONLY thing this page wanted the prospects table for was one number:
   // how many renewals fall due in the next 14 days. Getting it in the browser
@@ -149,6 +150,12 @@ export default function Dashboard() {
   // so picking a period on either page is instantly reflected on the other.
   // See lib/usePeriodRange.js's REPORTS_STORAGE_KEY comment.
   const ctl = usePeriodRange(REPORTS_STORAGE_KEY, { defaultPeriod: "month" });
+
+  const totalEngineerDebt = useMemo(() => {
+    const debt = (engineerDebts || []).filter((e) => e.type === "debt").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const repaid = (engineerDebts || []).filter((e) => e.type === "repayment").reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    return Math.max(0, Math.round((debt - repaid) * 100) / 100);
+  }, [engineerDebts]);
 
   const tour = useSectionTour("dashboard", [
     { selector: null, position: "center", label: "Welcome", title: "Your field-service hub 👋", body: "A quick guide to the key parts of the app." },
@@ -402,6 +409,16 @@ export default function Dashboard() {
           {/* The whole period laid out end to end — see app/summary. */}
           <Link href="/summary" className="btn-outline shrink-0" title="Full breakdown of this period — finances, engineer pay, funnel, expenses">
             <FiPieChart /> <span className="hidden sm:inline">Summary</span>
+          </Link>
+          <Link href="/engineer-debt" className="btn-outline shrink-0 gap-1.5" title="Track and manage engineer debt balances">
+            <LuScale className="text-amber-600 dark:text-amber-400" />
+            <span className="hidden sm:inline">Engineer Debt</span>
+            <span className="sm:hidden">Debt</span>
+            {totalEngineerDebt > 0 && (
+              <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+                {gbp(totalEngineerDebt)}
+              </span>
+            )}
           </Link>
         </div>
       </div>

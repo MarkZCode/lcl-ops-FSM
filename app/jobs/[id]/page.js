@@ -1228,7 +1228,7 @@ export default function JobDetailPage() {
                             </div>
                             <p className="mt-0.5 text-xs text-navy-500">
                               {sh.reason === "no_engineer"
-                                ? `No engineer assigned — their own rate applies once one is. ${gbp(sh.revenue)} of work unpriced.`
+                                ? `No engineer assigned — their own rate applies once one is. ${gbp(sh.revenue)} of work unpriced${sh.discountShare > 0 ? ` (after ${gbp(sh.discountShare)} discount)` : ""}.`
                                 : `No pay rates set for ${sh.name} — set them on their engineer record before this job's cost is real.`}
                             </p>
                           </>
@@ -1257,7 +1257,7 @@ export default function JobDetailPage() {
                                 ? `Fixed gas rate · ${sh.applianceCount} appliance${sh.applianceCount === 1 ? "" : "s"}`
                                 : sh.payType === "fixed_service"
                                 ? `Fixed per service · ${sh.lines.map((l) => (l.tier ? `${certLabel(l.code)} ${l.tier}` : certLabel(l.code))).join(", ") || "per service"}`
-                                : `${sh.cutPercent}% of ${gbp(sh.revenue)}`}
+                                : `${sh.cutPercent}% of ${gbp(sh.revenue)}${sh.discountShare > 0 ? ` (after ${gbp(sh.discountShare)} discount)` : ""}` }
                             </p>
                             {sh.missingRates?.length > 0 && (
                               <p className="mt-1 text-xs font-semibold text-rose-600">

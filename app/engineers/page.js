@@ -15,6 +15,7 @@ import CoverageMap from "@/components/CoverageMap";
 import EngineerRecruitsTab from "@/components/EngineerRecruitsTab";
 import EngineerProfile from "@/components/EngineerProfile";
 import EngineerPaperwork from "@/components/EngineerPaperwork";
+import EngineerDebtTab from "@/components/EngineerDebtTab";
 import { reliability } from "@/lib/engineerProfile";
 import RequirePermission from "@/components/RequirePermission";
 import { toast } from "@/lib/toast";
@@ -51,7 +52,7 @@ function EngineersInner() {
   const engParams = useSearchParams();
   useEffect(() => {
     const t = engParams.get("tab");
-    if (["roster", "sourcing", "payments", "paperwork"].includes(t)) setTab(t);
+    if (["roster", "sourcing", "payments", "paperwork", "debt"].includes(t)) setTab(t);
   }, [engParams]);
   const [prefillFromLead, setPrefillFromLead] = useState(null);
 
@@ -132,6 +133,7 @@ function EngineersInner() {
             ["roster",   `Roster (${engineers.length})`],
             ["sourcing", `Sourcing (${recruits.length})`],
             ["payments", "Payments"],
+            ["debt",     "Engineer Debt"],
             ["paperwork", "Paperwork"],
           ].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
@@ -151,6 +153,8 @@ function EngineersInner() {
           <EngineerPaperwork onOpen={setProfileEng} />
         ) : tab === "payments" ? (
           <PaymentsTab />
+        ) : tab === "debt" ? (
+          <EngineerDebtTab />
         ) : engineers.length === 0 ? (
           <div className="card flex flex-col items-center gap-4 p-12 text-center">
             <span className="grid h-16 w-16 place-items-center rounded-2xl bg-navy-100 text-navy-400">
