@@ -10,12 +10,15 @@ import {
 import { LuScale, LuWallet, LuReceipt } from "react-icons/lu";
 import { useStore } from "@/lib/store";
 import { gbp, fmtDate } from "@/lib/format";
+import { jobFinancials } from "@/lib/finance";
 import Modal from "@/components/Modal";
 
 export default function EngineerDebtTab() {
   const {
     engineers = [],
     engineerDebts = [],
+    jobs = [],
+    clients = [],
     addEngineerDebt,
     logEngineerDebtRepayment,
     deleteEngineerDebtEntry,
@@ -39,12 +42,44 @@ export default function EngineerDebtTab() {
   const [repayAmount, setRepayAmount] = useState("");
   const [repayDate, setRepayDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [repayJobId, setRepayJobId] = useState("");
+  const [jobPickerQuery, setJobPickerQuery] = useState("");
+  const [selectedJobObj, setSelectedJobObj] = useState(null);
   const [repayNotes, setRepayNotes] = useState("");
 
   // Engineer lookup
   const engMap = useMemo(() => {
     return Object.fromEntries(engineers.map((e) => [e.id, e]));
   }, [engineers]);
+
+  
+  const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients]);
+
+  function getPropertyAddress(j) {
+    if (!j) return "—";
+    const cl = clientMap[j.clientId];
+    const pr = cl?.properties?.find(p => p.id === j.propertyId);
+    return pr?.address || j.nameOnCert || cl?.name || "Address not recorded";
+  }
+
+  // Engineer-specific jobs for picker
+  const engineerJobs = useMemo(() => {
+    if (!repayEngId) return [];
+    return jobs
+      .filter(j => j.engineerId === repayEngId)
+      .slice()
+      .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
+  }, [jobs, repayEngId]);
+
+  const filteredPickerJobs = useMemo(() => {
+    const q = jobPickerQuery.trim().toLowerCase();
+    if (!q) return engineerJobs.slice(0, 10);
+    return engineerJobs.filter(j => {
+      const jid = (j.id || "").toLowerCase();
+      const addr = getPropertyAddress(j).toLowerCase();
+      const cl = (clientMap[j.clientId]?.name || "").toLowerCase();
+      return jid.includes(q) || addr.includes(q) || cl.includes(q);
+    }).slice(0, 10);
+  }, [engineerJobs, jobPickerQuery, clientMap]);
 
   // Per-engineer calculation
   const engineerSummaries = useMemo(() => {
@@ -600,16 +635,92 @@ export default function EngineerDebtTab() {
             </div>
 
             <div>
-              <label className="label">Linked Job ID (optional)</label>
-              <input
-                type="text"
-                className="input font-mono uppercase"
-                placeholder="e.g. JOB-5453"
-                value={repayJobId}
-                onChange={(e) => setRepayJobId(e.target.value.toUpperCase())}
-              />
+              <label className="label">Associate with a Job (Optional)</label>
+              {selectedJobObj ? (
+                <div className="flex items-center justify-between rounded-lg border border-teal-500/40 bg-teal-50/50 p-2.5 text-xs dark:bg-teal-950/20">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-teal-700 dark:text-teal-300">
+                        {selectedJobObj.id}
+                      </span>
+                      <span className="text-navy-400">•</span>
+                      <span className="font-medium text-navy-700 dark:text-navy-200">
+                        {getPropertyAddress(selectedJobObj)}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-navy-500">
+                      Standard Payout: <strong className="text-navy-800 dark:text-white">{gbp(jobFinancials(selectedJobObj, engMap[repayEngId]).payable)}</strong>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedJobObj(null);
+                      setRepayJobId("");
+                    }}
+                    className="text-xs text-rose-600 hover:underline dark:text-rose-400"
+                  >
+                    Change
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <FiSearch className="absolute left-3 top-2.5 text-navy-400" />
+                    <input
+                      type="text"
+                      className="input pl-8 text-xs"
+                      placeholder="Search jobs by ID (e.g. JOB-5453), address, or client name..."
+                      value={jobPickerQuery}
+                      onChange={(e) => setJobPickerQuery(e.target.value)}
+                    />
+                  </div>
+                  {repayEngId && (
+                    <div className="max-h-36 overflow-y-auto rounded-lg border border-navy-200 bg-white shadow-sm dark:border-white/10 dark:bg-navy-900">
+                      {filteredPickerJobs.length === 0 ? (
+                        <div className="p-2 text-center text-xs text-navy-400">
+                          No matching jobs found for this engineer.
+                        </div>
+                      ) : (
+                        filteredPickerJobs.map((j) => {
+                          const fin = jobFinancials(j, engMap[repayEngId]);
+                          return (
+                            <button
+                              key={j.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedJobObj(j);
+                                setRepayJobId(j.id);
+                                if (!repayNotes) {
+                                  setRepayNotes(`Deduction linked to ${j.id} (${getPropertyAddress(j)})`);
+                                }
+                              }}
+                              className="flex w-full items-center justify-between border-b border-navy-100 p-2 text-left text-xs transition hover:bg-navy-50 dark:border-white/5 dark:hover:bg-white/5 last:border-b-0"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="font-mono font-bold text-navy-800 dark:text-white">
+                                  {j.id}
+                                </div>
+                                <div className="truncate text-[11px] text-navy-500">
+                                  {getPropertyAddress(j)}
+                                </div>
+                              </div>
+                              <div className="text-right whitespace-nowrap">
+                                <div className="font-semibold text-teal-600 dark:text-teal-400">
+                                  {gbp(fin.payable)}
+                                </div>
+                                <div className="text-[10px] text-navy-400">{j.date || "No date"}</div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               <p className="mt-1 text-[11px] text-navy-400">
-                If you paid the engineer extra on this job to cover part of their debt
+                Pick a job where you paid the engineer upfront or extra to automatically deduct from debt.
               </p>
             </div>
 

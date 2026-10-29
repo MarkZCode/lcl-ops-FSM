@@ -11,6 +11,7 @@ import { gbp } from "@/lib/format";
 import { jobFinancials } from "@/lib/finance";
 import PageHeader from "@/components/PageHeader";
 import EngineerModal from "@/components/EngineerModal";
+import EngineerPayModal from "@/components/EngineerPayModal";
 import CoverageMap from "@/components/CoverageMap";
 import EngineerRecruitsTab from "@/components/EngineerRecruitsTab";
 import EngineerProfile from "@/components/EngineerProfile";
@@ -133,7 +134,6 @@ function EngineersInner() {
             ["roster",   `Roster (${engineers.length})`],
             ["sourcing", `Sourcing (${recruits.length})`],
             ["payments", "Payments"],
-            ["debt",     "Engineer Debt"],
             ["paperwork", "Paperwork"],
           ].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
@@ -354,7 +354,9 @@ function EngineersInner() {
 }
 
 function PaymentsTab() {
-  const { engineers, jobs, engineerPayments } = useStore();
+  const { engineers, jobs, engineerPayments, addEngineerPayment, removeEngineerPayment } = useStore();
+  const [selectedEng, setSelectedEng] = useState(null);
+  const [payRow, setPayRow] = useState(null);
 
   // Quick per-engineer summary: this-month earnings, jobs completed, outstanding.
   const monthStart = useMemo(() => {
@@ -386,6 +388,35 @@ function PaymentsTab() {
   }), [engineers, jobs, engineerPayments, monthStart]);
 
   const totalOutstanding = rows.reduce((s, r) => s + r.outstanding, 0);
+
+  const handleSelectRow = (r) => {
+    const monthJobs = jobs.filter((j) =>
+      j.engineerId === r.e.id &&
+      ["completed", "invoiced", "paid"].includes(j.status) &&
+      j.scheduledAt && new Date(j.scheduledAt) >= monthStart
+    );
+    const jobDetails = monthJobs.map((j) => {
+      const fin = jobFinancials(j, r.e);
+      return {
+        jobId: j.id,
+        revenue: j.price || 0,
+        labour: fin.labour || 0,
+        vat: fin.vat || 0,
+        parkingReimbursed: fin.parkingReimbursed || 0,
+        payable: fin.payable || 0,
+        settled: false,
+      };
+    });
+    setPayRow({
+      id: r.e.id,
+      jobs: monthJobs.length,
+      owed: r.grossPay,
+      balance: r.outstanding,
+      jobDetails,
+    });
+    setSelectedEng(r.e);
+  };
+
 
   return (
     <div className="space-y-4">
@@ -419,7 +450,7 @@ function PaymentsTab() {
             {rows.length === 0 ? (
               <tr><td colSpan={5} className="p-6 text-center text-navy-500">No engineers yet.</td></tr>
             ) : rows.map((r) => (
-              <tr key={r.e.id} className="hover:bg-navy-50 dark:hover:bg-white/5">
+              <tr key={r.e.id} onClick={() => handleSelectRow(r)} className="cursor-pointer hover:bg-navy-50 dark:hover:bg-white/5 transition-colors">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold text-white" style={{ backgroundColor: r.e.color || "#3FA34D" }}>
@@ -460,6 +491,19 @@ function PaymentsTab() {
           Reports page <FiArrowRight className="h-3 w-3" />
         </Link>.
       </p>
+
+      {selectedEng && payRow && (
+        <EngineerPayModal
+          open={!!selectedEng}
+          onClose={() => { setSelectedEng(null); setPayRow(null); }}
+          row={payRow}
+          engineer={selectedEng}
+          range={{ label: "This Month" }}
+          onPay={(payment) => addEngineerPayment(payment)}
+          onRemovePayment={removeEngineerPayment}
+        />
+      )}
+
     </div>
   );
 }

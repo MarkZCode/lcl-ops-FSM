@@ -1,0 +1,302 @@
+<title>LCL Ops Agent Guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column, a sticky contents strip, flat panels, stage list down a rule. */
+:root{
+  --bg:#f6f8f7; --panel:#ffffff; --fg:#14242b; --muted:#566a72; --line:#d6dfdc;
+  --navy:#123044; --accent:#0c7a5b; --accent-soft:#e2f2ec; --warn:#9a5b00; --warn-soft:#fbefd6; --stop:#a3262a; --stop-soft:#fbe6e6;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif; --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1a1f; --panel:#16252c; --fg:#e6eeec; --muted:#9db0b5; --line:#2a3d45;
+  --navy:#cfe3ee; --accent:#4fc9a2; --accent-soft:#16372f; --warn:#f0bd62; --warn-soft:#3a2d12; --stop:#f39a9c; --stop-soft:#3d1c1e; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1a1f; --panel:#16252c; --fg:#e6eeec; --muted:#9db0b5; --line:#2a3d45;
+  --navy:#cfe3ee; --accent:#4fc9a2; --accent-soft:#16372f; --warn:#f0bd62; --warn-soft:#3a2d12; --stop:#f39a9c; --stop-soft:#3d1c1e; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:400 16px/1.6 var(--body)}
+.wrap{max-width:820px;margin:0 auto;padding-inline:20px;padding-block:32px 72px;display:flex;flex-direction:column;gap:36px}
+h1,h2,h3{font-family:var(--display);color:var(--navy);text-wrap:balance;margin:0;line-height:1.2}
+h1{font-size:2rem;font-weight:700}
+h2{font-size:1.4rem;font-weight:700;padding-bottom:8px;border-bottom:2px solid var(--navy)}
+h3{font-size:1.05rem;font-weight:600}
+p{margin:0}
+.lede{color:var(--muted);max-width:62ch;margin-top:8px}
+.eyebrow{font:600 .75rem var(--display);letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+nav{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.875rem;z-index:2}
+nav a{color:var(--navy);text-decoration:none;font-weight:600}
+nav a:hover,nav a:focus-visible{color:var(--accent);text-decoration:underline}
+section{display:flex;flex-direction:column;gap:16px;scroll-margin-top:64px}
+ul,ol{margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:6px}
+.panel{background:var(--panel);border:1px solid var(--line);padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.rule{background:var(--stop-soft);border:1px solid var(--line);padding:14px 16px}
+.rule strong{display:block;color:var(--stop);font-family:var(--display);margin-bottom:2px}
+.stages{list-style:none;padding:0;border-left:2px solid var(--line);margin-left:14px;gap:22px}
+.stages>li{position:relative;padding-left:26px;display:flex;flex-direction:column;gap:8px}
+.stages>li::before{content:attr(data-n);position:absolute;left:-15px;top:0;width:28px;height:28px;border-radius:50%;background:var(--navy);color:var(--bg);font:700 .8rem/28px var(--display);text-align:center}
+.say{background:var(--accent-soft);padding:8px 12px;font-size:.92rem}
+.say b{color:var(--accent)}
+.note{background:var(--warn-soft);padding:8px 12px;font-size:.92rem}
+.note b{color:var(--warn)}
+.tablebox{overflow-x:auto;border:1px solid var(--line);background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.92rem}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{font:600 .75rem var(--display);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600;width:38%}
+kbd{font:600 .85em var(--body);background:var(--accent-soft);color:var(--fg);padding:1px 6px;border:1px solid var(--line);white-space:nowrap}
+.changes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+footer{color:var(--muted);font-size:.85rem;border-top:1px solid var(--line);padding-top:16px}
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Landlord Compliance London · LCL Ops</p>
+    <h1>Agent guide: from enquiry to certificate</h1>
+    <p class="lede">How to run a job in LCL Ops without mistakes. Read the rules first, then follow the stages. When you are unsure, open the job and do what the Next step card says.</p>
+  </header>
+
+  <nav aria-label="Contents">
+    <a href="#rules">Rules</a><a href="#around">Finding your way</a><a href="#flow">The job flow</a><a href="#situations">What to do when…</a><a href="#talking">Messages and calls</a><a href="#day">Your day</a><a href="#changes">What changed</a>
+  </nav>
+
+  <section id="rules">
+    <h2>Rules that are never broken</h2>
+    <div class="rules">
+      <div class="rule"><strong>Never say “booked” early</strong>A job is not booked, and the client is not sent a booking confirmation, until the engineer has confirmed. Until then say “we are arranging your appointment”.</div>
+      <div class="rule"><strong>Never mention VAT to a client</strong>Not in a message, a quote, an invoice or on a call. Prices are simply the price. (VAT on an engineer’s fee is an internal figure only.)</div>
+      <div class="rule"><strong>No bundle discounts</strong>Do not offer a reduced price for taking several services together.</div>
+      <div class="rule"><strong>Bank transfer only</strong>We do not take card payments. The bank details are on the invoice.</div>
+      <div class="rule"><strong>Engineer pay is private</strong>Never tell a client what an engineer is paid or share a rate card.</div>
+      <div class="rule"><strong>Do not invite proof requests</strong>Parking and the congestion charge are added to quotes automatically. Use the wording on the quote; do not offer receipts.</div>
+      <div class="rule"><strong>No same-day promises</strong>Encourage the client to book soon, but never promise same-day or next-day attendance.</div>
+      <div class="rule"><strong>Never change a status by hand to skip a step</strong>The job moves on when the real thing happens: accepted, confirmed, completed, paid, certificate sent.</div>
+    </div>
+  </section>
+
+  <section id="around">
+    <h2>Finding your way around</h2>
+    <div class="panel">
+      <h3>The Jobs page</h3>
+      <ul>
+        <li>It opens on <kbd>Quote</kbd> → <kbd>All quotes</kbd> and remembers the filter you last chose.</li>
+        <li>Quotes are grouped by where they stand: New enquiry, Details required, Quote sent, Following up, Will get back, Accepted · booking.</li>
+        <li>The <kbd>Next step</kbd> column tells you what each job needs. Red means urgent.</li>
+        <li>Switch between board and list, sort by newest, value, appointment date or client deadline.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>The job page</h3>
+      <ul>
+        <li>The <b>Next step</b> card at the top is the one thing to do now. Its main button does it. A second, smaller button covers “I already did this another way”.</li>
+        <li>Tabs: <kbd>Overview</kbd>, <kbd>Booking</kbd>, <kbd>Money</kbd>, <kbd>Documents</kbd>, <kbd>Messages</kbd>, <kbd>Everything</kbd>.</li>
+        <li>The <b>Job details</b> panel lists what is still needed from the client and writes the message asking for exactly that.</li>
+        <li>The client’s phone number is a WhatsApp link. Arrows at the top move to the previous and next job.</li>
+        <li>Pin a note to keep an important fact at the top of the job.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Other sections you will use</h3>
+      <ul>
+        <li><b>Inbox</b>: emails in and out. Open one to reply (you can start from a saved template) and to save an attachment onto the job.</li>
+        <li><b>Tasks</b>: created automatically from each job’s next step and shared out between the team.</li>
+        <li><b>Dispatch</b>: the day by engineer. Drag accepted jobs from the tray onto an engineer; show the day on a map.</li>
+        <li><b>Clients</b>, <b>Engineers</b>, <b>Reports</b>, <b>Settings</b> (admins).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="flow">
+    <h2>The job flow, stage by stage</h2>
+    <ol class="stages">
+      <li data-n="1">
+        <h3>An enquiry arrives</h3>
+        <p>Website and email enquiries create a draft quote automatically, with the services, parking and (if the postcode is in the zone) the congestion charge already on it. Every signed-in device gets a notification. For a phone or WhatsApp enquiry, press <kbd>New job</kbd> and create it yourself; choose the postcode from the dropdown.</p>
+        <p>An automatic enquiry is handled in three steps, in this order:</p>
+        <ul>
+          <li><b>Step 1, check the quote.</b> Compare services, property size and price with what the client wrote. Correct anything wrong, then press <kbd>Quote checked</kbd>.</li>
+          <li><b>Step 2, reply on WhatsApp.</b> Let them know we have their enquiry and the quote is on its way. If they have no phone number this step is skipped.</li>
+          <li><b>Step 3, send the quote,</b> then the WhatsApp message that goes with it.</li>
+        </ul>
+      </li>
+      <li data-n="2">
+        <h3>Details are missing</h3>
+        <p>If the price depends on something we do not know (number of gas appliances, bedrooms, consumer units, floors, communal areas), the next step is <b>Ask for the missing details</b>. Use <kbd>Ask on WhatsApp</kbd> or <kbd>Copy the message</kbd> in Job details. The message asks only for what is missing.</p>
+        <p>A postcode alone is enough to quote. The full address is needed later, before booking.</p>
+        <div class="note"><b>No answer after 2 days:</b> the job asks you to chase the details once. Fill the answers into Job details as soon as you have them; the quote then becomes ready to send.</div>
+      </li>
+      <li data-n="3">
+        <h3>Send the quote</h3>
+        <p>Send by email from the job, or on WhatsApp. If you sent it another way (phone, your own WhatsApp), press <kbd>Sent on WhatsApp / phone</kbd> so the job knows. The client receives a link where they can accept online.</p>
+        <p><b>Every quote goes with a WhatsApp message.</b> The quote email already carries the line asking the client to reply today. As soon as it has gone, the next step becomes “Send the WhatsApp message with the quote”. Press <kbd>Open WhatsApp</kbd>: the message is written for you with what was quoted, the property, what we still need to book it (full address, certificate name, access contact, preferred date and time) and the same reply-today line. If you already sent it yourself, press <kbd>Already sent</kbd>.</p>
+        <p><b>Staff note:</b> in Job details, <kbd>Copy staff note</kbd> gives the internal summary (customer, postcode, phone, email, service, what still needs confirming) to paste into the team chat.</p>
+        <div class="say"><b>If the job asks “Was the quote sent?”</b> it has no record. Mark it sent if it was; otherwise send it now.</div>
+      </li>
+      <li data-n="4">
+        <h3>Wait, then chase</h3>
+        <ul>
+          <li>2 days with no decision: <b>Chase the quote</b>. 5 days: urgent.</li>
+          <li>Client says “I’ll come back to you on the 14th”: press <kbd>Client will get back…</kbd>, enter the date, <kbd>Park until then</kbd>. The job stays quiet until that date, then asks you to follow up.</li>
+          <li>Chased and silent for 3 weeks: the job suggests closing it.</li>
+          <li>30 days after sending: the quote has expired. Re-quote or close it.</li>
+          <li>Client says no: <kbd>Client declined</kbd>.</li>
+        </ul>
+      </li>
+      <li data-n="5">
+        <h3>The client accepts</h3>
+        <p>They accept on their link (you get a notification), or they tell you and you press <kbd>Client accepted</kbd>. The job moves to “Accepted · booking”. Nothing is booked yet.</p>
+      </li>
+      <li data-n="6">
+        <h3>Arrange the appointment</h3>
+        <p>On the <kbd>Booking</kbd> tab, complete the booking details first: full property address, name for the certificate, who gives access and their phone number. Then pick a date and an engineer. The app suggests an engineer and warns about days off, clashes and expired paperwork.</p>
+        <p>The engineer gets a link to confirm or decline. You can also press <kbd>Mark confirmed</kbd> once they have told you directly.</p>
+        <div class="note"><b>Until the engineer confirms,</b> the job reads “Pending” and the client must not be told a date as fixed.</div>
+      </li>
+      <li data-n="7">
+        <h3>Tell the client</h3>
+        <p>Only after the engineer has confirmed does the next step become <b>Send the booking confirmation</b>. The day before, send the appointment reminder. Within two days of the visit, <b>Confirm access</b>: check someone will be there, then tick <kbd>Access confirmed for the appointment</kbd>.</p>
+      </li>
+      <li data-n="8">
+        <h3>The visit</h3>
+        <p>When the appointment time arrives the job shows In progress. Afterwards mark it complete. If the day passes and nobody does, the job turns urgent: <b>Mark it complete</b>, or record what was not done with <kbd>Not done…</kbd>.</p>
+      </li>
+      <li data-n="9">
+        <h3>Invoice</h3>
+        <p>On the <kbd>Money</kbd> tab, open the invoice. Choose the account in <kbd>Pay into</kbd> before generating; the choice stays until someone picks the other one. Send it. A completed job with no invoice turns urgent after 2 days.</p>
+      </li>
+      <li data-n="10">
+        <h3>Payment</h3>
+        <ul>
+          <li>Record the payment in the ledger on the Money tab. Part payments are fine; the balance owed is shown.</li>
+          <li>On Jobs → Invoiced, <b>Match bank payments to invoices</b>: paste rows from online banking and confirm each match.</li>
+          <li>Unpaid after 7 days: chase. 14 days: urgent. 30 days: call the client.</li>
+        </ul>
+      </li>
+      <li data-n="11">
+        <h3>Certificate</h3>
+        <p>The engineer’s certificate is uploaded on the <kbd>Documents</kbd> tab. Tick the checklist in the Certificate panel (name, address, dates and result match the job), then send it. Sending it marks the job Certified, which is the finish line. A certificate cannot be sent before it has been checked.</p>
+      </li>
+      <li data-n="12">
+        <h3>Afterwards</h3>
+        <p>Three days after the certificate goes out, the job suggests asking for a review. A renewal job can be created automatically for when the certificate expires.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section id="situations">
+    <h2>What to do when…</h2>
+    <div class="tablebox">
+      <table>
+        <thead><tr><th>Situation</th><th>What to do</th></tr></thead>
+        <tbody>
+          <tr><td>The client has written and nobody replied</td><td>“Reply to the client” is always the top next step. Reply from the job or the inbox. If you answered by phone, press the “handled” button so it clears.</td></tr>
+          <tr><td>There is no email or phone for the client</td><td>Add one. Nothing can be sent until you do.</td></tr>
+          <tr><td>The client wants it “in two weeks” or “end of the month”</td><td>That is a yes on their timing. Mark it accepted and agree a date, or park it until the date they gave.</td></tr>
+          <tr><td>The client gave a deadline (tenant moving in, council, sale)</td><td>Enter the deadline and the reason in Job details. The job warns you when it is 5 days away and not booked inside it.</td></tr>
+          <tr><td>The engineer has not confirmed</td><td>Chase the engineer. If the visit is within 48 hours and they cannot do it, reassign or reschedule with the client. Do not send a booking confirmation.</td></tr>
+          <tr><td>The engineer declines</td><td>Assign another engineer on the Booking tab and wait for their confirmation.</td></tr>
+          <tr><td>The appointment date passed and it was never confirmed</td><td>“Reschedule”. Agree a new date with the client first.</td></tr>
+          <tr><td>The client asks to move the appointment</td><td>They can request it from their link, or tell you. Use <kbd>Reschedule</kbd>, pick the new date, and the engineer must confirm again before the client is told.</td></tr>
+          <tr><td>The engineer’s paperwork has expired</td><td>The job says “Check [name]’s paperwork”. Do not send them to a gas job on an expired Gas Safe card; assign someone else or get the document updated.</td></tr>
+          <tr><td>Nobody was in (no access)</td><td>Press <kbd>No access</kbd> on the Booking tab. If the no-access fee applies to this job it is added; it must have been stated on the quote. Rebook with the client.</td></tr>
+          <tr><td>Only part of the work was done</td><td>Use <kbd>Not done…</kbd> to record what was not completed. Bill what is done and book the rest; the unfinished service is split off into its own job.</td></tr>
+          <tr><td>The client cancels one service, or the whole job</td><td>Cancel the service line, or <kbd>Cancel</kbd> the job. A cancelled job can be restored.</td></tr>
+          <tr><td>The inspection failed or found defects</td><td>On the job, open Remedial work. Enter the engineer’s findings exactly as reported (C1, C2, C3, FI, gas defect), price it, and <kbd>Create the remedial job</kbd>. That new job is quoted and booked like any other.</td></tr>
+          <tr><td>Work is done but no certificate has arrived</td><td>After one day the job says “Chase the engineer for the certificate”. After three days it is urgent.</td></tr>
+          <tr><td>The certificate has a mistake</td><td>In the Certificate panel, request a correction. The job stays open until you press <kbd>Corrected document received</kbd> and re-check it.</td></tr>
+          <tr><td>The payment is the wrong amount or reference</td><td>Record it and flag the mismatch on the Money tab. Sort it out with the client, then press <kbd>Resolved</kbd>. Use a credit note if we owe them money back.</td></tr>
+          <tr><td>The client says they paid but nothing shows</td><td>Check the bank, not the job. Use the “Payment / bank account problem” steps under <kbd>Handle a problem…</kbd>.</td></tr>
+          <tr><td>The price and the services do not add up</td><td>The job says “Price doesn’t match the services”. Open the job and correct the lines before invoicing.</td></tr>
+          <tr><td>The same client enquires again, or you need a copy</td><td><kbd>Duplicate</kbd> the job rather than retyping it.</td></tr>
+          <tr><td>The client is upset</td><td><kbd>Handle a problem…</kbd> → “Upset or angry customer”. Follow the steps in order and log the call.</td></tr>
+          <tr><td>A job has not moved in two weeks</td><td>The job asks “what’s the next step?”. Decide: chase, book, or close.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="talking">
+    <h2>Messages and calls</h2>
+    <div class="panel">
+      <ul>
+        <li><b>WhatsApp:</b> tap the client’s number, or use <kbd>WhatsApp a saved reply…</kbd> for the standard wording. The message is also copied, so if the chat opens empty, paste it.</li>
+        <li><b>Email:</b> send from the job so the right template is used and it is recorded. Replies from the inbox are logged on the job when the sender is linked to it.</li>
+        <li><b>Calls:</b> always <kbd>Log a call</kbd>: spoke to the client, no answer, voicemail, or missed their call.</li>
+        <li><b>Everything you send or log appears on the Messages tab.</b> If it is not there, the next person will not know it happened.</li>
+        <li>Notifications are held between 9pm and 7am and delivered in the morning.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="day">
+    <h2>Your day, in order</h2>
+    <div class="panel">
+      <ol>
+        <li>Open Tasks and Jobs. Do everything red first, starting with clients waiting for a reply.</li>
+        <li>New enquiries: check, reply, send the quote.</li>
+        <li>Accepted jobs: complete the booking details, assign, get the engineer’s confirmation.</li>
+        <li>Tomorrow’s visits: reminders sent, access confirmed.</li>
+        <li>Yesterday’s visits: marked complete, invoiced.</li>
+        <li>Payments in: recorded or matched. Certificates: checked and sent.</li>
+        <li>Quotes to chase, last.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="changes">
+    <h2>What changed in this round of work</h2>
+    <div class="changes">
+      <div class="panel"><h3>Enquiries and quotes</h3><ul>
+        <li>Notification to every device on a new enquiry.</li>
+        <li>Parking added automatically, with fixed wording.</li>
+        <li>Congestion charge applied automatically by postcode.</li>
+        <li>Postcode lookup dropdown.</li>
+        <li>Three-step flow for automatic quotes.</li>
+        <li>Missing-details checks and the message that asks for them.</li>
+        <li>Quote expiry at 30 days; park-until date.</li>
+        <li>Same-day wording removed.</li>
+        <li>Urgency line on every quote email and on the WhatsApp message sent with it; wording editable in Settings → Rules.</li>
+        <li>WhatsApp message with the quote and internal staff note written from the job.</li>
+      </ul></div>
+      <div class="panel"><h3>Jobs</h3><ul>
+        <li>Jobs page opens on Quote → All quotes and remembers the filter.</li>
+        <li>Job page in tabs, sticky header, previous/next, pinned note, duplicate, print summary.</li>
+        <li>WhatsApp link on the client’s number.</li>
+        <li>New next steps: booking details, access, deadline, certificate pending, correction, payment mismatch, review.</li>
+        <li>Smooth slide between pages.</li>
+      </ul></div>
+      <div class="panel"><h3>Booking and dispatch</h3><ul>
+        <li>Never “booked” before the engineer confirms.</li>
+        <li>Engineer confirm/decline link; client reschedule request link.</li>
+        <li>Suggested engineer, days off, paperwork warnings.</li>
+        <li>Dispatch tray, suggested route, week capacity, day sheets.</li>
+        <li>Day on a map.</li>
+      </ul></div>
+      <div class="panel"><h3>Money</h3><ul>
+        <li>Choose the bank account on the invoice; the choice persists.</li>
+        <li>No VAT wording, no bundle discount, no card payment.</li>
+        <li>Payment ledger, part payments, credit notes, mismatch flag.</li>
+        <li>Bank statement matching.</li>
+        <li>No-access fee; remedial jobs with margin.</li>
+        <li>Optional payment chasers and engineer statements.</li>
+      </ul></div>
+      <div class="panel"><h3>Certificates and clients</h3><ul>
+        <li>Certificate checklist before sending; corrections tracked.</li>
+        <li>Client certificate page.</li>
+        <li>Client import, merge without losing jobs, statements.</li>
+        <li>Saved WhatsApp replies, call logging, problem playbooks.</li>
+      </ul></div>
+      <div class="panel"><h3>Tasks, inbox, reports, settings</h3><ul>
+        <li>Ten task-assigning improvements: workload, holidays, escalation.</li>
+        <li>Inbox reply with templates; save attachments to a job; mailbox filter.</li>
+        <li>Reports: period comparison, best times to call.</li>
+        <li>Rules, saved replies, office closed dates, roles grid, change log.</li>
+        <li>Company details and logo; public pages use the saved email.</li>
+        <li>Weekly backup, send-now, and restore missing records.</li>
+        <li>Notification preferences and quiet hours.</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <footer>LCL Ops build v134. Button names are shown as they appear in the app. If the app and this guide disagree, tell the office manager.</footer>
+</div>

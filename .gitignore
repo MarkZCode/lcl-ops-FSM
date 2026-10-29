@@ -13,3 +13,6 @@ npm-debug.log*
 /scraper/screenshots/
 /scraper/output/
 /scraper/__pycache__/
+
+# Backups
+/backup/

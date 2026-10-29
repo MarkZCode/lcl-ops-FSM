@@ -410,16 +410,7 @@ export default function Dashboard() {
           <Link href="/summary" className="btn-outline shrink-0" title="Full breakdown of this period — finances, engineer pay, funnel, expenses">
             <FiPieChart /> <span className="hidden sm:inline">Summary</span>
           </Link>
-          <Link href="/engineer-debt" className="btn-outline shrink-0 gap-1.5" title="Track and manage engineer debt balances">
-            <LuScale className="text-amber-600 dark:text-amber-400" />
-            <span className="hidden sm:inline">Engineer Debt</span>
-            <span className="sm:hidden">Debt</span>
-            {totalEngineerDebt > 0 && (
-              <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
-                {gbp(totalEngineerDebt)}
-              </span>
-            )}
-          </Link>
+          
         </div>
       </div>
 

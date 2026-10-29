@@ -11,6 +11,7 @@ import { certificationForEngineer, certificationPatch } from "@/lib/visits";
 import { DEFAULT_TRANSFER_FEE } from "@/lib/constants";
 import { uploadFile, removeFile, fileSrc } from "@/lib/uploads";
 import { DeleteButtonSlot } from "./DeleteButton";
+import EngineerDebtPaySection from "./EngineerDebtPaySection";
 // generateEngineerStatement is lazy-imported in downloadStatement — it pulls
 // jsPDF + the base64 logo (~150kB) which would otherwise bloat /reports.
 
@@ -23,7 +24,7 @@ export default function EngineerPayModal({
   onPay,
   onRemovePayment,
 }) {
-  const { updateJob, jobs, engineers } = useStore();
+  const { updateJob, jobs, engineers, engineerDebts = [] } = useStore();
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [proof, setProof] = useState(null);
@@ -58,6 +59,18 @@ export default function EngineerPayModal({
   // money state (the metric row) stays above them, because it's the one
   // thing that's true in all three.
   const [tab, setTab] = useState("jobs");
+
+  const engDebtBalance = useMemo(() => {
+    if (!engineer?.id) return 0;
+    const entries = (engineerDebts || []).filter((d) => d.engineerId === engineer.id);
+    let dTotal = 0, rTotal = 0;
+    for (const e of entries) {
+      if (e.type === "debt") dTotal += Number(e.amount) || 0;
+      if (e.type === "repayment") rTotal += Number(e.amount) || 0;
+    }
+    return Math.max(0, Math.round((dTotal - rTotal) * 100) / 100);
+  }, [engineerDebts, engineer?.id]);
+
   // Write a manual amount against THIS engineer on that job, never job-wide.
   // A job-level figure was applied to everyone working the job, so setting
   // one person's fee silently pinned their colleague's to the same number
@@ -257,6 +270,22 @@ export default function EngineerPayModal({
       }
     >
       <div className="space-y-5">
+        
+        {engDebtBalance > 0 && tab !== "debt" && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-2.5 px-3.5 text-xs dark:border-rose-500/30 dark:bg-rose-500/10">
+            <span className="font-semibold text-rose-900 dark:text-rose-200">
+              Outstanding debt / advance: <strong>{gbp(engDebtBalance)}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setTab("debt")}
+              className="font-bold text-rose-700 hover:underline dark:text-rose-300"
+            >
+              View &amp; Deduct Debt →
+            </button>
+          </div>
+        )}
+
         {/* Summary — each figure says where it comes from, so "Total owed"
             can never look like it contradicts the job rows below. */}
         <div className="panel">
@@ -317,6 +346,12 @@ export default function EngineerPayModal({
               { k: "jobs", l: "Jobs", badge: jd.length || null },
               { k: "pay", l: "Pay", badge: row.balance > 0 ? gbp(row.balance) : null },
               { k: "history", l: "History", badge: periodPayments.length || null },
+              {
+                k: "debt",
+                l: "Debt & Advance",
+                badge: engDebtBalance > 0 ? gbp(engDebtBalance) : null,
+                isDebt: true,
+              },
             ].map(({ k, l, badge }) => (
               <button
                 key={k}
@@ -324,14 +359,22 @@ export default function EngineerPayModal({
                 onClick={() => setTab(k)}
                 className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition ${
                   tab === k
-                    ? "bg-navy-800 text-white shadow-sm dark:bg-white/15"
+                    ? isDebt && engDebtBalance > 0
+                      ? "bg-rose-700 text-white shadow-sm"
+                      : "bg-navy-800 text-white shadow-sm dark:bg-white/15"
+                    : isDebt && engDebtBalance > 0
+                    ? "text-rose-600 font-bold hover:bg-rose-50 dark:hover:bg-rose-500/10"
                     : "text-navy-500 hover:bg-navy-100 dark:hover:bg-white/5"
                 }`}
               >
                 {l}
                 {badge != null && (
                   <span className={`tnum rounded-md px-1.5 py-0.5 text-[11px] font-bold ${
-                    tab === k ? "bg-white/20 text-white" : "bg-navy-100 text-navy-600 dark:bg-white/10 dark:text-navy-300"
+                    tab === k
+                      ? "bg-white/20 text-white"
+                      : isDebt && engDebtBalance > 0
+                      ? "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                      : "bg-navy-100 text-navy-600 dark:bg-white/10 dark:text-navy-300"
                   }`}>
                     {badge}
                   </span>
@@ -875,6 +918,11 @@ export default function EngineerPayModal({
         {tab === "history" && periodPayments.length === 0 && (
           <p className="text-sm text-navy-400">No payments recorded for these jobs yet.</p>
         )}
+        
+        {tab === "debt" && (
+          <EngineerDebtPaySection engineer={engineer} row={row} />
+        )}
+
         {tab === "history" && (<>
         {/* Payment history — scoped to periodPayments (this period's jobs
             only). row.payments also includes payments for jobs from other
