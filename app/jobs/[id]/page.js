@@ -40,6 +40,7 @@ import StatusBadge from "@/components/StatusBadge";
 import JobModal from "@/components/JobModal";
 import SendEmailModal from "@/components/SendEmailModal";
 import InvoiceModal from "@/components/InvoiceModal";
+import PaymentCaptureModal from "@/components/PaymentCaptureModal";
 import JobCardModal from "@/components/JobCardModal";
 import TaskCompletionBanner from "@/components/team/TaskCompletionBanner";
 import PaymentProof from "@/components/PaymentProof";
@@ -84,6 +85,7 @@ export default function JobDetailPage() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [invoiceMode, setInvoiceMode] = useState("invoice"); // "invoice" | "quote"
+  const [paymentCaptureOpen, setPaymentCaptureOpen] = useState(false);
   const [jobCardOpen, setJobCardOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -309,8 +311,10 @@ export default function JobDetailPage() {
         changeStatus("scheduled");
         return;
       case "status:paid":
-        changeStatus("paid", { paidAt: new Date().toISOString() });
-        logActivity(job.id, { type: "payment", title: `Marked as paid · ${gbp(job.price)}` });
+        setPaymentCaptureOpen(true);
+        return;
+      case "invoice_unpaid":
+        toast.info("Invoice marked as not paid yet. Follow-up reminder active.");
         return;
       case "status:quote":
         changeStatus("quote");
@@ -498,6 +502,24 @@ export default function JobDetailPage() {
   const hasCertPdf = (job?.attachments || []).some(
     (f) => f?.type === "application/pdf" || /\.pdf$/i.test(f?.name || "")
   );
+  const handlePaymentCaptured = (patch) => {
+    changeStatus("paid", {
+      ...patch,
+      paidAt: patch.paidAt || new Date().toISOString(),
+    });
+    logActivity(job.id, {
+      type: "payment",
+      title: `Marked as paid · ${gbp(patch.paymentAmount || job.price)}`,
+      by: who(),
+    });
+    setPaymentCaptureOpen(false);
+    toast.success("Job marked as Paid! Next: upload and send the certificate.");
+    setTab("documents");
+    setTimeout(() => {
+      document.getElementById("documents")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+  };
+
   const certify = () => {
     if (!job) return;
     if (job.status !== "paid") {
@@ -742,6 +764,15 @@ export default function JobDetailPage() {
             {/* One document button, and only the one this stage is about:
                 the quote while it's a quote, the invoice once the work is
                 done. The other stays under More. */}
+            {job.status === "invoiced" && (
+              <button
+                className="btn-primary flex items-center gap-1.5"
+                onClick={() => setPaymentCaptureOpen(true)}
+                title="Check if client has paid invoice"
+              >
+                <FiCheckCircle /> Confirm payment
+              </button>
+            )}
             {can("invoices") && headerDoc && (
               <button
                 className={job.status === "completed" ? "btn-primary" : "btn-outline"}
@@ -1398,13 +1429,7 @@ export default function JobDetailPage() {
               {job.status !== "paid" ? (
                 <button
                   className="btn-primary flex-1"
-                  onClick={() => {
-                    changeStatus("paid", { paidAt: new Date().toISOString() });
-                    logActivity(job.id, {
-                      type: "payment",
-                      title: `Marked as paid · ${gbp(job.price)}`,
-                    });
-                  }}
+                  onClick={() => setPaymentCaptureOpen(true)}
                 >
                   <FiCheckCircle /> Mark as paid
                 </button>
@@ -1823,6 +1848,17 @@ export default function JobDetailPage() {
             setEmailTemplateOverride("booking");
             setEmailOpen(true);
           }
+        }}
+      />
+
+      <PaymentCaptureModal
+        open={paymentCaptureOpen}
+        onClose={() => setPaymentCaptureOpen(false)}
+        job={job}
+        client={client}
+        onSave={handlePaymentCaptured}
+        onNotPaid={() => {
+          toast.info("Invoice marked as not paid yet.");
         }}
       />
 

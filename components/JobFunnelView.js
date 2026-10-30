@@ -12,6 +12,7 @@ import PaymentCaptureModal from "./PaymentCaptureModal";
 import { useStore } from "@/lib/store";
 import { JOB_STATUSES } from "@/lib/constants";
 import { gbp, serviceShort } from "@/lib/format";
+import { toast } from "@/lib/toast";
 
 const STATUS_COLORS = {
   quote:       "bg-navy-400",
@@ -127,7 +128,16 @@ export default function JobFunnelView({ jobs, clients, onJobCard }) {
         open={!!pendingPayment}
         onClose={() => setPendingPayment(null)}
         job={pendingPayment}
-        onSave={(patch) => { if (pendingPayment) updateJob(pendingPayment.id, patch); }}
+        client={clientMap[pendingPayment?.clientId]}
+        onSave={(patch) => {
+          if (pendingPayment) {
+            updateJob(pendingPayment.id, patch);
+            toast.success("Job marked as Paid! Next: upload and send the certificate.");
+          }
+        }}
+        onNotPaid={() => {
+          toast.info("Invoice marked as not paid yet.");
+        }}
       />
     </>
   );
