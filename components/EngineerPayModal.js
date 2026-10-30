@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { FiCheckCircle, FiUploadCloud, FiTrash2, FiExternalLink, FiImage, FiFileText, FiEdit2, FiRotateCcw } from "react-icons/fi";
 import Modal from "./Modal";
