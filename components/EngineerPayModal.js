@@ -352,7 +352,7 @@ export default function EngineerPayModal({
                 badge: engDebtBalance > 0 ? gbp(engDebtBalance) : null,
                 isDebt: true,
               },
-            ].map(({ k, l, badge }) => (
+            ].map(({ k, l, badge, isDebt }) => (
               <button
                 key={k}
                 type="button"
