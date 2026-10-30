@@ -1,4 +1,4 @@
-import { Inter_Tight, Space_Grotesk, JetBrains_Mono } from "next/font/google";
+// Google fonts are imported via globals.css to avoid next/font build crashes
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import AuthGate from "@/components/AuthGate";
@@ -19,10 +19,7 @@ import ViewportHeightFix from "@/components/ViewportHeightFix";
 // History: IBM Plex Sans, then Plus Jakarta, then Inter + Outfit, then
 // Inter Tight + Space Grotesk. Moved onto SF Pro in Sep 2026 when the
 // owner asked for the Apple system applied in full.
-const inter = Inter_Tight({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-sans" });
-const plex = Inter_Tight({ subsets: ["latin"], display: "swap", weight: ["400", "500", "600", "700"], variable: "--font-inter" });
-const plexHeading = Space_Grotesk({ subsets: ["latin"], display: "swap", weight: ["500", "600", "700"], variable: "--font-heading" });
-const mono = JetBrains_Mono({ subsets: ["latin"], display: "swap", variable: "--font-mono" });
+// Fonts defined in globals.css
 
 export const metadata = {
   title: "LCL Ops — Field Service Management",
@@ -55,7 +52,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en-GB" className={`${inter.variable} ${plex.variable} ${plexHeading.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en-GB" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
