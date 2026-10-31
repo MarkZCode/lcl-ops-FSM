@@ -32,9 +32,15 @@ function BackLink({ back }) {
   const router = useRouter();
   const label = back.label || "Back";
   const className = "mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800 dark:text-slate-400 dark:hover:text-slate-200";
+  const handleClick = (e) => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      e.preventDefault();
+      router.back();
+    }
+  };
   if (back.href) {
     return (
-      <Link href={back.href} className={className}>
+      <Link href={back.href} onClick={handleClick} className={className}>
         <FiArrowLeft /> {label}
       </Link>
     );

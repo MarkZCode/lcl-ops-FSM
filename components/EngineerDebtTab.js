@@ -40,6 +40,7 @@ export default function EngineerDebtTab() {
   // Log Repayment Form State
   const [repayEngId, setRepayEngId] = useState("");
   const [repayAmount, setRepayAmount] = useState("");
+  const [actualPaid, setActualPaid] = useState("");
   const [repayDate, setRepayDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [repayJobId, setRepayJobId] = useState("");
   const [jobPickerQuery, setJobPickerQuery] = useState("");
@@ -64,22 +65,40 @@ export default function EngineerDebtTab() {
   // Engineer-specific jobs for picker
   const engineerJobs = useMemo(() => {
     if (!repayEngId) return [];
-    return jobs
-      .filter(j => j.engineerId === repayEngId)
+    const paidJobIds = new Set(
+      (engineerPayments || [])
+        .filter((p) => p.engineerId === repayEngId)
+        .flatMap((p) => p.jobIds || [])
+    );
+    return (jobs || [])
+      .filter(j => {
+        if (j.engineerId === repayEngId) return true;
+        if (Array.isArray(j.visits) && j.visits.some(v => v.engineerId === repayEngId)) return true;
+        if (paidJobIds.has(j.id)) return true;
+        return false;
+      })
       .slice()
       .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
-  }, [jobs, repayEngId]);
+  }, [jobs, repayEngId, engineerPayments]);
 
   const filteredPickerJobs = useMemo(() => {
     const q = jobPickerQuery.trim().toLowerCase();
     if (!q) return engineerJobs.slice(0, 10);
-    return engineerJobs.filter(j => {
+    const matched = engineerJobs.filter(j => {
+      const jid = (j.id || "").toLowerCase();
+      const addr = getPropertyAddress(j).toLowerCase();
+      const cl = (clientMap[j.clientId]?.name || "").toLowerCase();
+      return jid.includes(q) || addr.includes(q) || cl.includes(q);
+    });
+    if (matched.length > 0) return matched.slice(0, 10);
+    // Search all jobs so any job (like JOB-4395) is findable
+    return (jobs || []).filter(j => {
       const jid = (j.id || "").toLowerCase();
       const addr = getPropertyAddress(j).toLowerCase();
       const cl = (clientMap[j.clientId]?.name || "").toLowerCase();
       return jid.includes(q) || addr.includes(q) || cl.includes(q);
     }).slice(0, 10);
-  }, [engineerJobs, jobPickerQuery, clientMap]);
+  }, [engineerJobs, jobPickerQuery, clientMap, jobs]);
 
   // Per-engineer calculation
   const engineerSummaries = useMemo(() => {
@@ -608,31 +627,110 @@ export default function EngineerDebtTab() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Repayment Amount (£)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  className="input font-mono"
-                  placeholder="e.g. 30.00"
-                  value={repayAmount}
-                  onChange={(e) => setRepayAmount(e.target.value)}
-                  required
-                />
+            {selectedJobObj ? (
+              <div className="rounded-xl border border-navy-200 bg-white p-3.5 space-y-3 dark:border-white/10 dark:bg-navy-900">
+                <div className="flex items-center justify-between text-xs font-bold text-navy-800 dark:text-slate-200">
+                  <span>Automatic Deduction / Repayment Calculation</span>
+                  <span className="text-[11px] text-navy-400 font-normal">Job Fee: {gbp(jobFinancials(selectedJobObj, engMap[repayEngId]).payable)}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="label">
+                      Actual Amount Sent / Paid (£)
+                      <span className="ml-1 text-[10px] font-normal text-navy-400">(what you paid them)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input font-mono font-semibold"
+                      placeholder="e.g. 129.99"
+                      value={actualPaid}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setActualPaid(val);
+                        const fee = jobFinancials(selectedJobObj, engMap[repayEngId]).payable;
+                        const pNum = parseFloat(val);
+                        if (!isNaN(pNum)) {
+                          const diff = Math.round(Math.abs(pNum - fee) * 100) / 100;
+                          setRepayAmount(diff > 0 ? String(diff) : "");
+                          if (pNum > fee) {
+                            setRepayNotes(`Repaid £${diff.toFixed(2)} extra on top of ${selectedJobObj.id} (£${fee.toFixed(2)} fee, paid £${pNum.toFixed(2)})`);
+                          } else if (pNum < fee) {
+                            setRepayNotes(`Deducted £${diff.toFixed(2)} from ${selectedJobObj.id} (£${fee.toFixed(2)} fee, paid £${pNum.toFixed(2)})`);
+                          }
+                        }
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">
+                      Deduction / Repayment Amount (£)
+                      <span className="ml-1 text-[10px] font-normal text-emerald-600">(auto-calculated)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      className="input font-mono font-bold text-emerald-700 dark:text-emerald-300"
+                      placeholder="e.g. 39.99"
+                      value={repayAmount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setRepayAmount(val);
+                        const fee = jobFinancials(selectedJobObj, engMap[repayEngId]).payable;
+                        const rNum = parseFloat(val);
+                        if (!isNaN(rNum)) {
+                          setActualPaid(String(Math.max(0, Math.round((fee - rNum) * 100) / 100)));
+                          setRepayNotes(`Deducted £${rNum.toFixed(2)} from ${selectedJobObj.id} (£${fee.toFixed(2)} fee)`);
+                        }
+                      }}
+                      required
+                    />
+                  </div>
+                </div>
+
+                {Number(repayAmount) > 0 && (
+                  <div className="rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                    <div className="flex justify-between font-bold">
+                      <span>
+                        {Number(actualPaid) > Number(jobFinancials(selectedJobObj, engMap[repayEngId]).payable)
+                          ? `Repayment (+${gbp(repayAmount)} extra paid over fee):`
+                          : Number(actualPaid) < Number(jobFinancials(selectedJobObj, engMap[repayEngId]).payable)
+                          ? `Deduction (${gbp(repayAmount)} withheld from fee):`
+                          : `Repayment Amount:`}
+                      </span>
+                      <span className="font-mono text-sm text-emerald-700 dark:text-emerald-300">−{gbp(repayAmount)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div>
-                <label className="label">Date Paid</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={repayDate}
-                  onChange={(e) => setRepayDate(e.target.value)}
-                  required
-                />
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Repayment Amount (£)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    className="input font-mono font-bold"
+                    placeholder="e.g. 30.00"
+                    value={repayAmount}
+                    onChange={(e) => setRepayAmount(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="label">Date Paid</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={repayDate}
+                    onChange={(e) => setRepayDate(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <label className="label">Associate with a Job (Optional)</label>

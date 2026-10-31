@@ -53,7 +53,17 @@ export default function JobsPage() {
   // pills are still one click away; they're just not forced on you.
   // Whatever you pick is remembered for the session, so Back from a job
   // lands on the same list you left.
-  const [statusFilter, setStatusFilterState] = useState("quote");
+  const [statusFilter, setStatusFilterState] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const urlStatus = new URLSearchParams(window.location.search).get("status");
+        if (urlStatus) return urlStatus;
+        const saved = sessionStorage.getItem("lcl-jobs-filter");
+        if (saved) return saved;
+      }
+    } catch {}
+    return "quote";
+  });
   const setStatusFilter = (v) => {
     setStatusFilterState(v);
     try { sessionStorage.setItem("lcl-jobs-filter", v); } catch {}

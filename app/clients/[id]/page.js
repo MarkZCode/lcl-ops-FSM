@@ -169,9 +169,16 @@ export default function ClientDetailPage() {
   if (!client) {
     return (
       <div className="p-8">
-        <Link href="/clients" className="btn-outline mb-6 w-fit">
-          <FiArrowLeft /> Back to clients
-        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) router.back();
+            else router.push("/clients");
+          }}
+          className="btn-outline mb-6 w-fit inline-flex items-center gap-1.5"
+        >
+          <FiArrowLeft /> Back
+        </button>
         <div className="card p-10 text-center text-navy-500">
           {hydrated ? "Client not found." : "Loading…"}
         </div>
@@ -190,12 +197,16 @@ export default function ClientDetailPage() {
     <>
       <TaskCompletionBanner />
       <div className="border-b border-navy-100 bg-white px-5 py-4 sm:px-8">
-        <Link
-          href="/clients"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800"
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) router.back();
+            else router.push("/clients");
+          }}
+          className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800 dark:text-slate-400 dark:hover:text-slate-200"
         >
-          <FiArrowLeft /> Back to clients
-        </Link>
+          <FiArrowLeft /> Back
+        </button>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-navy-900">{client.name}</h1>

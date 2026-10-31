@@ -186,9 +186,16 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="p-8">
-        <Link href="/jobs" className="btn-outline mb-6 w-fit">
-          <FiArrowLeft /> Back to jobs
-        </Link>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && window.history.length > 1) router.back();
+            else router.push("/jobs");
+          }}
+          className="btn-outline mb-6 w-fit inline-flex items-center gap-1.5"
+        >
+          <FiArrowLeft /> Back
+        </button>
         <div className="card p-10 text-center text-navy-500">
           {hydrated
             ? "Job not found. It may have been deleted."
@@ -692,12 +699,16 @@ export default function JobDetailPage() {
       <TaskCompletionBanner />
       <div className="relative border-b border-navy-100 bg-white px-4 py-4 sm:px-8 lg:sticky lg:top-0 lg:z-20">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <Link
-            href="/jobs"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800"
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) router.back();
+              else router.push("/jobs");
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-navy-500 hover:text-navy-800 dark:text-slate-400 dark:hover:text-slate-200"
           >
-            <FiArrowLeft /> Back to jobs
-          </Link>
+            <FiArrowLeft /> Back
+          </button>
           {(() => {
             const i = order.indexOf(job.id);
             if (i === -1 || order.length < 2) return null;
