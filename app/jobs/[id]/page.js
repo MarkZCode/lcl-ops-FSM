@@ -1046,7 +1046,11 @@ export default function JobDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Link href={`/jobs/${job.relatedJobId || job.parentJobId}`} className="btn-outline text-xs bg-white text-blue-700 border-blue-300 hover:bg-blue-100">
-                  View Parent Job #{job.relatedJobId || job.parentJobId}
+                  {(() => {
+                    const pJob = jobs.find((x) => x.id === (job.relatedJobId || job.parentJobId));
+                    const pCl = clients.find((c) => c.id === pJob?.clientId);
+                    return `View Parent Job #${job.relatedJobId || job.parentJobId}${pCl?.name ? ` · ${pCl.name}` : ""}`;
+                  })()}
                 </Link>
                 <button
                   type="button"
@@ -1074,7 +1078,11 @@ export default function JobDetailPage() {
                 </p>
               </div>
               <Link href={`/jobs/${job.splitOffJobId}`} className="btn-outline text-xs bg-white text-amber-800 border-amber-300 hover:bg-amber-100">
-                View Child Job #{job.splitOffJobId} →
+                {(() => {
+                  const cJob = jobs.find((x) => x.id === job.splitOffJobId);
+                  const cCl = clients.find((c) => c.id === cJob?.clientId);
+                  return `View Child Job #${job.splitOffJobId}${cCl?.name ? ` · ${cCl.name}` : ""} →`;
+                })()}
               </Link>
             </div>
           )}
@@ -1658,7 +1666,7 @@ export default function JobDetailPage() {
                     <p className="text-xs text-navy-500">
                       Also open for this client:{" "}
                       {others.slice(0, 5).map((j, i) => (
-                        <span key={j.id}>{i > 0 && ", "}<Link href={`/jobs/${j.id}`} className="font-semibold text-brand-600 hover:underline">{j.id}</Link></span>
+                        <span key={j.id}>{i > 0 && ", "}<Link href={`/jobs/${j.id}`} className="font-semibold text-brand-600 hover:underline">{j.id} ({(j.services || []).filter((c) => !isAddonCode(c)).map(serviceName).join(", ") || j.status})</Link></span>
                       ))}
                       {others.length > 5 ? ` and ${others.length - 5} more` : ""}
                     </p>

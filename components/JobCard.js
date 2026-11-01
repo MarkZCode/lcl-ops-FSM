@@ -74,7 +74,10 @@ export default function JobCard({ job, onJobCard, compact = false, owner, unseen
     <Link
       href={`/jobs/${job.id}`}
       id={`job-row-${job.id}`}
-      onClick={(e) => { if (selecting) { e.preventDefault(); onToggle?.(job.id); } }}
+      onClick={(e) => {
+        if (selecting) { e.preventDefault(); onToggle?.(job.id); return; }
+        try { if (typeof window !== "undefined" && window.scrollY > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY)); } catch {}
+      }}
       className={`card job-card block min-w-0 border-l-4 transition hover:shadow-md hover:-translate-y-px ${compact ? "p-3" : "p-4"} ${accent} ${selected ? "ring-2 ring-brand-400" : highlighted ? "ring-2 ring-navy-300" : ""}`}
     >
       <div className="flex items-start justify-between gap-3">

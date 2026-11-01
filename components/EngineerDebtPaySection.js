@@ -15,6 +15,7 @@ import {
   FiExternalLink,
   FiDollarSign,
   FiInfo,
+  FiArrowLeft,
 } from "react-icons/fi";
 import { LuScale, LuWallet, LuReceipt } from "react-icons/lu";
 import { useStore } from "@/lib/store";
@@ -383,8 +384,11 @@ export default function EngineerDebtPaySection({ engineer, row }) {
                 className="flex flex-wrap items-center justify-between gap-2 p-2.5 hover:bg-navy-50/50 dark:hover:bg-white/[0.02]"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono font-bold text-brand-600 dark:text-brand-400">{job.id}</span>
+                    {job.clientName && job.clientName !== "—" && (
+                      <span className="font-semibold text-navy-900 dark:text-slate-100">· {job.clientName}</span>
+                    )}
                     <span className="text-[10px] text-navy-400 font-mono">{fmtDate(job.date)}</span>
                     <span className="rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-medium text-navy-600 dark:bg-white/10 dark:text-slate-300">
                       {job.status}
@@ -514,6 +518,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
         <Modal
           open={addDebtOpen}
           onClose={() => setAddDebtOpen(false)}
+          onBack={() => setAddDebtOpen(false)}
           title={`Record Advance / Debt · ${engineer.name}`}
         >
           <form onSubmit={submitAddDebt} className="space-y-4 text-sm">
@@ -561,10 +566,10 @@ export default function EngineerDebtPaySection({ engineer, row }) {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                className="btn-secondary"
+                className="btn-secondary flex items-center gap-1"
                 onClick={() => setAddDebtOpen(false)}
               >
-                Cancel
+                <FiArrowLeft /> Back
               </button>
               <button type="submit" className="btn-primary">
                 Record Advance (+{gbp(debtAmount || 0)})
@@ -579,6 +584,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
         <Modal
           open={repayOpen}
           onClose={() => setRepayOpen(false)}
+          onBack={repayJob ? () => { setRepayJob(null); setActualPaid(""); setRepayAmount(""); setRepayNotes(""); } : () => setRepayOpen(false)}
           title={`Log Debt Repayment / Deduction · ${engineer.name}`}
         >
           <form onSubmit={submitRepay} className="space-y-4 text-sm">
@@ -658,8 +664,11 @@ export default function EngineerDebtPaySection({ engineer, row }) {
                           className="w-full p-2 text-left hover:bg-navy-50 dark:hover:bg-white/5 flex items-center justify-between gap-2 transition"
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className="font-mono font-bold text-brand-600">{j.id}</span>
+                              {j.clientName && j.clientName !== "—" && (
+                                <span className="font-semibold text-navy-900 dark:text-slate-100">· {j.clientName}</span>
+                              )}
                               <span className="text-[10px] text-navy-400 font-mono">{fmtDate(j.date)}</span>
                             </div>
                             <p className="truncate text-[11px] text-navy-700 dark:text-slate-300">{j.address}</p>
@@ -791,14 +800,24 @@ export default function EngineerDebtPaySection({ engineer, row }) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-navy-100 dark:border-white/10">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setRepayOpen(false)}
-              >
-                Cancel
-              </button>
+            <div className="flex justify-between items-center gap-2 pt-2 border-t border-navy-100 dark:border-white/10">
+              {repayJob ? (
+                <button
+                  type="button"
+                  className="btn-outline flex items-center gap-1 text-xs"
+                  onClick={() => { setRepayJob(null); setActualPaid(""); setRepayAmount(""); setRepayNotes(""); }}
+                >
+                  <FiArrowLeft /> Back to Job List
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-secondary flex items-center gap-1"
+                  onClick={() => setRepayOpen(false)}
+                >
+                  <FiArrowLeft /> Back
+                </button>
+              )}
               <button type="submit" className="btn-primary flex items-center gap-1.5">
                 <FiCheckCircle /> Confirm Repayment ({gbp(repayAmount || 0)})
               </button>

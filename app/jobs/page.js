@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiPlus, FiSearch, FiGrid, FiList, FiClipboard, FiBriefcase, FiColumns } from "react-icons/fi";
 import JobFunnelView from "@/components/JobFunnelView";
@@ -324,6 +324,47 @@ export default function JobsPage() {
     try { sessionStorage.setItem("lcl-jobs-order", JSON.stringify(filtered.slice(0, 400).map((j) => j.id))); } catch {}
   }, [filtered]);
 
+  // Continuously track scroll position on the jobs / quote page
+  useEffect(() => {
+    let scrollTimer;
+    const handleScroll = () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        try {
+          if (window.scrollY > 0) {
+            sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY));
+          }
+        } catch {}
+      }, 100);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      clearTimeout(scrollTimer);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  // Restore scroll position when returning from a job detail view
+  const hasRestoredScroll = useRef(false);
+  useEffect(() => {
+    if (hasRestoredScroll.current || filtered.length === 0) return;
+    try {
+      const savedY = sessionStorage.getItem("lcl-jobs-scroll-y");
+      if (savedY) {
+        const top = parseInt(savedY, 10);
+        if (top > 0) {
+          hasRestoredScroll.current = true;
+          // Smoothly restore position after DOM paint
+          requestAnimationFrame(() => {
+            setTimeout(() => {
+              window.scrollTo({ top, behavior: "instant" });
+            }, 30);
+          });
+        }
+      }
+    } catch {}
+  }, [filtered.length]);
+
   // Counts follow the period as well — a "Paid 9" pill that ignored the
   // date filter would contradict the list sitting right under it.
   const counts = useMemo(() => {
@@ -567,14 +608,21 @@ function ListView({ jobs, clients, onJobCard, columns, owners, nextByJob, unseen
                 <tr
                   key={job.id}
                   id={`job-row-${job.id}`}
-                  onClick={() => (selecting ? onToggle(job.id) : router.push(`/jobs/${job.id}`))}
+                  onClick={() => {
+                    if (selecting) { onToggle(job.id); return; }
+                    try { if (typeof window !== "undefined" && window.scrollY > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY)); } catch {}
+                    router.push(`/jobs/${job.id}`);
+                  }}
                   className={`cursor-pointer transition hover:bg-navy-50 ${i === cursor ? "bg-brand-50/70" : ""}`}
                 >
                   {selecting && (
                     <td className="px-3 py-2.5"><input type="checkbox" readOnly checked={selected.has(job.id)} aria-label={`Select ${job.id}`} /></td>
                   )}
                   <td className="px-4 py-2.5">
-                    <Link href={`/jobs/${job.id}`} className="inline-flex items-center gap-1.5 font-semibold text-navy-900 hover:text-brand-600" onClick={(e) => selecting && e.preventDefault()}>
+                    <Link href={`/jobs/${job.id}`} className="inline-flex items-center gap-1.5 font-semibold text-navy-900 hover:text-brand-600" onClick={(e) => {
+                      if (selecting) { e.preventDefault(); return; }
+                      try { if (typeof window !== "undefined" && window.scrollY > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY)); } catch {}
+                    }}>
                       {unseen.has(job.id) && <span className="h-2 w-2 rounded-full bg-blue-500" title="Changed since you last opened it" />}
                       {job.id}
                     </Link>

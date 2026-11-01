@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { FiCheckCircle, FiUploadCloud, FiTrash2, FiExternalLink, FiImage, FiFileText, FiEdit2, FiRotateCcw } from "react-icons/fi";
+import { FiCheckCircle, FiUploadCloud, FiTrash2, FiExternalLink, FiImage, FiFileText, FiEdit2, FiRotateCcw, FiArrowLeft } from "react-icons/fi";
 import Modal from "./Modal";
 import { useStore } from "@/lib/store";
 import { gbp, fmtDate, getJobLines, isAddonCode } from "@/lib/format";
@@ -24,7 +24,7 @@ export default function EngineerPayModal({
   onPay,
   onRemovePayment,
 }) {
-  const { updateJob, jobs, engineers, engineerDebts = [] } = useStore();
+  const { updateJob, jobs, engineers, clients = [], engineerDebts = [] } = useStore();
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [proof, setProof] = useState(null);
@@ -251,11 +251,22 @@ export default function EngineerPayModal({
     <Modal
       open={open}
       onClose={onClose}
+      onBack={focusedJobId ? () => setFocusedJobId(null) : tab !== "jobs" ? () => setTab("jobs") : onClose}
       xwide
       title={`${engineer.name} · ${range.label}`}
       footer={
         <>
-          <button className="btn-outline" onClick={onClose}>Close</button>
+          {focusedJobId ? (
+            <button type="button" className="btn-outline flex items-center gap-1.5" onClick={() => setFocusedJobId(null)}>
+              <FiArrowLeft /> Back to List
+            </button>
+          ) : tab !== "jobs" ? (
+            <button type="button" className="btn-outline flex items-center gap-1.5" onClick={() => setTab("jobs")}>
+              <FiArrowLeft /> Back to Jobs
+            </button>
+          ) : (
+            <button className="btn-outline" onClick={onClose}>Close</button>
+          )}
           {row.jobDetails?.length > 0 && (
             <button className="btn-outline" onClick={() => downloadStatement()}>
               <FiFileText /> Download statement
@@ -436,13 +447,26 @@ export default function EngineerPayModal({
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        <Link href={`/jobs/${j.jobId}`} className="font-semibold text-brand-600 hover:underline" onClick={onClose}>
-                          {j.jobId}
-                        </Link>
-                        {j.overridden && <p className="text-[10px] text-navy-400">Manual amount</p>}
-                        {j.parking?.receiptSubmitted && (
-                          <p className="text-[10px] text-navy-400">Receipt {gbp(j.parking.receiptAmount)}</p>
-                        )}
+                        {(() => {
+                          const jObj = jobs.find((x) => x.id === j.jobId);
+                          const cl = clients.find((c) => c.id === jObj?.clientId);
+                          return (
+                            <div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Link href={`/jobs/${j.jobId}`} className="font-semibold text-brand-600 hover:underline" onClick={onClose}>
+                                  {j.jobId}
+                                </Link>
+                                {cl?.name && (
+                                  <span className="font-semibold text-xs text-navy-800 dark:text-slate-100">· {cl.name}</span>
+                                )}
+                              </div>
+                              {j.overridden && <p className="text-[10px] text-navy-400">Manual amount</p>}
+                              {j.parking?.receiptSubmitted && (
+                                <p className="text-[10px] text-navy-400">Receipt {gbp(j.parking.receiptAmount)}</p>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 py-2 text-right text-navy-700">{gbp(j.revenue)}</td>
                       <td className="px-2 py-2 text-right text-navy-700">{gbp(j.labour)}</td>
@@ -637,9 +661,20 @@ export default function EngineerPayModal({
                       <div key={j.jobId} className="rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
                         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <Link href={`/jobs/${j.jobId}`} className="text-sm font-bold text-brand-700 hover:underline" onClick={onClose}>
-                              {j.jobId}
-                            </Link>
+                            {(() => {
+                              const jObj = jobs.find((x) => x.id === j.jobId);
+                              const cl = clients.find((c) => c.id === jObj?.clientId);
+                              return (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <Link href={`/jobs/${j.jobId}`} className="text-sm font-bold text-brand-700 hover:underline" onClick={onClose}>
+                                    {j.jobId}
+                                  </Link>
+                                  {cl?.name && (
+                                    <span className="font-bold text-sm text-navy-900 dark:text-slate-100">· {cl.name}</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             <p className="text-[11px] text-navy-500">
                               {j.date ? fmtDate(j.date) : "No date"} · {j.description || "—"}
                             </p>

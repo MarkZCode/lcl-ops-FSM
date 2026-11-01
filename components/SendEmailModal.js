@@ -205,12 +205,8 @@ export default function SendEmailModal({
     // sender's name, and the body now opens with "this is {{sender}} here"
     // — signing off as someone else would give the whole thing away.
     const sig = email.signature ? `\n\n${renderTemplate(email.signature, ctx)}` : "";
-    // A quote carries the link where the client can accept it in one tap.
+    // Removed per user request: online view / share link in email body
     let acceptLine = "";
-    if (tplKey === "quote" && job?.id && job.status === "quote" && !job.acceptedAt && typeof window !== "undefined") {
-      const token = job.shareToken || generateShareToken(job.id);
-      if (token) acceptLine = `\n\nYou can view and accept your quote online here: ${window.location.origin}/share/${token}`;
-    }
     // What the quote and the booking say about a missed appointment — only
     // when this job carries the condition.
     const fee = Number(job?.noAccessFee) || 0;

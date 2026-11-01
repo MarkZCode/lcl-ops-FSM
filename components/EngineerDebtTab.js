@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
-  FiPlus, FiTrash2, FiExternalLink, FiClock,
+  FiPlus, FiTrash2, FiExternalLink, FiArrowLeft, FiClock,
   FiCheckCircle, FiAlertCircle, FiArrowDownRight, FiArrowUpRight,
   FiDollarSign, FiSearch, FiCalendar, FiFileText, FiUser
 } from "react-icons/fi";
@@ -513,7 +513,7 @@ export default function EngineerDebtTab() {
 
       {/* Add Debt Modal */}
       {addDebtOpen && (
-        <Modal open={addDebtOpen} onClose={() => setAddDebtOpen(false)} title="Record Debt Owed to Engineer">
+        <Modal open={addDebtOpen} onClose={() => setAddDebtOpen(false)} onBack={() => setAddDebtOpen(false)} title="Record Debt Owed to Engineer">
           <form onSubmit={submitAddDebt} className="space-y-4 text-sm">
             <p className="text-xs text-navy-500">
               Log an initial or historical debt amount owed to an engineer. This stays completely separate from regular job payroll.
@@ -574,8 +574,8 @@ export default function EngineerDebtTab() {
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className="btn-outline" onClick={() => setAddDebtOpen(false)}>
-                Cancel
+              <button type="button" className="btn-outline flex items-center gap-1" onClick={() => setAddDebtOpen(false)}>
+                <FiArrowLeft /> Back
               </button>
               <button type="submit" className="btn-primary">
                 Save Debt Record
@@ -587,7 +587,12 @@ export default function EngineerDebtTab() {
 
       {/* Log Repayment Modal */}
       {repayOpen && (
-        <Modal open={repayOpen} onClose={() => setRepayOpen(false)} title="Log Debt Repayment (Deduction)">
+        <Modal
+          open={repayOpen}
+          onClose={() => setRepayOpen(false)}
+          onBack={selectedJobObj ? () => { setSelectedJobObj(null); setRepayJobId(""); setActualPaid(""); } : () => setRepayOpen(false)}
+          title="Log Debt Repayment (Deduction)"
+        >
           <form onSubmit={submitRepay} className="space-y-4 text-sm">
             <p className="text-xs text-navy-500">
               Record money paid toward clearing this engineer&apos;s debt. If paid as an extra on top of a job payout, you can optionally link the Job ID.
@@ -796,8 +801,13 @@ export default function EngineerDebtTab() {
                               className="flex w-full items-center justify-between border-b border-navy-100 p-2 text-left text-xs transition hover:bg-navy-50 dark:border-white/5 dark:hover:bg-white/5 last:border-b-0"
                             >
                               <div className="min-w-0 pr-2">
-                                <div className="font-mono font-bold text-navy-800 dark:text-white">
-                                  {j.id}
+                                <div className="font-mono font-bold text-navy-800 dark:text-white flex flex-wrap items-center gap-1.5">
+                                  <span>{j.id}</span>
+                                  {clientMap.get(j.clientId)?.name && (
+                                    <span className="font-sans font-semibold text-xs text-navy-600 dark:text-slate-300">
+                                      · {clientMap.get(j.clientId).name}
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="truncate text-[11px] text-navy-500">
                                   {getPropertyAddress(j)}
@@ -833,10 +843,20 @@ export default function EngineerDebtTab() {
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" className="btn-outline" onClick={() => setRepayOpen(false)}>
-                Cancel
-              </button>
+            <div className="flex justify-between items-center gap-2 pt-2">
+              {selectedJobObj ? (
+                <button
+                  type="button"
+                  className="btn-outline flex items-center gap-1 text-xs"
+                  onClick={() => { setSelectedJobObj(null); setRepayJobId(""); setActualPaid(""); }}
+                >
+                  <FiArrowLeft /> Back to Job List
+                </button>
+              ) : (
+                <button type="button" className="btn-outline flex items-center gap-1" onClick={() => setRepayOpen(false)}>
+                  <FiArrowLeft /> Back
+                </button>
+              )}
               <button type="submit" className="btn-primary">
                 Deduct from Debt
               </button>
