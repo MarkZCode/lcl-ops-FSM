@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiPlus, FiSearch, FiGrid, FiList, FiClipboard, FiBriefcase, FiColumns } from "react-icons/fi";
 import JobFunnelView from "@/components/JobFunnelView";
@@ -324,80 +324,76 @@ export default function JobsPage() {
     try { sessionStorage.setItem("lcl-jobs-order", JSON.stringify(filtered.slice(0, 400).map((j) => j.id))); } catch {}
   }, [filtered]);
 
-  // Continuously track scroll position on the jobs / quote page.
-  // Always read from the named scroll container so mobile (window scroll)
-  // and desktop (overflow-y-auto div) are both captured correctly.
+  // Track scroll position continuously. Always read from the named scroll
+  // container (desktop) or window (mobile) — never from e.target which can
+  // be a horizontal strip or wrong element.
   useEffect(() => {
+    // Tell the browser we will manage scroll restoration ourselves so it does
+    // not fight with our restore logic on back navigation.
+    try { window.history.scrollRestoration = "manual"; } catch {}
+
     let scrollTimer;
     const handleScroll = () => {
       clearTimeout(scrollTimer);
       scrollTimer = setTimeout(() => {
         try {
           const mainScroll = document.getElementById("app-main-scroll");
-          // On desktop the named div scrolls; on mobile the window scrolls.
-          const y = (mainScroll && mainScroll.scrollTop > 0 ? mainScroll.scrollTop : null)
-            ?? window.scrollY
-            ?? document.documentElement.scrollTop
-            ?? 0;
+          const y = (mainScroll && mainScroll.scrollTop > 0)
+            ? mainScroll.scrollTop
+            : (window.scrollY || document.documentElement.scrollTop || 0);
           if (y > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(y));
         } catch {}
       }, 80);
     };
-    // capture:true so we see scroll events on the inner div before they bubble.
     document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
     return () => {
       clearTimeout(scrollTimer);
       document.removeEventListener("scroll", handleScroll, { capture: true });
+      // Re-enable native scroll restoration when leaving this page.
+      try { window.history.scrollRestoration = "auto"; } catch {}
     };
   }, []);
 
   // Restore scroll position when returning from a job detail page.
-  // Strategy: immediately set the pixel offset (works in all browsers), THEN
-  // also try scrollIntoView on the exact job element as a fine-tune.  The
-  // pixel approach is the reliable baseline; element scroll is a bonus.
+  // useLayoutEffect fires synchronously BEFORE the browser paints — this
+  // beats Next.js's own scroll-to-top which runs in a useEffect (after paint).
   const hasRestoredScroll = useRef(false);
+  useLayoutEffect(() => {
+    if (hasRestoredScroll.current) return;
+    try {
+      const savedY = sessionStorage.getItem("lcl-jobs-scroll-y");
+      if (!savedY) return;
+      const top = parseInt(savedY, 10);
+      if (top <= 0) return;
+      // Apply immediately — before the browser has a chance to reset.
+      const mainScroll = document.getElementById("app-main-scroll");
+      if (mainScroll) mainScroll.scrollTop = top;
+      try { window.scrollTo({ top, behavior: "instant" }); } catch { window.scrollTo(0, top); }
+      if (document.documentElement) document.documentElement.scrollTop = top;
+    } catch {}
+  // Run on every render until we've marked it done — dep [] would miss
+  // the case where the div isn't mounted on the very first tick.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // After data loads, fine-tune by scrolling the exact clicked card into view.
   useEffect(() => {
     if (hasRestoredScroll.current || filtered.length === 0) return;
+    hasRestoredScroll.current = true;
     try {
       const lastJobId = sessionStorage.getItem("lcl-last-clicked-job");
-      const savedY = sessionStorage.getItem("lcl-jobs-scroll-y");
-
-      if (!lastJobId && !savedY) return;
-
-      hasRestoredScroll.current = true;
-      const top = savedY ? parseInt(savedY, 10) : 0;
-
+      if (!lastJobId) return;
       let attempts = 0;
-      const tryRestore = () => {
+      const tryElement = () => {
         attempts++;
-
-        // Always apply the saved pixel offset immediately — this is the primary
-        // mechanism and works even before the exact element is in the DOM.
-        if (top > 0) {
-          const mainScroll = document.getElementById("app-main-scroll");
-          if (mainScroll) mainScroll.scrollTop = top;
-          try { window.scrollTo({ top, behavior: "instant" }); } catch { window.scrollTo(0, top); }
-          if (document.documentElement) document.documentElement.scrollTop = top;
-          if (document.body) document.body.scrollTop = top;
+        const el = document.getElementById(`job-row-${lastJobId}`);
+        if (el) {
+          el.scrollIntoView({ block: "nearest", behavior: "instant" });
+          return;
         }
-
-        // Fine-tune: scroll the exact job card into view if it's rendered.
-        if (lastJobId) {
-          const el = document.getElementById(`job-row-${lastJobId}`);
-          if (el) {
-            el.scrollIntoView({ block: "nearest", behavior: "instant" });
-            return; // done — element found and visible
-          }
-        } else {
-          return; // pixel restore was enough
-        }
-
-        // Element not in DOM yet — retry a few times while React paints.
-        if (attempts < 10) setTimeout(tryRestore, 40 * attempts);
+        if (attempts < 12) setTimeout(tryElement, 50 * attempts);
       };
-
-      // Wait one animation frame so React has committed the new DOM.
-      requestAnimationFrame(() => setTimeout(tryRestore, 0));
+      requestAnimationFrame(tryElement);
     } catch {}
   }, [filtered.length]);
 

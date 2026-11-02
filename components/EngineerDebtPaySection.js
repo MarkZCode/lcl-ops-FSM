@@ -295,7 +295,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
             {gbp(summary.balance)}
           </div>
           <p className="mt-0.5 text-[11px] text-rose-600/80 dark:text-rose-400/70">
-            Remaining amount engineer owes to the company
+            Remaining amount we owe to the engineer
           </p>
         </div>
 
