@@ -19,7 +19,7 @@ import {
 } from "react-icons/fi";
 import { LuScale, LuWallet, LuReceipt } from "react-icons/lu";
 import { useStore } from "@/lib/store";
-import { gbp, fmtDate } from "@/lib/format";
+import { gbp, fmtDate, serviceShort } from "@/lib/format";
 import { jobFinancials } from "@/lib/finance";
 import Modal from "./Modal";
 
@@ -58,6 +58,18 @@ export default function EngineerDebtPaySection({ engineer, row }) {
       .filter((d) => d.engineerId === engineer.id)
       .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
   }, [engineerDebts, engineer?.id]);
+
+  // Payout amounts already settled per job
+  const settledByJob = useMemo(() => {
+    const map = new Map();
+    for (const e of engEntries) {
+      if (e.type === "repayment" && e.jobId) {
+        const cur = map.get(e.jobId) || 0;
+        map.set(e.jobId, Math.round((cur + (Number(e.amount) || 0)) * 100) / 100);
+      }
+    }
+    return map;
+  }, [engEntries]);
 
   // Debt & Repayment Totals
   const summary = useMemo(() => {
@@ -164,12 +176,13 @@ export default function EngineerDebtPaySection({ engineer, row }) {
 
   const selectJobForRepay = useCallback((job) => {
     setRepayJob(job);
-    const fee = job?.fee || 0;
-    // By default, set actual paid equal to fee
-    setActualPaid(fee > 0 ? String(fee) : "");
+    const fee = Number(job?.fee) || 0;
+    const settled = settledByJob.get(job?.id) || 0;
+    const remaining = Math.max(0, Math.round((fee - settled) * 100) / 100);
+    setActualPaid(remaining > 0 ? String(remaining) : (fee > 0 ? String(fee) : ""));
     setRepayAmount("");
-    setRepayNotes(`Deduction/Repayment linked to ${job.id}`);
-  }, []);
+    setRepayNotes(settled > 0 ? `Settlement for ${job.id} (£${settled.toFixed(2)} already settled)` : `Settlement for ${job.id}`);
+  }, [settledByJob]);
 
   const handleOpenRepay = (preselectedJob = null) => {
     if (preselectedJob) {
@@ -247,30 +260,55 @@ export default function EngineerDebtPaySection({ engineer, row }) {
   };
 
   const copyWhatsAppBreakdown = () => {
+    const accruedEntries = engEntries.filter((e) => e.type === "debt");
+    const payoutEntries = engEntries.filter((e) => e.type === "repayment");
+
     const lines = [
-      `*Statement of Balance Owed — ${engineer.name}*`,
+      `*Statement of Account & Balance Owed — ${engineer.name}*`,
       `Date: ${new Date().toLocaleDateString("en-GB")}`,
       ``,
-      `• *Total Amount Owed to Engineer:* ${gbp(summary.totalDebt)}`,
-      `• *Total Paid / Settled:* ${gbp(summary.totalRepaid)}`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `*SUMMARY*`,
+      `• *Total Balance Owed to Engineer:* ${gbp(summary.totalDebt)}`,
+      `• *Total Paid Out / Settled:* ${gbp(summary.totalRepaid)}`,
       `• *Remaining Balance We Owe:* ${gbp(summary.balance)}`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━`,
       ``,
-      `*Recent Payouts & Balance Adjustments:*`,
     ];
 
-    if (engEntries.length === 0) {
-      lines.push(`(No balance or payout records yet)`);
-    } else {
-      for (const entry of engEntries.slice(0, 10)) {
-        const isRepay = entry.type === "repayment";
-        const sign = isRepay ? "−" : "+";
-        const jobStr = entry.jobId ? ` [${entry.jobId}]` : "";
-        const noteStr = entry.notes ? ` — ${entry.notes}` : "";
-        lines.push(`• ${fmtDate(entry.date)}: ${sign}${gbp(entry.amount)}${jobStr}${noteStr}`);
+    if (payoutEntries.length > 0) {
+      lines.push(`*PAYMENTS & SETTLEMENTS (DEDUCTED FROM BALANCE):*`);
+      for (const entry of payoutEntries) {
+        let details = "";
+        if (entry.jobId) {
+          const j = (jobs || []).find((x) => x.id === entry.jobId);
+          if (j) {
+            const client = clientMap.get(j.clientId);
+            const prop = client?.properties?.find((p) => p.id === j.propertyId);
+            const addr = prop?.address || prop?.postcode || j.nameOnCert || "";
+            const clientName = client?.name || j.nameOnCert || "";
+            const svcs = (j.services?.length ? j.services : [j.primaryService]).filter(Boolean).map(serviceShort).join(", ") || "Job";
+            details = ` [${entry.jobId}] ${clientName ? clientName + " · " : ""}${svcs}${addr ? " (" + addr + ")" : ""}`;
+          } else {
+            details = ` [${entry.jobId}]`;
+          }
+        }
+        const noteStr = entry.notes && !details ? ` (${entry.notes})` : "";
+        lines.push(`• ${fmtDate(entry.date)}: −${gbp(entry.amount)}${details}${noteStr}`);
       }
+      lines.push(``);
     }
 
-    lines.push(``);
+    if (accruedEntries.length > 0) {
+      lines.push(`*AMOUNTS ACCRUED / OWED TO ENGINEER:*`);
+      for (const entry of accruedEntries) {
+        const noteStr = entry.notes ? ` — ${entry.notes}` : ` — Initial balance recorded / owed to engineer`;
+        lines.push(`• ${fmtDate(entry.date)}: +${gbp(entry.amount)}${noteStr}`);
+      }
+      lines.push(``);
+    }
+
+    lines.push(`━━━━━━━━━━━━━━━━━━━━━━━━`);
     lines.push(`_Landlord Compliance London Operations_`);
 
     navigator.clipboard
@@ -378,44 +416,78 @@ export default function EngineerDebtPaySection({ engineer, row }) {
           </div>
 
           <div className="mt-2.5 divide-y divide-navy-100 overflow-hidden rounded-lg border border-navy-100 text-xs dark:divide-white/5 dark:border-white/10">
-            {engineerJobs.slice(0, 6).map((job) => (
-              <div
-                key={job.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-2.5 hover:bg-navy-50/50 dark:hover:bg-white/[0.02]"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono font-bold text-brand-600 dark:text-brand-400">{job.id}</span>
-                    {job.clientName && job.clientName !== "—" && (
-                      <span className="font-semibold text-navy-900 dark:text-slate-100">· {job.clientName}</span>
-                    )}
-                    <span className="text-[10px] text-navy-400 font-mono">{fmtDate(job.date)}</span>
-                    <span className="rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-medium text-navy-600 dark:bg-white/10 dark:text-slate-300">
-                      {job.status}
-                    </span>
-                  </div>
-                  <p className="truncate text-navy-800 dark:text-slate-200 font-medium mt-0.5">
-                    {job.address}
-                  </p>
-                </div>
+            {engineerJobs.slice(0, 10).map((job) => {
+              const settledTotal = settledByJob.get(job.id) || 0;
+              const fee = Number(job.fee) || 0;
+              const isSettled = settledTotal > 0;
+              const isFullySettled = fee > 0 && settledTotal >= fee;
+              const remainingFee = Math.max(0, Math.round((fee - settledTotal) * 100) / 100);
 
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <span className="text-[10px] text-navy-400 block">Job Fee</span>
-                    <span className="font-mono font-bold text-navy-900 dark:text-white">
-                      {gbp(job.fee)}
-                    </span>
+              return (
+                <div
+                  key={job.id}
+                  className={`flex flex-wrap items-center justify-between gap-2 p-2.5 transition ${
+                    isFullySettled
+                      ? "bg-emerald-50/30 dark:bg-emerald-950/10 opacity-75 hover:opacity-100"
+                      : "hover:bg-navy-50/50 dark:hover:bg-white/[0.02]"
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono font-bold text-brand-600 dark:text-brand-400">{job.id}</span>
+                      {job.clientName && job.clientName !== "—" && (
+                        <span className="font-semibold text-navy-900 dark:text-slate-100">· {job.clientName}</span>
+                      )}
+                      <span className="text-[10px] text-navy-400 font-mono">{fmtDate(job.date)}</span>
+                      <span className="rounded bg-navy-100 px-1.5 py-0.5 text-[10px] font-medium text-navy-600 dark:bg-white/10 dark:text-slate-300">
+                        {job.status}
+                      </span>
+                      {isSettled && (
+                        <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold ${
+                          isFullySettled
+                            ? "bg-emerald-200/70 text-emerald-900 dark:bg-emerald-500/30 dark:text-emerald-200"
+                            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
+                        }`}>
+                          <FiCheck className="h-3 w-3" /> Settled: {gbp(settledTotal)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-navy-800 dark:text-slate-200 font-medium mt-0.5">
+                      {job.address}
+                    </p>
+                    {isSettled && (
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
+                        {isFullySettled
+                          ? `Job fee fully settled against balance (${gbp(settledTotal)})`
+                          : `${gbp(settledTotal)} settled from fee · ${gbp(remainingFee)} remaining payable`}
+                      </p>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenRepay(job)}
-                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300 transition"
-                  >
-                    Pay / Settle from this Job
-                  </button>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <span className="text-[10px] text-navy-400 block">Job Fee</span>
+                      <span className="font-mono font-bold text-navy-900 dark:text-white">
+                        {gbp(job.fee)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenRepay(job)}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition ${
+                        isFullySettled
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+                          : isSettled
+                            ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+                            : "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      }`}
+                    >
+                      {isFullySettled ? `Settled (${gbp(settledTotal)})` : isSettled ? `Settle More (Rem: ${gbp(remainingFee)})` : "Pay / Settle from this Job"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

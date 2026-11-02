@@ -332,14 +332,25 @@ export default function EngineerPayModal({
               </p>
             </div>
             <div className="metric-cell">
-              <p className="metric-label">Due</p>
+              <p className="metric-label">Period Due</p>
               <div className="metric-figure">
                 <span className={`metric-value ${row.balance > 0 ? "delta-down" : ""}`}>{gbp(row.balance)}</span>
               </div>
               <p className="metric-sub">
-                {row.balance > 0 ? `send ${gbp(grossUpTransfer(row.balance).send)} to clear` : "Fully settled"}
+                {row.balance > 0 ? `send ${gbp(grossUpTransfer(row.balance).send)} to clear` : "Period settled"}
               </p>
             </div>
+            {engDebtBalance > 0 && (
+              <div className="metric-cell border-l border-amber-200 bg-amber-50/50 dark:border-amber-500/20 dark:bg-amber-500/5">
+                <p className="metric-label font-bold text-amber-800 dark:text-amber-300">Balance Owed</p>
+                <div className="metric-figure">
+                  <span className="metric-value font-extrabold text-amber-700 dark:text-amber-400">{gbp(engDebtBalance)}</span>
+                </div>
+                <p className="metric-sub text-amber-700/90 dark:text-amber-400/80">
+                  Total we owe engineer
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

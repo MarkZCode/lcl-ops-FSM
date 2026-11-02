@@ -727,7 +727,24 @@ function ReportsInner() {
                         <td className="tnum px-3 py-2.5 text-right text-navy-500">{r.vat > 0 ? gbp(r.vat) : "—"}</td>
                         <td className="tnum px-3 py-2.5 text-right text-navy-500">{r.parkingReimbursed > 0 ? gbp(r.parkingReimbursed) : "—"}</td>
                         <td className="tnum px-3 py-2.5 text-right text-emerald-700">{r.paid > 0 ? gbp(r.paid) : "—"}</td>
-                        <td className="tnum px-5 py-2.5 text-right font-bold text-amber-700">{gbp(r.balance)}</td>
+                        <td className="tnum px-5 py-2.5 text-right font-bold text-amber-700">
+                          <div>{gbp(r.balance)}</div>
+                          {(() => {
+                            const entries = (engineerDebts || []).filter((d) => d.engineerId === r.id);
+                            let bal = 0;
+                            for (const e of entries) {
+                              if (e.type === "debt") bal += Number(e.amount) || 0;
+                              if (e.type === "repayment") bal -= Number(e.amount) || 0;
+                            }
+                            const owed = Math.max(0, Math.round(bal * 100) / 100);
+                            if (owed <= 0) return null;
+                            return (
+                              <span className="block text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                                +{gbp(owed)} owed
+                              </span>
+                            );
+                          })()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
