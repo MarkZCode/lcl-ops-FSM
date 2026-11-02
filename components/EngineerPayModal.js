@@ -285,14 +285,14 @@ export default function EngineerPayModal({
         {engDebtBalance > 0 && tab !== "debt" && (
           <div className="flex items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50/70 p-2.5 px-3.5 text-xs dark:border-rose-500/30 dark:bg-rose-500/10">
             <span className="font-semibold text-rose-900 dark:text-rose-200">
-              Outstanding debt / advance: <strong>{gbp(engDebtBalance)}</strong>
+              Outstanding balance owed to engineer: <strong>{gbp(engDebtBalance)}</strong>
             </span>
             <button
               type="button"
               onClick={() => setTab("debt")}
               className="font-bold text-rose-700 hover:underline dark:text-rose-300"
             >
-              View &amp; Deduct Debt →
+              View &amp; Settle Balance →
             </button>
           </div>
         )}
@@ -359,7 +359,7 @@ export default function EngineerPayModal({
               { k: "history", l: "History", badge: periodPayments.length || null },
               {
                 k: "debt",
-                l: "Debt & Advance",
+                l: "Balance Owed",
                 badge: engDebtBalance > 0 ? gbp(engDebtBalance) : null,
                 isDebt: true,
               },

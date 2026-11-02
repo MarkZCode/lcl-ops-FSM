@@ -248,18 +248,18 @@ export default function EngineerDebtPaySection({ engineer, row }) {
 
   const copyWhatsAppBreakdown = () => {
     const lines = [
-      `*Engineer Debt & Payment Breakdown — ${engineer.name}*`,
+      `*Statement of Balance Owed — ${engineer.name}*`,
       `Date: ${new Date().toLocaleDateString("en-GB")}`,
       ``,
-      `• *Total Advance / Debt Given:* ${gbp(summary.totalDebt)}`,
-      `• *Total Repayments / Deducted:* ${gbp(summary.totalRepaid)}`,
-      `• *Remaining Balance to Clear:* ${gbp(summary.balance)}`,
+      `• *Total Amount Owed to Engineer:* ${gbp(summary.totalDebt)}`,
+      `• *Total Paid / Settled:* ${gbp(summary.totalRepaid)}`,
+      `• *Remaining Balance We Owe:* ${gbp(summary.balance)}`,
       ``,
-      `*Recent Transactions / Deductions:*`,
+      `*Recent Payouts & Balance Adjustments:*`,
     ];
 
     if (engEntries.length === 0) {
-      lines.push(`(No debt or repayment records yet)`);
+      lines.push(`(No balance or payout records yet)`);
     } else {
       for (const entry of engEntries.slice(0, 10)) {
         const isRepay = entry.type === "repayment";
@@ -286,42 +286,42 @@ export default function EngineerDebtPaySection({ engineer, row }) {
     <div className="space-y-4">
       {/* Debt Balance Summary Cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 dark:border-rose-500/20 dark:bg-rose-500/5">
-          <div className="flex items-center justify-between text-xs font-semibold text-rose-800 dark:text-rose-300">
-            <span>Current Debt Balance</span>
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3.5 dark:border-amber-500/20 dark:bg-amber-500/5">
+          <div className="flex items-center justify-between text-xs font-semibold text-amber-800 dark:text-amber-300">
+            <span>Balance Owed to Engineer</span>
             <LuScale className="h-4 w-4" />
           </div>
-          <div className="mt-2 text-2xl font-bold text-rose-700 dark:text-rose-400">
+          <div className="mt-2 text-2xl font-bold text-amber-700 dark:text-amber-400">
             {gbp(summary.balance)}
           </div>
-          <p className="mt-0.5 text-[11px] text-rose-600/80 dark:text-rose-400/70">
-            Remaining amount we owe to the engineer
+          <p className="mt-0.5 text-[11px] text-amber-600/80 dark:text-amber-400/70">
+            Remaining amount we owe to {engineer.name}
           </p>
         </div>
 
         <div className="rounded-xl border border-navy-200 bg-white p-3.5 dark:border-white/10 dark:bg-navy-900">
           <div className="flex items-center justify-between text-xs font-semibold text-navy-600 dark:text-slate-300">
-            <span>Total Advances Given</span>
+            <span>Total Amount Accrued</span>
             <LuWallet className="h-4 w-4 text-navy-400" />
           </div>
           <div className="mt-2 text-2xl font-bold text-navy-900 dark:text-white">
             {gbp(summary.totalDebt)}
           </div>
           <p className="mt-0.5 text-[11px] text-navy-400">
-            Recorded advances / loans
+            Recorded balance owed to engineer
           </p>
         </div>
 
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3.5 dark:border-emerald-500/20 dark:bg-emerald-500/5">
           <div className="flex items-center justify-between text-xs font-semibold text-emerald-800 dark:text-emerald-300">
-            <span>Total Repaid / Deducted</span>
+            <span>Total Paid / Settled</span>
             <LuReceipt className="h-4 w-4" />
           </div>
           <div className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-400">
             {gbp(summary.totalRepaid)}
           </div>
           <p className="mt-0.5 text-[11px] text-emerald-600/80 dark:text-emerald-400/70">
-            Deducted from jobs or cash settlements
+            Paid out or settled against jobs
           </p>
         </div>
       </div>
@@ -334,14 +334,14 @@ export default function EngineerDebtPaySection({ engineer, row }) {
             onClick={() => handleOpenRepay()}
             className="btn-primary py-1.5 px-3 text-xs"
           >
-            <FiPlus /> Log Deduction / Repayment
+            <FiPlus /> Record Payout / Settlement
           </button>
           <button
             type="button"
             onClick={() => setAddDebtOpen(true)}
             className="btn-outline py-1.5 px-3 text-xs text-rose-700 hover:border-rose-300 dark:text-rose-300"
           >
-            <FiPlus /> Record New Advance / Debt
+            <FiPlus /> Record Amount We Owe
           </button>
         </div>
 
@@ -372,7 +372,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
                 Jobs for {engineer.name}
               </h4>
               <p className="text-[11px] text-navy-500">
-                Select a job to automatically calculate debt deductions or extra repayments based on what you paid them.
+                Select a job to record or offset payout against the balance we owe.
               </p>
             </div>
           </div>
@@ -411,7 +411,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
                     onClick={() => handleOpenRepay(job)}
                     className="rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300 transition"
                   >
-                    Deduct / Repay from this Job
+                    Pay / Settle from this Job
                   </button>
                 </div>
               </div>
@@ -423,7 +423,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
       {/* Full Transaction History Table */}
       <div className="overflow-hidden rounded-xl border border-navy-200 bg-white dark:border-white/10 dark:bg-navy-900">
         <div className="border-b border-navy-100 bg-navy-50/70 px-4 py-2.5 text-xs font-bold text-navy-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 flex justify-between items-center">
-          <span>Transaction &amp; Repayment History</span>
+          <span>Payout &amp; Balance History</span>
           <span className="text-[11px] font-normal text-navy-400">
             {engEntries.length} record{engEntries.length === 1 ? "" : "s"}
           </span>
@@ -432,7 +432,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
         {engEntries.length === 0 ? (
           <div className="p-8 text-center text-xs text-navy-400 dark:text-slate-500">
             <LuScale className="mx-auto h-8 w-8 text-navy-300 opacity-60 mb-1.5" />
-            No debt or repayment records for {engineer.name} yet.
+            No balance or payout records for {engineer.name} yet.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -465,11 +465,11 @@ export default function EngineerDebtPaySection({ engineer, row }) {
                         >
                           {isRepay ? (
                             <>
-                              <FiArrowDownRight /> Repaid / Deducted
+                              <FiArrowDownRight /> Payout / Settled
                             </>
                           ) : (
                             <>
-                              <FiArrowUpRight /> Advance / Debt Added
+                              <FiArrowUpRight /> Balance Owed Added
                             </>
                           )}
                         </span>
@@ -519,16 +519,16 @@ export default function EngineerDebtPaySection({ engineer, row }) {
           open={addDebtOpen}
           onClose={() => setAddDebtOpen(false)}
           onBack={() => setAddDebtOpen(false)}
-          title={`Record Advance / Debt · ${engineer.name}`}
+          title={`Record Amount We Owe · ${engineer.name}`}
         >
           <form onSubmit={submitAddDebt} className="space-y-4 text-sm">
             <p className="text-xs text-navy-500">
-              Record money given to {engineer.name} as an advance or loan. This increases their debt balance and will be deducted from future job payouts.
+              Record an amount we owe to {engineer.name} (e.g. backpay, rate adjustment, or unpaid fee). This increases the balance we owe to them.
             </p>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Advance Amount (£)</label>
+                <label className="label">Amount We Owe (£)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -572,7 +572,7 @@ export default function EngineerDebtPaySection({ engineer, row }) {
                 <FiArrowLeft /> Back
               </button>
               <button type="submit" className="btn-primary">
-                Record Advance (+{gbp(debtAmount || 0)})
+                Record Balance Owed (+{gbp(debtAmount || 0)})
               </button>
             </div>
           </form>
@@ -585,12 +585,12 @@ export default function EngineerDebtPaySection({ engineer, row }) {
           open={repayOpen}
           onClose={() => setRepayOpen(false)}
           onBack={repayJob ? () => { setRepayJob(null); setActualPaid(""); setRepayAmount(""); setRepayNotes(""); } : () => setRepayOpen(false)}
-          title={`Log Debt Repayment / Deduction · ${engineer.name}`}
+          title={`Record Payout / Settlement · ${engineer.name}`}
         >
           <form onSubmit={submitRepay} className="space-y-4 text-sm">
             <div className="rounded-xl border border-navy-100 bg-navy-50/70 p-3 text-xs dark:border-white/10 dark:bg-white/[0.03]">
               <div className="flex justify-between font-semibold">
-                <span className="text-navy-500">Current Debt Balance:</span>
+                <span className="text-navy-500">Current Balance We Owe:</span>
                 <span className="text-rose-600 dark:text-rose-400 font-mono font-bold text-sm">
                   {gbp(summary.balance)}
                 </span>

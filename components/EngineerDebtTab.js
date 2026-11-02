@@ -222,7 +222,7 @@ export default function EngineerDebtTab() {
         {/* Total Outstanding */}
         <div className="card flex flex-col justify-between p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Total Debt Outstanding</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Total Balance Owed to Engineers</span>
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
               <LuScale className="h-4 w-4" />
             </span>
@@ -232,7 +232,7 @@ export default function EngineerDebtTab() {
               {gbp(overall.activeBalance)}
             </span>
             <p className="mt-1 text-xs text-navy-500">
-              {overall.activeEngineersCount} engineer{overall.activeEngineersCount === 1 ? "" : "s"} with pending balance
+              {overall.activeEngineersCount} engineer{overall.activeEngineersCount === 1 ? "" : "s"} with balance we owe
             </p>
           </div>
         </div>
@@ -240,7 +240,7 @@ export default function EngineerDebtTab() {
         {/* Total Repaid */}
         <div className="card flex flex-col justify-between p-5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Total Debt Repaid</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-navy-400">Total Paid Out / Cleared</span>
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400">
               <LuWallet className="h-4 w-4" />
             </span>
@@ -365,8 +365,8 @@ export default function EngineerDebtTab() {
                   </div>
 
                   <div className="mt-2 flex items-center justify-between text-[11px] text-navy-400">
-                    <span>Repaid: {gbp(s.totalRepaid)}</span>
-                    <span>Total Debt: {gbp(s.totalDebt)}</span>
+                    <span>Paid Out: {gbp(s.totalRepaid)}</span>
+                    <span>Total Accrued: {gbp(s.totalDebt)}</span>
                   </div>
 
                   {/* Progress bar */}
@@ -392,7 +392,7 @@ export default function EngineerDebtTab() {
                     disabled={s.balance <= 0}
                     className="btn-primary py-1 px-2.5 text-xs font-semibold disabled:opacity-40"
                   >
-                    <FiArrowDownRight /> Repay
+                    <FiArrowDownRight /> Record Payout
                   </button>
                 </div>
               </div>
@@ -405,7 +405,7 @@ export default function EngineerDebtTab() {
       <section className="card overflow-hidden">
         <div className="border-b border-navy-100 bg-navy-50 px-5 py-3 dark:border-white/10 dark:bg-navy-800 flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-bold text-navy-900 dark:text-white">Debt & Repayment Ledger</h3>
+            <h3 className="text-sm font-bold text-navy-900 dark:text-white">Balance & Payout Ledger</h3>
             <p className="text-xs text-navy-500">
               {filteredEntries.length} transaction{filteredEntries.length === 1 ? "" : "s"} logged
             </p>
@@ -459,7 +459,7 @@ export default function EngineerDebtTab() {
                         >
                           {isRepayment ? (
                             <>
-                              <FiArrowDownRight /> Repayment
+                              <FiArrowDownRight /> Payout / Settled
                             </>
                           ) : (
                             <>
@@ -538,7 +538,7 @@ export default function EngineerDebtTab() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Debt Amount (£)</label>
+                <label className="label">Amount We Owe (£)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -591,7 +591,7 @@ export default function EngineerDebtTab() {
           open={repayOpen}
           onClose={() => setRepayOpen(false)}
           onBack={selectedJobObj ? () => { setSelectedJobObj(null); setRepayJobId(""); setActualPaid(""); } : () => setRepayOpen(false)}
-          title="Log Debt Repayment (Deduction)"
+          title="Record Payout (Deduction)"
         >
           <form onSubmit={submitRepay} className="space-y-4 text-sm">
             <p className="text-xs text-navy-500">
@@ -618,7 +618,7 @@ export default function EngineerDebtTab() {
             {repayEngId && (
               <div className="rounded-lg border border-navy-200 bg-navy-50 p-3 text-xs dark:border-white/10 dark:bg-navy-800">
                 <div className="flex justify-between font-semibold">
-                  <span className="text-navy-500">Current Debt Balance:</span>
+                  <span className="text-navy-500">Current Balance We Owe:</span>
                   <span className="text-rose-600 dark:text-rose-400">{gbp(modalEngBalance)}</span>
                 </div>
                 {repayAmount && Number(repayAmount) > 0 && (
