@@ -81,7 +81,15 @@ export default function JobFunnelView({ jobs, clients, onJobCard }) {
         // the table view, etc). The printable "offer card" (assign/confirm
         // engineer) is a separate, deliberate action behind its own small
         // button below, not the whole-card click.
-        onCardClick={(j) => router.push(`/jobs/${j.id}`)}
+        onCardClick={(j) => {
+          try {
+            sessionStorage.setItem("lcl-last-clicked-job", j.id);
+            const mainScroll = document.getElementById("app-main-scroll");
+            const y = (mainScroll && mainScroll.scrollTop) || window.scrollY || document.documentElement.scrollTop || 0;
+            if (y > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(y));
+          } catch {}
+          router.push(`/jobs/${j.id}`);
+        }}
         renderCard={(j) => {
           const c = clientMap[j.clientId];
           const days = dayInStatus(j);

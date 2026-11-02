@@ -50,7 +50,7 @@ export default function OfficeShell({ children, showTour, setShowTour }) {
                 pb-16 on a theory that the safe area was being reserved
                 twice — it wasn't; the bottom nav's own padding is what
                 actually needed restoring, see BottomNav.js). */}
-            <div className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
+            <div id="app-main-scroll" data-main-scroll="1" className="scroll-area min-w-0 flex-1 overflow-x-hidden overscroll-none pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:h-full lg:overflow-y-auto lg:pb-0" style={{touchAction:"pan-y"}}>
             <div className="flex min-h-full flex-col">
               <main className="flex-1 min-w-0"><PageTransition>{children}</PageTransition></main>
               <footer className="bar-navy border-t border-white/[0.06] px-5 py-3 sm:px-8">

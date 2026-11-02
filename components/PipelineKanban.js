@@ -77,6 +77,7 @@ export default function PipelineKanban({ items, stages, onMove, renderCard, onCa
               {list.map((it) => (
                 <div
                   key={it.id}
+                  id={`job-row-${it.id}`}
                   draggable
                   onDragStart={(e) => handleDragStart(e, it.id)}
                   onDragEnd={handleDragEnd}

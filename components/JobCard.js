@@ -76,7 +76,12 @@ export default function JobCard({ job, onJobCard, compact = false, owner, unseen
       id={`job-row-${job.id}`}
       onClick={(e) => {
         if (selecting) { e.preventDefault(); onToggle?.(job.id); return; }
-        try { if (typeof window !== "undefined" && window.scrollY > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY)); } catch {}
+        try {
+          sessionStorage.setItem("lcl-last-clicked-job", job.id);
+          const mainScroll = document.getElementById("app-main-scroll");
+          const y = (mainScroll && mainScroll.scrollTop) || window.scrollY || document.documentElement.scrollTop || 0;
+          if (y > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(y));
+        } catch {}
       }}
       className={`card job-card block min-w-0 border-l-4 transition hover:shadow-md hover:-translate-y-px ${compact ? "p-3" : "p-4"} ${accent} ${selected ? "ring-2 ring-brand-400" : highlighted ? "ring-2 ring-navy-300" : ""}`}
     >

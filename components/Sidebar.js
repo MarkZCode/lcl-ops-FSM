@@ -79,13 +79,22 @@ function NavLinks({ pathname, onNavigate, can, role, expanded = true, includeUti
 // the drawer's always-dark background it put near-black text on black —
 // exactly the "can't even see the name and email" symptom.
 function UserFooter({ user, onLogout, expanded = true, withControls = false, dark = false }) {
-  const displayName = user?.username || user?.name || "?";
-  const initials = displayName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const [imgError, setImgError] = useState(false);
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.avatarUrl]);
+
+  const rawName = user?.username || user?.name || user?.email || "?";
+  const cleanName = rawName.includes("@") ? rawName.split("@")[0] : rawName;
+  const initials = (
+    cleanName
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join("")
+      .slice(0, 2) || cleanName.slice(0, 2)
+  ).toUpperCase();
+
   return (
     <div className="mt-auto">
       {/* Theme + notifications sit here rather than crowding the brand row. */}
@@ -112,11 +121,15 @@ function UserFooter({ user, onLogout, expanded = true, withControls = false, dar
           title="Your profile settings"
           className="shrink-0 rounded-full transition hover:opacity-80"
         >
-          {user?.avatarUrl ? (
-            <img src={user.avatarUrl} alt={user.username || user.name || ""}
-              className="h-9 w-9 rounded-full object-cover ring-2 ring-navy-900 dark:ring-white/70" />
+          {user?.avatarUrl && !imgError ? (
+            <img
+              src={user.avatarUrl}
+              alt={user.username || user.name || ""}
+              onError={() => setImgError(true)}
+              className="h-9 w-9 rounded-full object-cover aspect-square ring-2 ring-navy-900 dark:ring-white/70"
+            />
           ) : (
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-500 text-xs font-bold text-white">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-500 text-xs font-bold text-white shadow-sm ring-2 ring-navy-900/10 dark:ring-white/30">
               {initials}
             </span>
           )}

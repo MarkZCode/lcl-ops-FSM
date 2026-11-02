@@ -38,6 +38,12 @@ const emptyForm = { name: "", username: "", email: "", password: "", role: "agen
 function AvatarPicker({ currentUrl, userId, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(currentUrl || "");
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setPreview(currentUrl || "");
+    setImgError(false);
+  }, [currentUrl]);
 
   // Show the picked image the instant it's chosen, and upload the shrunken
   // copy in the background. The old flow read the whole full-resolution file
@@ -50,7 +56,7 @@ function AvatarPicker({ currentUrl, userId, onSaved }) {
     if (file.size > 12 * 1024 * 1024) { alert("That image is too large — pick one under 12 MB."); return; }
 
     const localUrl = URL.createObjectURL(file);
-    setPreview(localUrl);
+    setPreview(localUrl); setImgError(false);
     setBusy(true);
 
     // Every path out of here must clear `busy`. The original version set it
@@ -60,7 +66,7 @@ function AvatarPicker({ currentUrl, userId, onSaved }) {
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 45000);
     try {
-      const { base64, contentType, ext, converted } = await downscaleImage(file, { max: 512 });
+      const { base64, contentType, ext, converted } = await downscaleImage(file, { max: 512, square: true });
 
       // A format the browser couldn't decode AND can't display: uploading it
       // raw would "succeed" and leave a permanently broken avatar. Say so.
@@ -118,8 +124,13 @@ function AvatarPicker({ currentUrl, userId, onSaved }) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="relative">
-        {preview ? (
-          <img src={preview} alt="Avatar" className="h-20 w-20 rounded-full object-cover ring-2 ring-brand-300" />
+        {preview && !imgError ? (
+          <img
+            src={preview}
+            alt="Avatar"
+            onError={() => setImgError(true)}
+            className="h-20 w-20 rounded-full object-cover aspect-square ring-2 ring-brand-300"
+          />
         ) : (
           <div className="grid h-20 w-20 place-items-center rounded-full bg-brand-500 text-2xl font-bold text-white">
             {initials}
@@ -132,6 +143,27 @@ function AvatarPicker({ currentUrl, userId, onSaved }) {
       </div>
       <p className="text-[11px] text-navy-400">Click camera to upload (resized automatically)</p>
     </div>
+  );
+}
+
+function UserAvatarBadge({ url, name, role }) {
+  const [error, setError] = useState(false);
+  useEffect(() => { setError(false); }, [url]);
+
+  if (url && !error) {
+    return (
+      <img
+        src={url}
+        alt={name || ""}
+        onError={() => setError(true)}
+        className="h-9 w-9 shrink-0 rounded-full object-cover aspect-square ring-2 ring-brand-200"
+      />
+    );
+  }
+  return (
+    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-white ${role === "admin" ? "bg-navy-800" : role === "engineer" ? "bg-amber-500" : "bg-brand-500"}`}>
+      {role === "admin" ? <FiShield /> : role === "engineer" ? <FaHardHat /> : <FiUser />}
+    </span>
   );
 }
 
@@ -310,13 +342,7 @@ export default function UserManagement() {
           users.map((u) => (
             <div key={u.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
               <div className="flex min-w-0 items-center gap-3">
-                {u.avatar_url ? (
-                  <img src={u.avatar_url} alt={u.name || ""} className="h-9 w-9 shrink-0 rounded-full object-cover ring-2 ring-brand-200" />
-                ) : (
-                  <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full text-white ${u.role === "admin" ? "bg-navy-800" : u.role === "engineer" ? "bg-amber-500" : "bg-brand-500"}`}>
-                    {u.role === "admin" ? <FiShield /> : u.role === "engineer" ? <FaHardHat /> : <FiUser />}
-                  </span>
-                )}
+                <UserAvatarBadge url={u.avatar_url} name={u.name} role={u.role} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-navy-900">
                     {u.name}
