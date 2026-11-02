@@ -324,44 +324,80 @@ export default function JobsPage() {
     try { sessionStorage.setItem("lcl-jobs-order", JSON.stringify(filtered.slice(0, 400).map((j) => j.id))); } catch {}
   }, [filtered]);
 
-  // Continuously track scroll position on the jobs / quote page
+  // Continuously track scroll position on the jobs / quote page.
+  // Always read from the named scroll container so mobile (window scroll)
+  // and desktop (overflow-y-auto div) are both captured correctly.
   useEffect(() => {
     let scrollTimer;
     const handleScroll = () => {
       clearTimeout(scrollTimer);
       scrollTimer = setTimeout(() => {
         try {
-          if (window.scrollY > 0) {
-            sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY));
-          }
+          const mainScroll = document.getElementById("app-main-scroll");
+          // On desktop the named div scrolls; on mobile the window scrolls.
+          const y = (mainScroll && mainScroll.scrollTop > 0 ? mainScroll.scrollTop : null)
+            ?? window.scrollY
+            ?? document.documentElement.scrollTop
+            ?? 0;
+          if (y > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(y));
         } catch {}
-      }, 100);
+      }, 80);
     };
-    window.addEventListener("scroll", handleScroll, { passive: true });
+    // capture:true so we see scroll events on the inner div before they bubble.
+    document.addEventListener("scroll", handleScroll, { passive: true, capture: true });
     return () => {
       clearTimeout(scrollTimer);
-      window.removeEventListener("scroll", handleScroll);
+      document.removeEventListener("scroll", handleScroll, { capture: true });
     };
   }, []);
 
-  // Restore scroll position when returning from a job detail view
+  // Restore scroll position when returning from a job detail page.
+  // Strategy: immediately set the pixel offset (works in all browsers), THEN
+  // also try scrollIntoView on the exact job element as a fine-tune.  The
+  // pixel approach is the reliable baseline; element scroll is a bonus.
   const hasRestoredScroll = useRef(false);
   useEffect(() => {
     if (hasRestoredScroll.current || filtered.length === 0) return;
     try {
+      const lastJobId = sessionStorage.getItem("lcl-last-clicked-job");
       const savedY = sessionStorage.getItem("lcl-jobs-scroll-y");
-      if (savedY) {
-        const top = parseInt(savedY, 10);
+
+      if (!lastJobId && !savedY) return;
+
+      hasRestoredScroll.current = true;
+      const top = savedY ? parseInt(savedY, 10) : 0;
+
+      let attempts = 0;
+      const tryRestore = () => {
+        attempts++;
+
+        // Always apply the saved pixel offset immediately — this is the primary
+        // mechanism and works even before the exact element is in the DOM.
         if (top > 0) {
-          hasRestoredScroll.current = true;
-          // Smoothly restore position after DOM paint
-          requestAnimationFrame(() => {
-            setTimeout(() => {
-              window.scrollTo({ top, behavior: "instant" });
-            }, 30);
-          });
+          const mainScroll = document.getElementById("app-main-scroll");
+          if (mainScroll) mainScroll.scrollTop = top;
+          try { window.scrollTo({ top, behavior: "instant" }); } catch { window.scrollTo(0, top); }
+          if (document.documentElement) document.documentElement.scrollTop = top;
+          if (document.body) document.body.scrollTop = top;
         }
-      }
+
+        // Fine-tune: scroll the exact job card into view if it's rendered.
+        if (lastJobId) {
+          const el = document.getElementById(`job-row-${lastJobId}`);
+          if (el) {
+            el.scrollIntoView({ block: "nearest", behavior: "instant" });
+            return; // done — element found and visible
+          }
+        } else {
+          return; // pixel restore was enough
+        }
+
+        // Element not in DOM yet — retry a few times while React paints.
+        if (attempts < 10) setTimeout(tryRestore, 40 * attempts);
+      };
+
+      // Wait one animation frame so React has committed the new DOM.
+      requestAnimationFrame(() => setTimeout(tryRestore, 0));
     } catch {}
   }, [filtered.length]);
 
@@ -610,7 +646,12 @@ function ListView({ jobs, clients, onJobCard, columns, owners, nextByJob, unseen
                   id={`job-row-${job.id}`}
                   onClick={() => {
                     if (selecting) { onToggle(job.id); return; }
-                    try { if (typeof window !== "undefined" && window.scrollY > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY)); } catch {}
+                    try {
+                      sessionStorage.setItem("lcl-last-clicked-job", job.id);
+                      const mainScroll = document.getElementById("app-main-scroll");
+                      const y = (mainScroll && mainScroll.scrollTop) || window.scrollY || document.documentElement.scrollTop || 0;
+                      if (y > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(y));
+                    } catch {}
                     router.push(`/jobs/${job.id}`);
                   }}
                   className={`cursor-pointer transition hover:bg-navy-50 ${i === cursor ? "bg-brand-50/70" : ""}`}
@@ -621,7 +662,12 @@ function ListView({ jobs, clients, onJobCard, columns, owners, nextByJob, unseen
                   <td className="px-4 py-2.5">
                     <Link href={`/jobs/${job.id}`} className="inline-flex items-center gap-1.5 font-semibold text-navy-900 hover:text-brand-600" onClick={(e) => {
                       if (selecting) { e.preventDefault(); return; }
-                      try { if (typeof window !== "undefined" && window.scrollY > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(window.scrollY)); } catch {}
+                      try {
+                        sessionStorage.setItem("lcl-last-clicked-job", job.id);
+                        const mainScroll = document.getElementById("app-main-scroll");
+                        const y = (mainScroll && mainScroll.scrollTop) || window.scrollY || document.documentElement.scrollTop || 0;
+                        if (y > 0) sessionStorage.setItem("lcl-jobs-scroll-y", String(y));
+                      } catch {}
                     }}>
                       {unseen.has(job.id) && <span className="h-2 w-2 rounded-full bg-blue-500" title="Changed since you last opened it" />}
                       {job.id}
