@@ -83,7 +83,7 @@ function ReportsInner() {
   // engineer pay. Lock them to that one tab instead of hiding-then-showing
   // the rest, which would leak state (period/range) built for a fuller view.
   const expensesOnly = !can("reports") && can("expenses");
-  const { jobs, clients, engineers, prospects, expenses, engineerPayments, addExpense, updateExpense, removeExpense, addEngineerPayment, removeEngineerPayment } = useStore();
+  const { jobs, clients, engineers, prospects, expenses, engineerPayments, engineerDebts = [], addExpense, updateExpense, removeExpense, addEngineerPayment, removeEngineerPayment } = useStore();
   // Holds just the engineer id, not the row object itself — the row is
   // re-derived from `pay.rows` on every render below. Storing the object
   // directly used to freeze it at click-time: editing a job's payable
