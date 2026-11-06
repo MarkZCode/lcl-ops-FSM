@@ -63,6 +63,18 @@ async function loadOperatorFromEmail() {
   } catch { return null; }
 }
 
+async function loadSuppressions() {
+  try {
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("data")
+      .eq("id", "email_suppressions")
+      .maybeSingle();
+    const list = data?.data?.emails || [];
+    return new Set(list.map((e) => String(e).trim().toLowerCase()));
+  } catch { return new Set(); }
+}
+
 // Load the set of recipient emails (lower-cased) who were successfully sent
 // to within DEDUP_WINDOW_DAYS. Anyone here is dropped from the enqueue —
 // they already got the outreach; re-sending is what the operator explicitly
@@ -200,13 +212,14 @@ export async function POST(request) {
   const validPrimaries = primaries.filter((p) => isEmail(p?.toEmail) && p?.subject && p?.body);
   const recipientEmails = [...new Set(validPrimaries.map((p) => String(p.toEmail).trim().toLowerCase()))];
   const prospectIds = [...new Set(validPrimaries.map((p) => p.prospectId).filter(Boolean))];
-  const [recentlyEmailed, alreadyQueued, prospectSkips] = await Promise.all([
+  const [recentlyEmailed, alreadyQueued, prospectSkips, suppressions] = await Promise.all([
     loadRecentlyEmailed(recipientEmails),
     loadAlreadyQueued(recipientEmails),
     loadProspectSkips(prospectIds),
+    loadSuppressions(),
   ]);
 
-  let skipRecentSend = 0, skipReplied = 0, skipStage = 0, skipAlreadyQueued = 0, skipContacted = 0;
+  let skipRecentSend = 0, skipReplied = 0, skipStage = 0, skipAlreadyQueued = 0, skipContacted = 0, skipSuppressed = 0;
   const now = Date.now();
   const horizon = now + MAX_DAYS_AHEAD * 24 * 3600 * 1000;
   const rows = [];
@@ -228,6 +241,11 @@ export async function POST(request) {
       // No dedup, no primary row — this recipient was already, genuinely
       // sent to moments ago by the caller. Only the chase (below) applies.
     } else {
+      if (suppressions.has(emailLower)) {
+        skipSuppressed++;
+        rejected.push({ toEmail: p.toEmail, reason: "suppressed / DNC" });
+        return;
+      }
       // Skip in priority order (recent send is the "loudest" reason — they
       // definitely don't want the SAME email again).
       if (!overrideContacted && recentlyEmailed.has(emailLower)) {

@@ -152,9 +152,10 @@ async function claimDuePending(limit) {
   return (claimed || []).sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
-// Returns true if the recipient should be skipped (replied / opted out / booked / etc).
+// Returns true if the recipient should be skipped (replied / opted out / booked / suppressed / etc).
 // Checks both prospects and cold leads tables — queue items can come from either.
-async function shouldSkipForProspect(prospectId) {
+async function shouldSkipForProspect(prospectId, toEmail, suppressions) {
+  if (toEmail && suppressions?.has(String(toEmail).trim().toLowerCase())) return true;
   if (!prospectId) return false;
 
   // Try prospects table first.
@@ -266,7 +267,11 @@ async function run(request) {
   let sent = 0, cancelled = 0, failed = 0, skipped = 0;
   // Independent counter per provider — a capped-out "resend" pool must not
   // stop "main" (Gmail) items in the same run from sending, and vice versa.
-  const sentTodayByProvider = await todaysCountsByProvider();
+  const [sentTodayByProvider, { data: suppRow }] = await Promise.all([
+    todaysCountsByProvider(),
+    supabaseAdmin.from("app_settings").select("data").eq("id", "email_suppressions").maybeSingle(),
+  ]);
+  const suppressions = new Set((suppRow?.data?.emails || []).map((e) => String(e).trim().toLowerCase()));
   const maxedProviders = new Set();
   const runStartedAt = Date.now();
   let ranOutOfTime = false;
@@ -294,9 +299,9 @@ async function run(request) {
       continue;
     }
 
-    // Did the prospect already reply / opt out since this was scheduled?
-    if (await shouldSkipForProspect(item.prospect_id)) {
-      await markCancelled(item.id, "prospect already actioned");
+    // Did the prospect already reply / opt out / suppressed since this was scheduled?
+    if (await shouldSkipForProspect(item.prospect_id, item.to_email, suppressions)) {
+      await markCancelled(item.id, "prospect already actioned or suppressed");
       cancelled++;
       continue;
     }
