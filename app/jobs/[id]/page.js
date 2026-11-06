@@ -28,6 +28,7 @@ import { invoiceConfig } from "@/lib/invoiceConfig";
 import { buildInvoicePrefill } from "@/lib/invoiceData";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
+import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { STAGE_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
 import { jobStage, isCertified, quoteStage, QUOTE_STAGES } from "@/lib/stages";
 import { gbp, fmtDate, fmtDateTime, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode } from "@/lib/format";
@@ -80,6 +81,7 @@ export default function JobDetailPage() {
   const { addJob, jobs, clients, updateJob, removeJob, mergeBackToParentJob, cancelServices, restoreService, logActivity, mergeRemoteActivity, createRecurringJob, generateShareToken, autoNotify, email: emailSettings, templates, engineers, engineerById, hydrated, invoiceSeq, advanceInvoiceSeq, allocateInvoiceNumber } =
     useStore();
   const { can, user } = useAuth();
+  const myEngId = useMyEngineerId();
   const { bankAccounts, invoiceBankId, rules } = useStore();
   const [editOpen, setEditOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
@@ -200,6 +202,23 @@ export default function JobDetailPage() {
           {hydrated
             ? "Job not found. It may have been deleted."
             : "Loading…"}
+        </div>
+      </div>
+    );
+  }
+
+  if (hydrated && job && myEngId && !jobBelongsToEngineer(job, myEngId)) {
+    return (
+      <div className="p-8">
+        <button
+          type="button"
+          onClick={() => router.push("/jobs")}
+          className="btn-outline mb-6 w-fit inline-flex items-center gap-1.5"
+        >
+          <FiArrowLeft /> Back to Jobs
+        </button>
+        <div className="card p-10 text-center text-navy-500">
+          Access restricted. You are not assigned to this job.
         </div>
       </div>
     );

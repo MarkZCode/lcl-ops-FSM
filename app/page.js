@@ -30,6 +30,7 @@ import JobModal from "@/components/JobModal";
 import { useSectionTour } from "@/components/OnboardingTour";
 import { LuScale } from "react-icons/lu";
 import { useAuth } from "@/lib/auth";
+import RequirePermission from "@/components/RequirePermission";
 import LogoMark from "@/components/LogoMark";
 import { MoneyCounter } from "@/components/AnimatedCounter";
 
@@ -84,7 +85,7 @@ const DASH_PANELS = [
   ["pipeline", "Job pipeline"], ["ops", "Operations — what's waiting"], ["activity", "Daily activity"], ["recent", "Recent jobs and renewals"],
 ];
 
-export default function Dashboard() {
+function DashboardContent() {
   const { jobs: allJobs, clients, hydrated, engineers, expenses, engineerPayments, engineerDebts = [], financeReady, retryHydrate } = useStore();
 
   // The ONLY thing this page wanted the prospects table for was one number:
@@ -1003,5 +1004,13 @@ function Cell({ label, value, sub, delta, tone, link }) {
     <Link href={link} className="metric-cell block transition-colors hover:bg-navy-50">{body}</Link>
   ) : (
     <div className="metric-cell">{body}</div>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <RequirePermission perm="dashboard">
+      <DashboardContent />
+    </RequirePermission>
   );
 }

@@ -3,11 +3,12 @@
 import { useState } from "react";
 import { FiUpload, FiCheck, FiX, FiMail, FiDownload } from "react-icons/fi";
 import PageHeader from "@/components/PageHeader";
+import RequirePermission from "@/components/RequirePermission";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
 
-export default function ImportPage() {
+function ImportContent() {
   const { addClient, addJob, clients } = useStore();
   const [step, setStep] = useState("upload"); // upload, preview, import, campaign
   const [csvData, setCsvData] = useState([]);
@@ -398,5 +399,13 @@ export default function ImportPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function ImportPage() {
+  return (
+    <RequirePermission perm="importData">
+      <ImportContent />
+    </RequirePermission>
   );
 }

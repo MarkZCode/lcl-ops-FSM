@@ -61,7 +61,12 @@ export async function POST(request) {
   const raw = body?.message?.data;
   if (!raw) return NextResponse.json({ ok: true });
 
-  const decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+  let decoded;
+  try {
+    decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+  } catch {
+    return NextResponse.json({ ok: true });
+  }
   const historyId = decoded.historyId;
   const email = decoded.emailAddress;
   if (!email || !historyId) return NextResponse.json({ ok: true });

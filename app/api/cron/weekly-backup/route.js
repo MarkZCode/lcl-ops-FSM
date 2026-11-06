@@ -15,7 +15,8 @@ export const maxDuration = 60;
 
 export async function GET(request) {
   const auth = request.headers.get("authorization") || "";
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const r = await sendBackupEmail();
