@@ -8,8 +8,8 @@
 // prices — the token is the only credential.
 import { NextResponse } from "next/server";
 import { supabaseAdmin, JOB_FILES_BUCKET } from "@/lib/supabaseAdmin";
-import { confirmationScopes, scopeAccepted, setScopeConfirmed, dateLine } from "@/lib/jobCard";
-import { reconcileJob } from "@/lib/visits";
+import { confirmationScopes, scopeAccepted, setScopeConfirmed, dateLine, isScopeFinished, isScopeStarted } from "@/lib/jobCard";
+import { reconcileJob, visitEngineerId } from "@/lib/visits";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";
 import { within } from "@/lib/within";
@@ -21,7 +21,8 @@ const MAX_UPLOAD_BYTES = 9 * 1024 * 1024;
 
 async function load(token) {
   if (!token || String(token).length < 12 || !supabaseAdmin) return null;
-  const { data } = await supabaseAdmin.from("jobs").select("id,data").eq("data->>confirmToken", token).maybeSingle();
+  const { data: rows } = await supabaseAdmin.from("jobs").select("id,data").eq("data->>confirmToken", token).limit(1);
+  const data = rows?.[0] || null;
   if (!data?.data) return null;
   const { data: engRows } = await supabaseAdmin.from("engineers").select("id,data");
   const engineers = (engRows || []).map((r) => r.data).filter(Boolean);
@@ -35,7 +36,6 @@ async function load(token) {
 }
 
 function view(job, engineerById, clientPostcode, client) {
-  const open = !["completed", "invoiced", "paid", "cancelled"].includes(job.status);
   const todayUk = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
 
   const scopes = confirmationScopes(job, engineerById)
@@ -52,16 +52,19 @@ function view(job, engineerById, clientPostcode, client) {
       const when = raw.replace(/^(\S+(?: \d+ \w+)?) \((.*?)\)\s*(.*)$/, (m, day, range, part) => `${day}, ${range}${part ? ` (${part})` : ""}`);
       return {
         key: sc.key,
+        engineerId: sc.engineerId,
         engineer: engineerById(sc.engineerId)?.name || "Engineer",
         services: sc.sub || sc.label,
         when,
         isToday,
         confirmed: scopeAccepted(job, sc),
-        started: v ? ["in_progress", "completed"].includes(v.status) : ["in_progress", "completed"].includes(job.status),
-        finished: v ? v.status === "completed" : job.status === "completed",
+        started: isScopeStarted(job, sc, engineerById),
+        finished: isScopeFinished(job, sc, engineerById),
       };
     });
 
+  const allFinished = scopes.length > 0 && scopes.every((s) => s.finished);
+  const open = !["invoiced", "paid", "cancelled"].includes(job.status) && !allFinished;
   const anyConfirmed = scopes.some((s) => s.confirmed);
   const property = (client?.properties || []).find((p) => p.id === job.propertyId) || null;
   const fullAddress = property?.label || property?.address || clientPostcode || "";
@@ -116,9 +119,10 @@ export async function POST(req, { params }) {
   if (!sc || !sc.engineerId || sc.engineerId === "unassigned") {
     return NextResponse.json({ error: "That part of the job isn't open to confirm." }, { status: 409 });
   }
-  // A finished job still takes the certificate upload; nothing else.
-  if (job.status === "cancelled" || (["completed", "invoiced", "paid"].includes(job.status) && body.action !== "upload")) {
-    return NextResponse.json({ error: "This job is already closed." }, { status: 409 });
+  // A finished scope still takes the certificate upload; nothing else.
+  const isThisScopeFinished = isScopeFinished(job, sc, engineerById);
+  if (job.status === "cancelled" || (["invoiced", "paid"].includes(job.status) && body.action !== "upload") || (isThisScopeFinished && body.action !== "upload")) {
+    return NextResponse.json({ error: isThisScopeFinished ? "You have already completed this work." : "This job is already closed." }, { status: 409 });
   }
   const now = new Date().toISOString();
   const who = engineerById(sc.engineerId)?.name || "Engineer";
@@ -200,19 +204,154 @@ export async function POST(req, { params }) {
 
     if (body.action === "arrived" || body.action === "finished") {
       const done = body.action === "finished";
-      const patch = visitKey
-        ? {
-            visits: (job.visits || []).map((v) =>
-              v.id === visitKey
-                ? { ...v, status: done ? "completed" : "in_progress", ...(done ? { completedAt: now } : { startedAt: now, arrivedAt: now }) }
-                : v
-            ),
-            ...(done ? {} : { engineerArrivedAt: now }),
+      const allJobScopes = confirmationScopes(job, engineerById);
+
+      let patch = {};
+
+      if (done) {
+        // Build card completions map for this engineer's scopes on this job
+        const nextCompletions = { ...(job.cardCompletions || {}) };
+        for (const s of allJobScopes) {
+          if (s.engineerId === sc.engineerId) {
+            nextCompletions[s.key] = now;
+            if (s.lineId) nextCompletions[`line:${s.lineId}`] = now;
+            if (s.visitId) nextCompletions[`visit:${s.visitId}`] = now;
           }
-        : done
-        ? { status: "completed", completedAt: now }
-        : { status: "in_progress", startedAt: now, engineerArrivedAt: now };
+        }
+        nextCompletions[sc.engineerId] = now;
+        if (sc.key === "job") nextCompletions.job = now;
+
+        let updatedVisits = job.visits;
+        if (Array.isArray(job.visits) && job.visits.length > 0) {
+          updatedVisits = job.visits.map((v) => {
+            if (v.engineerId === sc.engineerId || (visitKey && v.id === visitKey) || (sc.visitId && v.id === sc.visitId)) {
+              return { ...v, status: "completed", completedAt: v.completedAt || now };
+            }
+            return v;
+          });
+        }
+
+        const candidateJob = { ...job, cardCompletions: nextCompletions, visits: updatedVisits };
+        const assignedScopes = allJobScopes.filter((s) => s.engineerId && s.engineerId !== "unassigned");
+        const allScopesDone = assignedScopes.length > 0 && assignedScopes.every((s) => isScopeFinished(candidateJob, s, engineerById));
+
+        patch = {
+          cardCompletions: nextCompletions,
+          ...(updatedVisits ? { visits: updatedVisits } : {}),
+          status: allScopesDone ? "completed" : "in_progress",
+          ...(allScopesDone ? { completedAt: now } : {}),
+        };
+      } else {
+        // Arrived
+        const nextArrivals = { ...(job.cardArrivals || {}) };
+        for (const s of allJobScopes) {
+          if (s.engineerId === sc.engineerId) {
+            nextArrivals[s.key] = now;
+            if (s.lineId) nextArrivals[`line:${s.lineId}`] = now;
+            if (s.visitId) nextArrivals[`visit:${s.visitId}`] = now;
+          }
+        }
+        nextArrivals[sc.engineerId] = now;
+        if (sc.key === "job") nextArrivals.job = now;
+
+        let updatedVisits = job.visits;
+        if (Array.isArray(job.visits) && job.visits.length > 0) {
+          updatedVisits = job.visits.map((v) => {
+            if (v.engineerId === sc.engineerId || (visitKey && v.id === visitKey) || (sc.visitId && v.id === sc.visitId)) {
+              return { ...v, status: "in_progress", startedAt: v.startedAt || now, arrivedAt: v.arrivedAt || now };
+            }
+            return v;
+          });
+        }
+
+        patch = {
+          cardArrivals: nextArrivals,
+          ...(updatedVisits ? { visits: updatedVisits } : {}),
+          status: "in_progress",
+          startedAt: job.startedAt || now,
+          engineerArrivedAt: now,
+        };
+      }
+
       if (!(await save(patch, done ? `${who} finished on site${sc.sub ? ` — ${sc.sub}` : ""}` : `${who} arrived on site`))) return NextResponse.json({ error: "Couldn't save that — please message the office." }, { status: 502 });
+
+      // ── Sync sibling jobs for the SAME engineer (never different engineers) ──
+      // If jobs belong to the same engineer, finishing one job should automatically
+      // mark all jobs for that engineer as finished.
+      // Jobs for DIFFERENT engineers stay separate and are NOT finished.
+      if (done && sc.engineerId && sc.engineerId !== "unassigned") {
+        try {
+          const queries = [
+            supabaseAdmin.from("jobs").select("id,data").eq("data->>confirmToken", params?.token).neq("id", job.id),
+          ];
+          if (job.clientId && job.scheduledAt) {
+            queries.push(
+              supabaseAdmin.from("jobs").select("id,data").eq("data->>clientId", job.clientId).neq("id", job.id)
+            );
+          }
+          const results = await Promise.all(queries);
+          const siblingRows = results.flatMap((r) => r.data || []);
+          const seenIds = new Set();
+
+          for (const sRow of siblingRows) {
+            if (!sRow?.id || seenIds.has(sRow.id) || !sRow.data) continue;
+            seenIds.add(sRow.id);
+            const sJob = sRow.data;
+            if (["completed", "invoiced", "paid", "cancelled"].includes(sJob.status)) continue;
+
+            // Check if this sibling job belongs to the SAME engineer
+            const sScopes = confirmationScopes(sJob, engineerById);
+            const sHasThisEng = sScopes.some((s) => s.engineerId === sc.engineerId) ||
+              sJob.engineerId === sc.engineerId ||
+              (sJob.lineItems || []).some((l) => l.engineerId === sc.engineerId) ||
+              (sJob.visits || []).some((v) => v.engineerId === sc.engineerId);
+
+            // If job does NOT belong to this engineer, do NOT touch it!
+            if (!sHasThisEng) continue;
+
+            // Same engineer: mark their scopes as completed
+            const sCompletions = { ...(sJob.cardCompletions || {}) };
+            for (const s of sScopes) {
+              if (s.engineerId === sc.engineerId) {
+                sCompletions[s.key] = now;
+                if (s.lineId) sCompletions[`line:${s.lineId}`] = now;
+                if (s.visitId) sCompletions[`visit:${s.visitId}`] = now;
+              }
+            }
+            sCompletions[sc.engineerId] = now;
+            if (sScopes.some((s) => s.key === "job")) sCompletions.job = now;
+
+            let sVisits = sJob.visits;
+            if (Array.isArray(sJob.visits) && sJob.visits.length > 0) {
+              sVisits = sJob.visits.map((v) => {
+                if (v.engineerId === sc.engineerId) {
+                  return { ...v, status: "completed", completedAt: v.completedAt || now };
+                }
+                return v;
+              });
+            }
+
+            const candidateSibling = { ...sJob, cardCompletions: sCompletions, visits: sVisits };
+            const sAssignedScopes = sScopes.filter((s) => s.engineerId && s.engineerId !== "unassigned");
+            const sAllDone = sAssignedScopes.length > 0 && sAssignedScopes.every((s) => isScopeFinished(candidateSibling, s, engineerById));
+
+            const sPatch = {
+              cardCompletions: sCompletions,
+              ...(sVisits ? { visits: sVisits } : {}),
+              status: sAllDone ? "completed" : "in_progress",
+              ...(sAllDone ? { completedAt: now } : {}),
+              activity: [
+                ...(sJob.activity || []),
+                { id: "act-" + Date.now().toString(36), at: now, by: who, type: "status", title: `${who} finished on site (synced from ${job.id})` },
+              ],
+            };
+            const nextSibling = reconcileJob(sJob, { ...sJob, ...sPatch, updatedAt: now }, sPatch);
+            await supabaseAdmin.from("jobs").upsert({ id: sRow.id, data: nextSibling });
+          }
+        } catch (e) {
+          console.error("Sibling sync error:", e);
+        }
+      }
       await pushToAll({ title: done ? "Engineer finished" : "Engineer arrived", body: `${who} ${done ? "has finished" : "is on site at"} ${job.id}${sc.sub ? ` · ${sc.sub}` : ""}`, url: `/jobs/${job.id}` }, { kind: "engineer_progress" });
       await within(runTaskSync({ force: true }));
       return NextResponse.json({ ok: true });
@@ -263,7 +402,7 @@ export async function POST(req, { params }) {
       patch.engineerId = "unassigned";
     }
 
-    // 4. Remove all card confirmations for this engineer and key
+    // 4. Remove all card confirmations, completions and arrivals for this engineer and key
     const cards = { ...(job.cardConfirmations || {}) };
     delete cards[sc.key];
     delete cards[sc.engineerId];
@@ -271,6 +410,20 @@ export async function POST(req, { params }) {
     if (sc.lineId) delete cards[`line:${sc.lineId}`];
     patch.cardConfirmations = cards;
     patch.engineerConfirmed = false;
+
+    const completions = { ...(job.cardCompletions || {}) };
+    delete completions[sc.key];
+    delete completions[sc.engineerId];
+    if (sc.visitId) delete completions[`visit:${sc.visitId}`];
+    if (sc.lineId) delete completions[`line:${sc.lineId}`];
+    patch.cardCompletions = completions;
+
+    const arrivals = { ...(job.cardArrivals || {}) };
+    delete arrivals[sc.key];
+    delete arrivals[sc.engineerId];
+    if (sc.visitId) delete arrivals[`visit:${sc.visitId}`];
+    if (sc.lineId) delete arrivals[`line:${sc.lineId}`];
+    patch.cardArrivals = arrivals;
 
     // 5. If no other assigned engineer remains on schedulable lines, revert scheduled to quote
     const remainingAssigned = (patch.lineItems || []).filter(

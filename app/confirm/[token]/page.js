@@ -303,7 +303,7 @@ export default function ConfirmPage() {
                   View in Engineer Portal →
                 </a>
                 {/* On the day: restricted until appointment date */}
-                {data.open && (
+                {data.open && !s.finished && (
                   <>
                     {!s.isToday && !s.started && (
                       <div className="mt-3 rounded-lg border border-navy-200 bg-navy-50 p-2.5 text-center text-xs text-navy-600">
