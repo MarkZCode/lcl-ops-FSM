@@ -103,7 +103,7 @@ export default function DispatchPage() {
           <div className="flex items-center gap-3">
             <button className="btn-outline py-1 text-xs" onClick={() => setWeekRef(w => subWeeks(w, 1))}>← Prev</button>
             <span className="text-sm font-semibold text-navy-800">
-              {format(weekRef, "d MMM")} – {format(addWeeks(weekRef, 1), "d MMM yyyy")}
+              {format(weekRef, "d MMM")} – {format(addDays(weekRef, 6), "d MMM yyyy")}
             </span>
             <button className="btn-outline py-1 text-xs" onClick={() => setWeekRef(w => addWeeks(w, 1))}>Next →</button>
             <button className="btn-outline py-1 text-xs" onClick={() => setWeekRef(startOfWeek(new Date(), { weekStartsOn: 1 }))}>Today</button>

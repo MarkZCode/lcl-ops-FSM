@@ -21,8 +21,17 @@ import {
 } from "@/lib/settings";
 import { renderTemplate, sampleContext } from "@/lib/email";
 import PageHeader from "@/components/PageHeader";
+import RequirePermission from "@/components/RequirePermission";
 
 export default function EmailSettingsPage() {
+  return (
+    <RequirePermission anyOf={["settings", "emailConfig"]}>
+      <EmailSettingsInner />
+    </RequirePermission>
+  );
+}
+
+function EmailSettingsInner() {
   const { email, templates, updateEmail, updateTemplate, resetTemplates, hydrated } =
     useStore();
   const [showKey, setShowKey] = useState(false);

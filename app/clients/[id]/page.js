@@ -34,8 +34,17 @@ import ClientModal from "@/components/ClientModal";
 import JobModal from "@/components/JobModal";
 import Modal from "@/components/Modal";
 import TaskCompletionBanner from "@/components/team/TaskCompletionBanner";
+import RequirePermission from "@/components/RequirePermission";
 
 export default function ClientDetailPage() {
+  return (
+    <RequirePermission perm="clients">
+      <ClientDetailPageInner />
+    </RequirePermission>
+  );
+}
+
+function ClientDetailPageInner() {
   const { id } = useParams();
   const router = useRouter();
   const { clients, jobs, removeClient, updateClient, addJob, hydrated, bankAccounts, invoiceBankId } = useStore();

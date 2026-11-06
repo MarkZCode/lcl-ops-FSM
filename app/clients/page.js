@@ -11,6 +11,7 @@ import { toast } from "@/lib/toast";
 import PageHeader from "@/components/PageHeader";
 import ClientModal from "@/components/ClientModal";
 import { useSectionTour } from "@/components/OnboardingTour";
+import RequirePermission from "@/components/RequirePermission";
 
 // Avatar tint per client type — the type is carried by COLOUR on the phone
 // list rather than spending a whole labelled row on a word you rarely need.
@@ -33,6 +34,14 @@ const typeColors = {
 };
 
 export default function ClientsPage() {
+  return (
+    <RequirePermission perm="clients">
+      <ClientsInner />
+    </RequirePermission>
+  );
+}
+
+function ClientsInner() {
   const { clients, jobs, updateClient, updateJob, removeClientOnly } = useStore();
   const dupes = useMemo(() => duplicateGroups(clients), [clients]);
   const [dupesOpen, setDupesOpen] = useState(false);

@@ -21,6 +21,7 @@ import { reliability } from "@/lib/engineerProfile";
 import RequirePermission from "@/components/RequirePermission";
 import { toast } from "@/lib/toast";
 import { useConfirm } from "@/components/ConfirmProvider";
+import TaskCompletionBanner from "@/components/team/TaskCompletionBanner";
 
 // Applicant stage labels — derived from the cold-lead stage so we don't need
 // a separate schema field. The cold-leads pipeline is the source of truth.
@@ -54,7 +55,12 @@ function EngineersInner() {
   useEffect(() => {
     const t = engParams.get("tab");
     if (["roster", "sourcing", "payments", "paperwork", "debt"].includes(t)) setTab(t);
-  }, [engParams]);
+    const openId = engParams.get("open") || engParams.get("id");
+    if (openId) {
+      const match = engineers.find((e) => e.id === openId);
+      if (match) setProfileEng(match);
+    }
+  }, [engParams, engineers]);
   const [prefillFromLead, setPrefillFromLead] = useState(null);
 
   // The cold-leads table (~42k rows / ~25MB over ~25 paginated requests) is
@@ -111,6 +117,7 @@ function EngineersInner() {
 
   return (
     <>
+      <TaskCompletionBanner />
       <PageHeader
         icon={FaHardHat}
         title="Engineers"

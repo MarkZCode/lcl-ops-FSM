@@ -10,6 +10,7 @@
 // is keyed on its Message-ID, so scanning the same inbox twice (or from two
 // devices at once) makes one quote, not two.
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { supabaseAdmin, requireUser } from "@/lib/supabaseAdmin";
 import { configuredMailboxes, fetchRecentInbound, fetchRecentSent } from "@/lib/hostingerInbox";
 import { classifyEmail, isInternalSender } from "@/lib/emailEnquiry";
@@ -86,7 +87,62 @@ async function scan({ sinceDays = 7 } = {}) {
   const ownAddresses = [process.env.GMAIL_USER || "landlordcompliancelondon@gmail.com"];
   const ctx = { ownDomains, ownAddresses };
 
-  const [clients, jobs] = await Promise.all([loadRows("clients"), loadRows("jobs")]);
+  const [clients, jobs, { data: settingsRows }] = await Promise.all([
+    loadRows("clients"),
+    loadRows("jobs"),
+    supabaseAdmin
+      .from("app_settings")
+      .select("id,data")
+      .in("id", ["deleted_ids", "retired_job_refs", "inbox_processed_emails"]),
+  ]);
+
+  const settingsMap = Object.fromEntries((settingsRows || []).map((r) => [r.id, r.data]));
+  const deletedJobIds = new Set(Object.keys(settingsMap.deleted_ids?.jobs || {}));
+  const retiredJobIds = new Set(settingsMap.retired_job_refs?.ids || []);
+  const allRetiredAndDeleted = new Set([...deletedJobIds, ...retiredJobIds]);
+  const processedMessageIds = new Set(settingsMap.inbox_processed_emails?.ids || []);
+
+  const normalizeEmail = (e) => String(e || "").toLowerCase().trim().replace(/[@.]/g, "");
+
+  // The most recent job for a client's email or identity — where a reply
+  // from them with no job number in it belongs.
+  ctx.latestJobForClient = (addr, { text = "", subject = "", name = "" } = {}) => {
+    const a = String(addr || "").toLowerCase().trim();
+    if (!a && !name) return null;
+    const norm = normalizeEmail(a);
+
+    // 1. Direct email match
+    let matchingClients = clients.filter((c) => (c.email || "").toLowerCase().trim() === a);
+
+    // 2. Loose email match (e.g. dot instead of @: "francis.eyles.gmail.com" vs "francis.eyles@gmail.com")
+    if (!matchingClients.length && norm) {
+      matchingClients = clients.filter((c) => normalizeEmail(c.email) === norm);
+    }
+
+    // 3. Name + Postcode match
+    if (!matchingClients.length && name && name.trim().length > 3) {
+      const pcMatch = `${subject}\n${text}`.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i);
+      const pc = pcMatch ? String(pcMatch[0]).replace(/\s/g, "").toUpperCase() : "";
+      if (pc) {
+        const targetName = name.toLowerCase().trim();
+        matchingClients = clients.filter((c) => {
+          if ((c.name || "").toLowerCase().trim() !== targetName) return false;
+          return (c.properties || []).some((p) => String(p.postcode || "").replace(/\s/g, "").toUpperCase() === pc);
+        });
+      }
+    }
+
+    const ids = new Set(matchingClients.map((c) => c.id));
+    if (!ids.size) return null;
+    const mine = jobs.filter((j) => ids.has(j.clientId));
+    mine.sort((x, y) => {
+      const xClosed = ["cancelled", "paid"].includes(x.status) ? 1 : 0;
+      const yClosed = ["cancelled", "paid"].includes(y.status) ? 1 : 0;
+      if (xClosed !== yClosed) return xClosed - yClosed;
+      return new Date(y.updatedAt || y.createdAt || 0) - new Date(x.updatedAt || x.createdAt || 0);
+    });
+    return mine[0]?.id || null;
+  };
 
   // A client we already have an open job for — their "Re:" is a reply on
   // that job, not a new enquiry.
@@ -96,23 +152,15 @@ async function scan({ sinceDays = 7 } = {}) {
       .map((j) => clients.find((c) => c.id === j.clientId)?.email?.toLowerCase())
       .filter(Boolean)
   );
-  ctx.knownClientWithOpenJob = (addr) => openByEmail.has(String(addr || "").toLowerCase());
+  ctx.knownClientWithOpenJob = (addr, extra) =>
+    openByEmail.has(String(addr || "").toLowerCase()) || Boolean(ctx.latestJobForClient(addr, extra));
+
   const jobIds = new Set(jobs.map((j) => j.id));
   ctx.jobExists = (id) => jobIds.has(id);
-  // The most recent job for a client's email — where a reply from them with
-  // no job number in it belongs.
-  ctx.latestJobForClient = (addr) => {
-    const a = String(addr || "").toLowerCase();
-    const ids = new Set(clients.filter((c) => (c.email || "").toLowerCase() === a).map((c) => c.id));
-    if (!ids.size) return null;
-    const mine = jobs.filter((j) => ids.has(j.clientId));
-    mine.sort((x, y) => new Date(y.updatedAt || y.createdAt || 0) - new Date(x.updatedAt || x.createdAt || 0));
-    return mine[0]?.id || null;
-  };
 
   // Messages already on a job (logged replies, or an enquiry already turned
-  // into a quote) are skipped outright.
-  const seenIds = new Set();
+  // into a quote) or previously processed/persisted are skipped outright.
+  const seenIds = new Set(processedMessageIds);
   for (const j of jobs) {
     if (j.enquiryKey?.startsWith("email:")) seenIds.add(j.enquiryKey.slice(6));
     for (const a of j.activity || []) if (a.meta?.messageId) seenIds.add(a.meta.messageId);
@@ -137,6 +185,19 @@ async function scan({ sinceDays = 7 } = {}) {
       continue;
     }
     seenThisRun.add(msg.messageId);
+
+    // Predict deterministic job ID if this message were turned into a quote
+    const hash = crypto.createHash("sha256").update(`job:${msg.messageId}`).digest("hex");
+    const candidateJobN = 1000 + (parseInt(hash.slice(0, 8), 16) % 9000);
+    const candidateJobId = `JOB-${candidateJobN}`;
+
+    if (allRetiredAndDeleted.has(candidateJobId)) {
+      // The quote generated from this email was previously deleted or retired by an operator!
+      // Do NOT resurrect it!
+      skipped["deleted or retired job"] = (skipped["deleted or retired job"] || 0) + 1;
+      continue;
+    }
+
     const c = classifyEmail(msg, ctx);
     if (c.attachTo) {
       // File it on the job it's about, as a message from the client — it
@@ -161,6 +222,7 @@ async function scan({ sinceDays = 7 } = {}) {
         seed: msg.messageId,
         clients,
         jobs,
+        retiredIds: allRetiredAndDeleted,
       });
       if (!r.duplicate) {
         created.push({
@@ -188,13 +250,24 @@ async function scan({ sinceDays = 7 } = {}) {
       if (seenIds.has(m.messageId)) continue;
       const refs = (m.subject.match(/\bJOB-\d{4}\b/gi) || []).map((r) => r.toUpperCase()).filter((r) => jobIds.has(r));
       const toClient = m.to.find((a) => clientByEmail.has(a));
-      const jobId = refs[0] || (toClient ? ctx.latestJobForClient(toClient) : null);
+      const jobId = refs[0] || (toClient ? ctx.latestJobForClient(toClient, { subject: m.subject }) : null);
       if (!jobId) continue;
       const ok = await attachOutbound(jobId, m);
       if (ok) replied.push({ jobId, subject: m.subject });
     }
   } catch (err) {
     skipped[`sent-folder error: ${String(err.message || err).slice(0, 60)}`] = 1;
+  }
+
+  // Persist processed message IDs to app_settings so they survive job deletions and re-scans
+  const nextProcessed = [...new Set([...processedMessageIds, ...seenThisRun])].slice(-1000);
+  if (nextProcessed.length !== processedMessageIds.size) {
+    try {
+      await supabaseAdmin.from("app_settings").upsert({
+        id: "inbox_processed_emails",
+        data: { ids: nextProcessed, updatedAt: new Date().toISOString() },
+      });
+    } catch { /* non-fatal */ }
   }
 
   return {
