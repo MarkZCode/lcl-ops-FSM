@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   FiPlus, FiTrash2, FiExternalLink, FiArrowLeft, FiClock,
@@ -19,6 +19,7 @@ export default function EngineerDebtTab() {
     engineerDebts = [],
     jobs = [],
     clients = [],
+    engineerPayments = [],
     addEngineerDebt,
     logEngineerDebtRepayment,
     deleteEngineerDebtEntry,
@@ -55,12 +56,12 @@ export default function EngineerDebtTab() {
   
   const clientMap = useMemo(() => Object.fromEntries(clients.map(c => [c.id, c])), [clients]);
 
-  function getPropertyAddress(j) {
+  const getPropertyAddress = useCallback((j) => {
     if (!j) return "—";
     const cl = clientMap[j.clientId];
     const pr = cl?.properties?.find(p => p.id === j.propertyId);
     return pr?.address || j.nameOnCert || cl?.name || "Address not recorded";
-  }
+  }, [clientMap]);
 
   // Engineer-specific jobs for picker
   const engineerJobs = useMemo(() => {
@@ -98,7 +99,7 @@ export default function EngineerDebtTab() {
       const cl = (clientMap[j.clientId]?.name || "").toLowerCase();
       return jid.includes(q) || addr.includes(q) || cl.includes(q);
     }).slice(0, 10);
-  }, [engineerJobs, jobPickerQuery, clientMap, jobs]);
+  }, [engineerJobs, jobPickerQuery, clientMap, jobs, getPropertyAddress]);
 
   // Per-engineer calculation
   const engineerSummaries = useMemo(() => {

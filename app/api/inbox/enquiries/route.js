@@ -236,6 +236,7 @@ async function scan({ sinceDays = 7 } = {}) {
         });
       }
     } catch (err) {
+      seenThisRun.delete(msg.messageId);
       skipped[`error: ${String(err.message || err).slice(0, 80)}`] = 1;
     }
   }

@@ -55,15 +55,6 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
     }
   }, [open]);
 
-  // The offer carries a link the engineer can confirm from. The token is
-  // made the first time an offer card is opened for the job.
-  useEffect(() => {
-    if (open && job && !job.confirmToken && mode === "quote") {
-      updateJob(job.id, { confirmToken: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, job?.id, job?.confirmToken, mode]);
-
   if (!job) return null;
 
   const assigned = mode === "assigned";
@@ -139,8 +130,6 @@ export default function JobCardModal({ open, onClose, job, client, property }) {
     assigned,
     lines,
     engineerName,
-    confirmUrl: !assigned && job.confirmToken && typeof window !== "undefined"
-      ? `${window.location.origin}/confirm/${job.confirmToken}` : "",
   });
   // Mirrors jobCardText: add-on charges (parking, congestion) are hidden on
   // OFFER cards. The preview must match the text that actually gets sent, or

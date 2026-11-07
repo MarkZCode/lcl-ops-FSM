@@ -351,7 +351,7 @@ function SummaryInner() {
       margin: pct(trueProfit, collected),
       engineerShare: pct(engineerCost, collected),
     };
-  }, [jobs, engineers, expenses, engineerPayments, range]);
+  }, [jobs, clients, engineers, expenses, engineerPayments, range]);
 
   // ── CSV: the same blocks, in the same order, with the same figures ──
   const downloadCsv = () => {

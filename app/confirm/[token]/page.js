@@ -121,7 +121,8 @@ export default function ConfirmPage() {
       })
       .catch(() => { setLoadFailed(true); setLoading(false); });
 
-  useEffect(() => { if (token) load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (token) load(); }, [token]);
 
   const decline = async (key, confirmed) => {
     const ok = window.confirm(

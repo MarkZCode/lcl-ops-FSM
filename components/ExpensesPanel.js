@@ -47,7 +47,7 @@ export default function ExpensesPanel({ expenses, breakdown, rangeLabel, revenue
   const [feesOpen, setFeesOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
 
-  const lines = breakdown.lines || [];
+  const lines = useMemo(() => breakdown.lines || [], [breakdown.lines]);
   const groups = useMemo(() => summarise(lines), [lines]);
   const businessTotal = breakdown.total;
   const drawingsTotal = breakdown.drawingsTotal || 0;

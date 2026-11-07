@@ -405,6 +405,7 @@ export default function JobsPage() {
       c[s.key] = inPeriod.filter((j) => jobMatchesStatus(j, s.key)).length;
     });
     return c;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inPeriod]);
 
   return (

@@ -23,19 +23,20 @@ async function readBackup(file) {
 }
 
 export default function RestoreBackup() {
-  const store = useStore();
+  const { jobs, clients, engineers } = useStore();
   const [backup, setBackup] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const missing = useMemo(() => {
     if (!backup) return null;
+    const current = { jobs, clients, engineers };
     const out = {};
     for (const [key] of TABLES) {
-      const have = new Set((store[key] || []).map((r) => r.id));
+      const have = new Set((current[key] || []).map((r) => r.id));
       out[key] = (backup[key] || []).filter((r) => r && typeof r.id === "string" && r.id && !have.has(r.id));
     }
     return out;
-  }, [backup, store.jobs, store.clients, store.engineers]);
+  }, [backup, jobs, clients, engineers]);
   const total = missing ? TABLES.reduce((n, [k]) => n + missing[k].length, 0) : 0;
 
   const pick = async (file) => {

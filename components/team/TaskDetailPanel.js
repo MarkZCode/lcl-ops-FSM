@@ -33,7 +33,7 @@ export default function TaskDetailPanel({ task, onClose, onSave, onDelete, team 
     setNotes(task?.notes || "");
     setNotesDirty(false);
     setComment("");
-  }, [task?.id]);
+  }, [task?.id, task?.notes]);
 
   if (!task) return <DetailSlideOver open={false} onClose={onClose} />;
 

@@ -152,7 +152,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
       if (detectConflicts([other, draft]).has(draftId)) return other;
     }
     return null;
-  }, [form.engineerId, form.scheduledDate, form.windowFrom, form.windowTo, jobs, job?.id]);
+  }, [form.engineerId, form.scheduledDate, form.durationMinutes, form.windowFrom, form.windowTo, jobs, job?.id]);
   const conflictEngineerName = conflictWith ? engineers.find((e) => e.id === form.engineerId)?.name : null;
 
   useEffect(() => {

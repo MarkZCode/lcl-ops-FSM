@@ -75,6 +75,7 @@ export default function AddressInput({ value, onChange, onPick, postcode = "", c
         }}
         role="combobox"
         aria-expanded={open && options.length > 0}
+        aria-controls="address-listbox"
         aria-autocomplete="list"
       />
       {open && !options.length && String(value || "").trim().length < 3 && (
@@ -86,7 +87,7 @@ export default function AddressInput({ value, onChange, onPick, postcode = "", c
         <p className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-navy-200 bg-white px-3 py-2 text-xs text-navy-500 shadow-lg dark:bg-[#141414]">Looking up addresses…</p>
       )}
       {open && options.length > 0 && (
-        <ul role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-auto rounded-lg border border-navy-200 bg-white py-1 text-sm shadow-lg dark:bg-[#141414]">
+        <ul id="address-listbox" role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-auto rounded-lg border border-navy-200 bg-white py-1 text-sm shadow-lg dark:bg-[#141414]">
           {options.map((o, i) => (
             <li key={`${o.label}|${o.postcode}`} role="option" aria-selected={i === active}>
               <button

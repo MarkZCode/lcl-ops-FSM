@@ -98,7 +98,8 @@ function InboxInner() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [box]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [box]);
   // Auto-refresh every 60s, silently.
   useEffect(() => {
     const t = setInterval(() => load(true), 60_000);
@@ -324,7 +325,7 @@ function MessageDrawer({ message, onClose, linked, jobs = [], onFile, onSaveAtta
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [message?.id]);
+  }, [message]);
 
   if (!message) return <DetailSlideOver open={false} onClose={onClose} />;
   const isInbound = message.kind === "inbox";

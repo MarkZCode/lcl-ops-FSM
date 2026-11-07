@@ -54,7 +54,7 @@ export default function NewTaskModal({ open, onClose, team, prefill, onCreate })
     setCadence(prefill?.cadence || "daily");
     setLinkKind(prefill?.linkedTo?.kind || "none");
     setLinkedTo(prefill?.linkedTo || null);
-  }, [open, prefill]);
+  }, [open, prefill, isAdmin, team, user?.id]);
 
   const submit = async () => {
     if (!title.trim() || saving) return;

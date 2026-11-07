@@ -50,7 +50,7 @@ export default function TeamOverview({ tasks, team, userId, isAdmin = false, onO
     const unassigned = open.filter((t) => !t.assigneeId).length;
     if (unassigned && isAdmin) rows.push({ id: "__none", name: "Unassigned", role: "", open: unassigned, late: 0 });
     return rows;
-  }, [team, open, userId, tasks]);
+  }, [team, open, userId, tasks, isAdmin]);
 
   const current = people.find((p) => p.id === (person || userId)) || people[0];
   const list = current ? open.filter((t) => (current.id === "__none" ? !t.assigneeId : t.assigneeId === current.id)) : [];

@@ -64,6 +64,7 @@ export default function PostcodeInput({ value, onChange, onPick, className = "in
         }}
         role="combobox"
         aria-expanded={open && options.length > 0}
+        aria-controls="postcode-listbox"
         aria-autocomplete="list"
       />
       {/* Before there's a list, say how it works — the box looked like a
@@ -76,7 +77,7 @@ export default function PostcodeInput({ value, onChange, onPick, className = "in
         return <p className="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-navy-200 bg-white px-3 py-2 text-xs text-navy-500 shadow-lg dark:bg-[#141414]">{msg}</p>;
       })()}
       {open && options.length > 0 && (
-        <ul role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-navy-200 bg-white py-1 text-sm shadow-lg dark:bg-[#141414]">
+        <ul id="postcode-listbox" role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-auto rounded-lg border border-navy-200 bg-white py-1 text-sm shadow-lg dark:bg-[#141414]">
           {options.map((pc, i) => (
             <li key={pc} role="option" aria-selected={i === active}>
               <button

@@ -163,7 +163,7 @@ function ReportsInner() {
     autoJumped.current = true;
     if (stats.total > 0 || !latestActivityRef) return;
     setRef(latestActivityRef);
-  }, [jobs, period, isCurrent, stats.total, latestActivityRef]);
+  }, [jobs, period, isCurrent, stats.total, latestActivityRef, setRef]);
 
   // Expenses for this period (recurring always included; one-time if date in range)
   // Recurring costs are counted once per MONTH the range covers — see

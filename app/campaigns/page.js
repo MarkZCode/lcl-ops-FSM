@@ -45,6 +45,7 @@ function CampaignsInner() {
   const ask = useConfirm();
   const store = useStore();
   // Campaigns build audiences from the big prospect/lead tables — ask for them.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { store.requestBigTables?.(); }, [store.requestBigTables]);
   const { can } = useAuth();
   const {
