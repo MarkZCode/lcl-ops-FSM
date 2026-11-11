@@ -384,11 +384,12 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
       (!CANCEL_REASONS.find((r) => r.key === cancelReason)?.requiresNote ||
         cancelNote.trim().length > 2));
 
-  // Valid when we have at least one line AND a client (existing or new).
-  const canSave =
-    (form.lines.length > 0 || custom.name.trim().length > 0) &&
-    cancelReasonValid &&
-    (creatingClient ? newClient.name.trim().length > 0 : Boolean(form.clientId));
+  // Valid when we have at least one line (or typed custom). When creating, also needs a client.
+  const canSave = isEdit
+    ? form.lines.length > 0 || custom.name.trim().length > 0
+    : (form.lines.length > 0 || custom.name.trim().length > 0) &&
+      cancelReasonValid &&
+      (creatingClient ? newClient.name.trim().length > 0 : Boolean(form.clientId));
 
   // Editing the services or the price of an existing job is never silent:
   // the list of what is about to change is shown first, and nothing is saved
@@ -578,6 +579,17 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
     }
 
     if (isEdit) {
+      const editPayload = {
+        services,
+        lineItems,
+        quantities,
+        gasAppliances: quantities.GAS || job?.gasAppliances || 1,
+        price: Math.max(0, linesTotal(lines) - Math.max(0, Math.min(linesTotal(lines), Number(form.discount) || 0))),
+        discount: jobDiscountAmt > 0 ? jobDiscountAmt : undefined,
+        discountReason: jobDiscountAmt > 0 ? (form.discountReason || "Discount") : undefined,
+        notes: form.notes,
+      };
+
       if (Array.isArray(job.visits) && job.visits.length > 0) {
         const validLineIds = new Set(lineItems.map((l) => l.id));
         const cleanedVisits = job.visits
@@ -586,16 +598,10 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
             lineIds: (v.lineIds || []).filter((id) => validLineIds.has(id)),
           }))
           .filter((v) => (v.lineIds && v.lineIds.length > 0) || v.scheduledAt || v.engineerId);
-        payload.visits = cleanedVisits.length > 0 ? cleanedVisits : null;
+        editPayload.visits = cleanedVisits.length > 0 ? cleanedVisits : null;
       }
-      updateJob(job.id, payload);
-      if (needsCancelReason) {
-        logActivity(job.id, {
-          type: "status",
-          title: `Cancelled — ${payload.cancelReasonLabel}`,
-          detail: payload.cancelNote || "",
-        });
-      }
+      updateJob(job.id, editPayload);
+      toast.success("Services updated");
     } else {
       addJob(payload);
     }
@@ -608,22 +614,23 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
       open={open}
       onClose={handleClose}
       wide
-      title={isEdit ? `Edit ${job.id}` : "New job"}
+      title={isEdit ? `Edit services · ${job.id}` : "New job"}
       footer={
         <>
           <button className="btn-outline" onClick={handleClose}>
             Cancel
           </button>
           <button className="btn-primary" onClick={handleSave} disabled={!canSave}>
-            {isEdit ? "Save changes" : "Create job"}
+            {isEdit ? "Save services" : "Create job"}
           </button>
         </>
       }
     >
       <div className="space-y-4">
-        {/* Client */}
-        <div>
-          <label className="label mb-1">Client</label>
+        {/* Client (New job only — existing jobs manage client in Job details) */}
+        {!isEdit && (
+          <div>
+            <label className="label mb-1">Client</label>
           {!isEdit && (
             // "Add new client" first/prominent, "Select existing" as the
             // secondary side option — most new jobs here start from a fresh
@@ -830,6 +837,7 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
             </div>
           )}
         </div>
+        )}
 
         {/* Services */}
         <div>
@@ -1222,8 +1230,11 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
           </div>
         </div>
 
-        {/* Status + engineer */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Status, Engineer, Appointment, and Access details (New job only — managed in Job details for existing jobs) */}
+        {!isEdit && (
+          <>
+            {/* Status + engineer */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Status</label>
             <select
@@ -1506,6 +1517,8 @@ export default function JobModal({ open, onClose, job, defaultClientId, prefillN
             )}
           </div>
         </div>
+        </>
+        )}
 
         {/* Notes */}
         <div>

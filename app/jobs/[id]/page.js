@@ -863,7 +863,7 @@ export default function JobDetailPage() {
                       <FiSend className="h-4 w-4" /> Email
                     </button>
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setEditOpen(true); setMoreOpen(false); }}>
-                      <FiEdit2 className="h-4 w-4" /> Edit
+                      <FiEdit2 className="h-4 w-4" /> Edit services
                     </button>
                     <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-navy-700 hover:bg-navy-50" onClick={() => { setMoreOpen(false); pinNote(); }}>
                       <FiFileText className="h-4 w-4" /> {job.pinnedNote ? "Change pinned note" : "Pin a note"}
@@ -983,7 +983,14 @@ export default function JobDetailPage() {
           />
 
           <div id="job-details" className="scroll-mt-24">
-            <IntakePanel job={job} client={client} property={property} />
+            <IntakePanel
+              job={job}
+              client={client}
+              property={property}
+              onChangeStatus={changeStatus}
+              onCancelJob={() => setCancelOpen(true)}
+              onReschedule={() => setRescheduleOpen(true)}
+            />
           </div>
 
           {/* Status workflow */}
@@ -1116,9 +1123,20 @@ export default function JobDetailPage() {
           <div className="space-y-6 empty:hidden" hidden={!on("overview", "money")}>
           {/* Services */}
           <section className="card p-5">
-            <h2 className="mb-3 section-label text-sm">
-              Services
-            </h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="section-label text-sm">
+                Services
+              </h2>
+              {can("invoices") && (
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(true)}
+                  className="btn-outline inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold"
+                >
+                  <FiEdit2 className="h-3.5 w-3.5" /> Edit services
+                </button>
+              )}
+            </div>
             <ul className="divide-y divide-navy-100">
               {getJobLines(job).map((l) => {
                 const qty = l.qty || 1;
