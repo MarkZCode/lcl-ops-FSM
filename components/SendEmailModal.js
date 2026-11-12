@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   FiSend,
   FiExternalLink,
@@ -9,6 +9,7 @@ import {
   FiPaperclip,
   FiEdit2,
   FiUploadCloud,
+  FiUserCheck,
 } from "react-icons/fi";
 import { FaWhatsapp } from "react-icons/fa";
 import Modal from "./Modal";
@@ -145,13 +146,82 @@ export default function SendEmailModal({
     ? (certFiles.length === 1 ? "certificate" : `${certFiles.length} certificates`)
     : docType === "quote" ? "quote" : "invoice";
 
+  const assignedEngineers = useMemo(() => {
+    if (!job) return [];
+    const map = new Map();
+    const add = (id) => {
+      if (!id || id === "unassigned") return;
+      const eng = engineerById?.(id) || (typeof id === "object" ? id : { id, name: id });
+      if (eng && eng.name) map.set(eng.id || eng.name, eng);
+    };
+    if (job.engineerId) add(job.engineerId);
+    (job.visits || []).forEach((v) => add(v.engineerId));
+    (job.lineItems || []).forEach((l) => add(l.engineerId));
+    return Array.from(map.values());
+  }, [job, engineerById]);
+
+  const [includeEngineer, setIncludeEngineer] = useState(true);
+
+  // Sync includeEngineer default on modal open or job change
+  useEffect(() => {
+    if (open) {
+      setIncludeEngineer(assignedEngineers.length > 0);
+    }
+  }, [open, assignedEngineers.length]);
+
+  const formatEngineerBlock = (engineers) => {
+    if (!engineers || engineers.length === 0) {
+      return "\nEngineer: To be confirmed";
+    }
+    if (engineers.length === 1) {
+      const e = engineers[0];
+      const parts = [e.name];
+      if (e.trade) parts.push(e.trade);
+      if (e.phone) parts.push(e.phone);
+      return `\nEngineer: ${parts.join(" · ")}`;
+    }
+    const lines = engineers.map((e) => {
+      const parts = [e.name];
+      if (e.trade) parts.push(e.trade);
+      if (e.phone) parts.push(e.phone);
+      return `  • ${parts.join(" · ")}`;
+    });
+    return `\nEngineers:\n${lines.join("\n")}`;
+  };
+
+  const handleToggleIncludeEngineer = (checked) => {
+    setIncludeEngineer(checked);
+    if (tplKey === "booking") {
+      setBody((prevBody) => {
+        if (checked) {
+          const engBlock = formatEngineerBlock(assignedEngineers);
+          if (/^Engineer[s]?:/m.test(prevBody)) return prevBody;
+          if (prevBody.includes("Date & time:")) {
+            return prevBody.replace(/(Date & time:[^\n]*)/, `$1${engBlock}`);
+          }
+          if (prevBody.includes("Property:")) {
+            return prevBody.replace(/(Property:[^\n]*)/, `$1${engBlock}`);
+          }
+          return prevBody + engBlock;
+        } else {
+          return prevBody
+            .replace(/\n*Engineer:\s*[^\n]+/gi, "")
+            .replace(/\n*Engineers:\s*(\n\s*•[^\n]+)*/gi, "");
+        }
+      });
+    }
+  };
+
   const ctx = buildContext({ job, client, property, email, bank });
-  // A booking confirmation tells the client it's booked. It doesn't go until
-  // every engineer on the job has actually confirmed.
-  const bookingBlockers = job && ["booking", "reminder"].includes(tplKey) ? [...blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer")] : [];
+  // A booking confirmation tells the client it's booked.
+  // "no engineer assigned" is no longer a hard blocking error for booking confirmation.
+  const rawBookingBlockers = job && ["booking", "reminder"].includes(tplKey) ? [...blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer")] : [];
   if (job && ["booking", "reminder"].includes(tplKey)) {
-    for (const m of bookingMissing(job, { client, property })) bookingBlockers.push(`missing ${m.label}`);
+    for (const m of bookingMissing(job, { client, property })) rawBookingBlockers.push(`missing ${m.label}`);
   }
+  const bookingBlockers = tplKey === "booking"
+    ? rawBookingBlockers.filter((b) => !/no engineer assigned|engineer hasn't confirmed|hasn't confirmed yet/i.test(b))
+    : rawBookingBlockers;
   const bookingBlocked = bookingBlockers.length > 0;
   // One reason this message must not go yet, by ANY route — the email
   // button, the WhatsApp button or the mail app. Empty when it's fine.
@@ -218,7 +288,20 @@ export default function SendEmailModal({
       ? `\n\n${String(rules.urgencyLine).trim()}` : "";
     const callLine = tplKey === "booking" && job?.callBefore && !/no call/i.test(job.callBefore)
       ? `\n\nYour engineer will ${job.callBefore.replace(/^Call/i, "call")}.` : "";
-    setBody(renderTemplate(tpl.body, ctx) + callLine + noAccessLine + urgencyLine + acceptLine + sig);
+
+    let baseBody = renderTemplate(tpl.body, ctx);
+    if (tplKey === "booking" && includeEngineer) {
+      const engBlock = formatEngineerBlock(assignedEngineers);
+      if (baseBody.includes("Date & time:")) {
+        baseBody = baseBody.replace(/(Date & time:[^\n]*)/, `$1${engBlock}`);
+      } else if (baseBody.includes("Property:")) {
+        baseBody = baseBody.replace(/(Property:[^\n]*)/, `$1${engBlock}`);
+      } else {
+        baseBody += engBlock;
+      }
+    }
+
+    setBody(baseBody + callLine + noAccessLine + urgencyLine + acceptLine + sig);
     // Invoices go to the billing email when the client has one.
     setTo((["invoice", "job_completed"].includes(tplKey) && client?.billingEmail) || client?.email || "");
     setPhone(client?.phone || "");
@@ -391,7 +474,7 @@ export default function SendEmailModal({
       return;
     }
 
-    if ((tplKey === "booking" || tplKey === "reminder") && !job?.scheduledAt) {
+    if (tplKey === "reminder" && !job?.scheduledAt) {
       setStatus("idle");
       setMessage("Set an appointment date on this job first — this email would go out saying \u201con to be confirmed\u201d.");
       return;
@@ -571,6 +654,31 @@ export default function SendEmailModal({
             </button>
           ))}
         </div>
+
+        {tplKey === "booking" && (
+          <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2.5 text-sm text-navy-700 dark:border-brand-900/40 dark:bg-brand-950/20 dark:text-navy-200">
+            <label className="flex flex-1 cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={includeEngineer}
+                onChange={(e) => handleToggleIncludeEngineer(e.target.checked)}
+                className="h-4 w-4 rounded border-navy-300 text-brand-500 focus:ring-brand-400"
+              />
+              <FiUserCheck className="text-brand-600" />
+              <span>
+                Include engineer details in confirmation
+                {assignedEngineers.length > 0 ? (
+                  <span className="font-semibold text-navy-900 dark:text-white">
+                    {" "}
+                    ({assignedEngineers.map((e) => e.name).join(", ")})
+                  </span>
+                ) : (
+                  <span className="text-navy-500 dark:text-navy-400"> (No engineer assigned)</span>
+                )}
+              </span>
+            </label>
+          </div>
+        )}
 
         {attachable && (
           <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2.5 text-sm text-navy-700">
