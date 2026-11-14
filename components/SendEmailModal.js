@@ -56,6 +56,7 @@ export default function SendEmailModal({
   const [message, setMessage] = useState("");
   const [attach, setAttach] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [allowNoEngineer, setAllowNoEngineer] = useState(false);
   const initRef = useRef(null);
 
   // Any email can carry the quote PDF as an attachment (not just the "Quote"
@@ -147,11 +148,14 @@ export default function SendEmailModal({
 
   const ctx = buildContext({ job, client, property, email, bank });
   // A booking confirmation tells the client it's booked. It doesn't go until
-  // every engineer on the job has actually confirmed.
-  const bookingBlockers = job && ["booking", "reminder"].includes(tplKey) ? [...blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer")] : [];
+  // every engineer on the job has actually confirmed, unless sending without one is allowed.
+  const rawBookingBlockers = job && ["booking", "reminder"].includes(tplKey) ? [...blockersForScheduling(job, (id) => engineerById(id)?.name || "the engineer")] : [];
   if (job && ["booking", "reminder"].includes(tplKey)) {
-    for (const m of bookingMissing(job, { client, property })) bookingBlockers.push(`missing ${m.label}`);
+    for (const m of bookingMissing(job, { client, property })) rawBookingBlockers.push(`missing ${m.label}`);
   }
+  const bookingBlockers = (tplKey === "booking" && allowNoEngineer)
+    ? rawBookingBlockers.filter((b) => !/no engineer assigned|engineer hasn't confirmed|hasn't confirmed yet/i.test(b))
+    : rawBookingBlockers;
   const bookingBlocked = bookingBlockers.length > 0;
   // One reason this message must not go yet, by ANY route — the email
   // button, the WhatsApp button or the mail app. Empty when it's fine.
@@ -176,7 +180,11 @@ export default function SendEmailModal({
   // picked something yourself in this session.
   const defaultAppliedRef = useRef(false);
   useEffect(() => {
-    if (!open) { defaultAppliedRef.current = false; return; }
+    if (!open) {
+      defaultAppliedRef.current = false;
+      setAllowNoEngineer(false);
+      return;
+    }
     if (defaultAppliedRef.current) return;
     if (defaultTemplate && templates[defaultTemplate]) {
       setTplKey(defaultTemplate);
@@ -531,7 +539,7 @@ export default function SendEmailModal({
           <button
             className="btn-primary"
             onClick={handleSend}
-            disabled={status === "sending" || !to}
+            disabled={status === "sending" || !to || Boolean(blockedReason)}
           >
             {status === "sending" ? (
               <>
@@ -571,6 +579,20 @@ export default function SendEmailModal({
             </button>
           ))}
         </div>
+
+        {tplKey === "booking" && (
+          <div className="flex items-center gap-2 rounded-lg border border-navy-200 bg-navy-50/60 px-3 py-2 text-sm text-navy-700 dark:border-white/10 dark:bg-white/5 dark:text-navy-200">
+            <label className="flex flex-1 cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={allowNoEngineer}
+                onChange={(e) => setAllowNoEngineer(e.target.checked)}
+                className="h-4 w-4 rounded border-navy-300 text-brand-500 focus:ring-brand-400"
+              />
+              <span className="font-medium text-xs sm:text-sm">Allow sending without an assigned engineer</span>
+            </label>
+          </div>
+        )}
 
         {attachable && (
           <div className="flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50/60 px-3 py-2.5 text-sm text-navy-700">
