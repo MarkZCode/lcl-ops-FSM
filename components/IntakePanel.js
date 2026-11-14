@@ -618,16 +618,6 @@ export default function IntakePanel({
                 </select>
               </div>
 
-              <div>
-                <label className="label">Client deadline</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={job.deadline || ""}
-                  onChange={(e) => updateJob(job.id, { deadline: e.target.value })}
-                />
-              </div>
-
               <div className="sm:col-span-2">
                 <label className="flex flex-wrap items-center gap-2 text-xs text-navy-700 dark:text-navy-300">
                   <input
