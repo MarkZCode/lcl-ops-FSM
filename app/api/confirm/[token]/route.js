@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin, JOB_FILES_BUCKET } from "@/lib/supabaseAdmin";
 import { confirmationScopes, scopeAccepted, setScopeConfirmed, dateLine, isScopeFinished, isScopeStarted } from "@/lib/jobCard";
+import { isAddonCode } from "@/lib/format";
 import { reconcileJob, visitEngineerId } from "@/lib/visits";
 import { pushToAll } from "@/lib/pushAll";
 import { runTaskSync } from "@/lib/taskSync";

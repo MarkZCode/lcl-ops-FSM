@@ -31,7 +31,7 @@ import { useAuth } from "@/lib/auth";
 import { useMyEngineerId, jobBelongsToEngineer } from "@/lib/scope";
 import { STAGE_ORDER, statusMeta, UNASSIGNED_ENGINEER } from "@/lib/constants";
 import { jobStage, isCertified, quoteStage, QUOTE_STAGES } from "@/lib/stages";
-import { gbp, fmtDate, fmtDateTime, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode } from "@/lib/format";
+import { gbp, fmtDate, fmtDateTime, getJobLines, lineTotal, lineGross, jobDiscount, jobPayable, isAddonCode, serviceName } from "@/lib/format";
 import { jobFinancialsSplit } from "@/lib/finance";
 import { lineSizeLabel, dateLine, certLabel, acceptanceProgress, setScopeConfirmed, scopeAccepted } from "@/lib/jobCard";
 import { computeCertExpiry } from "@/lib/renewals";

@@ -49,7 +49,7 @@ function adaptLead(l) {
 
 function AgentsInner() {
   const ask = useConfirm();
-  const { agents, upsertAgent, updateAgent, logAgentContact, removeAgent, clearAgents, importColdLeads, email, templates, prospects, coldLeads , requestBigTables } = useStore();
+  const { agents, upsertAgent, updateAgent, logAgentContact, removeAgent, unpromoteAgent, clearAgents, importColdLeads, email, templates, prospects, coldLeads , requestBigTables } = useStore();
   // This page reads the big prospect/lead tables, so ask for them. Pages
   // that don't never download them — see requestBigTables in lib/store.
   useEffect(() => { requestBigTables(); }, [requestBigTables]);
