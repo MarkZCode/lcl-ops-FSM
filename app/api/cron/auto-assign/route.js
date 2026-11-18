@@ -108,7 +108,7 @@ export async function GET(request) {
 
   // ── FSM state ──────────────────────────────────────────────────────────
   const [prospectsRes, jobsRes, clientsRes, tasksRes, stateRes] = await Promise.all([
-    supabaseAdmin.from("prospects").select("id,data"),
+    supabaseAdmin.from("prospects").select("id,data").not("data->>stage", "in", "('dnc','booked')"),
     supabaseAdmin.from("jobs").select("id,data"),
     supabaseAdmin.from("clients").select("id,data"),
     supabaseAdmin.from("tasks").select("id,data"),

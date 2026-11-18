@@ -25,7 +25,7 @@ function ukDateStr(now = new Date()) {
 }
 
 async function findUrgentProspects(now) {
-  const { data: rows } = await supabaseAdmin.from("prospects").select("id,data");
+  const { data: rows } = await supabaseAdmin.from("prospects").select("id,data").not("data->>stage", "in", "('dnc','booked')");
   const out = [];
   for (const row of rows || []) {
     const p = row.data;
