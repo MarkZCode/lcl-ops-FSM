@@ -34,10 +34,10 @@ export default function SplashScreen({ label }) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex select-none items-center justify-center bg-[#021a3b] px-6">
+    <div className="fixed inset-0 z-[100] flex select-none items-center justify-center bg-black px-6">
       <div
         className="pointer-events-none absolute left-1/2 top-1/2 h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-[0.14] blur-3xl"
-        style={{ background: "radial-gradient(circle, #4cc247, transparent 62%)" }}
+        style={{ background: "radial-gradient(circle, #10b981, transparent 62%)" }}
       />
       <div className="relative flex w-full max-w-md flex-col items-center text-center">
         <span
@@ -61,7 +61,7 @@ export default function SplashScreen({ label }) {
           <span className="block sm:inline">Managing compliance made </span>
           <span className="relative block h-[1.35em] overflow-hidden sm:inline-block sm:min-w-[7.2em] sm:text-left">
             <span
-              className={`inline-block font-semibold text-[#4cc247] transition-all duration-200 ease-out ${
+              className={`inline-block font-semibold text-emerald-400 transition-all duration-200 ease-out ${
                 visible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
               }`}
             >
@@ -72,7 +72,7 @@ export default function SplashScreen({ label }) {
 
         <p className="mt-8 text-[12px] tracking-wide text-white/45">{label || "Connecting workspace"}</p>
         <div className="mt-3 h-[3px] w-28 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full w-full origin-left animate-[lcl-load_1.3s_ease-in-out_forwards] rounded-full bg-[#4cc247]/80" />
+          <div className="h-full w-full origin-left animate-[lcl-load_1.3s_ease-in-out_forwards] rounded-full bg-emerald-500/80" />
         </div>
       </div>
       <style>{`@keyframes lcl-load { from { transform: scaleX(0.05); } to { transform: scaleX(1); } }`}</style>
