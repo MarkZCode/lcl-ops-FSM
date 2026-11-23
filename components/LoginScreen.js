@@ -99,12 +99,12 @@ export default function LoginScreen() {
       </svg>
 
       {/* ── Glassmorphic Login Card ── */}
-      <div className="relative z-10 w-full max-w-[360px] sm:max-w-[380px] rounded-[32px] border border-white/[0.08] bg-[#161817]/75 p-8 sm:p-9 shadow-[0_30px_70px_rgba(0,0,0,0.85),0_0_50px_rgba(16,185,129,0.06)] backdrop-blur-2xl">
-        <h1 className="text-center text-[26px] font-semibold tracking-tight text-white mb-8">
+      <div className="relative z-10 w-full max-w-[280px] sm:max-w-[290px] rounded-[24px] border border-white/[0.08] bg-[#161817]/75 px-6 py-6 sm:px-7 sm:py-7 shadow-[0_24px_56px_rgba(0,0,0,0.85),0_0_40px_rgba(16,185,129,0.06)] backdrop-blur-2xl">
+        <h1 className="text-center text-[19px] font-semibold tracking-tight text-white mb-5">
           Login
         </h1>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} className="space-y-2.5">
           <div>
             <input
               type="text"
@@ -115,7 +115,7 @@ export default function LoginScreen() {
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="Username"
               autoFocus
-              className="w-full rounded-full border border-white/[0.08] bg-[#2a2c2b]/70 py-3.5 px-6 text-[15px] text-white placeholder:text-white/40 outline-none transition duration-150 focus:border-emerald-500/60 focus:bg-[#323634] focus:ring-4 focus:ring-emerald-500/15"
+              className="w-full rounded-full border border-white/[0.08] bg-[#2a2c2b]/70 py-2 px-4 text-[13px] text-white placeholder:text-white/40 outline-none transition duration-150 focus:border-emerald-500/60 focus:bg-[#323634] focus:ring-2 focus:ring-emerald-500/15"
             />
           </div>
 
@@ -126,29 +126,29 @@ export default function LoginScreen() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
-              className="w-full rounded-full border border-white/[0.08] bg-[#2a2c2b]/70 py-3.5 pl-6 pr-12 text-[15px] text-white placeholder:text-white/40 outline-none transition duration-150 focus:border-emerald-500/60 focus:bg-[#323634] focus:ring-4 focus:ring-emerald-500/15"
+              className="w-full rounded-full border border-white/[0.08] bg-[#2a2c2b]/70 py-2 pl-4 pr-9 text-[13px] text-white placeholder:text-white/40 outline-none transition duration-150 focus:border-emerald-500/60 focus:bg-[#323634] focus:ring-2 focus:ring-emerald-500/15"
             />
             <button
               type="button"
               onClick={() => setShow((v) => !v)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 text-white/40 transition hover:text-white"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-white/40 transition hover:text-white"
               aria-label={show ? "Hide password" : "Show password"}
             >
-              {show ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
+              {show ? <FiEyeOff className="h-3.5 w-3.5" /> : <FiEye className="h-3.5 w-3.5" />}
             </button>
           </div>
 
           {error && (
-            <p className="rounded-xl border border-rose-500/30 bg-rose-950/40 px-3.5 py-2 text-center text-[13px] text-rose-300">
+            <p className="rounded-lg border border-rose-500/30 bg-rose-950/40 px-3 py-1.5 text-center text-[11.5px] text-rose-300">
               {error}
             </p>
           )}
 
-          <div className="flex justify-center pt-3">
+          <div className="flex justify-center pt-2">
             <button
               type="submit"
               disabled={busy}
-              className="rounded-full bg-[#4a4d4b]/85 hover:bg-emerald-600 px-10 py-2.5 text-[15px] font-medium text-white shadow-lg border border-white/10 transition duration-200 active:scale-95 disabled:opacity-50 hover:border-emerald-500/40 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+              className="rounded-full bg-[#4a4d4b]/85 hover:bg-emerald-600 px-7 py-1.5 text-[13px] font-medium text-white shadow-lg border border-white/10 transition duration-200 active:scale-95 disabled:opacity-50 hover:border-emerald-500/40 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]"
             >
               {busy ? "Logging in…" : "Login"}
             </button>
