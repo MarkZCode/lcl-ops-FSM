@@ -27,7 +27,6 @@ import NeedsDecisionPanel from "@/components/NeedsDecisionPanel";
 import CoverageMap from "@/components/CoverageMap";
 import RevenueChart from "@/components/RevenueChart";
 import JobModal from "@/components/JobModal";
-import { useSectionTour } from "@/components/OnboardingTour";
 import { LuScale } from "react-icons/lu";
 import { useAuth } from "@/lib/auth";
 import RequirePermission from "@/components/RequirePermission";
@@ -158,11 +157,6 @@ function DashboardContent() {
     return Math.max(0, Math.round((debt - repaid) * 100) / 100);
   }, [engineerDebts]);
 
-  const tour = useSectionTour("dashboard", [
-    { selector: null, position: "center", label: "Welcome", title: "Your field-service hub 👋", body: "A quick guide to the key parts of the app." },
-    { selector: ".kpi-strip", label: "KPIs", title: "Pipeline at a glance", body: "Live counts and revenue across every stage of your job pipeline." },
-    { selector: '[data-tour-nav="/dispatch"]', label: "Dispatch", title: "Assign jobs to engineers", body: "Head to Dispatch to manage your engineer columns." },
-  ]);
 
   const stats = useMemo(() => {
     const now = new Date();
@@ -360,7 +354,6 @@ function DashboardContent() {
 
   return (
     <>
-      {tour}
 
       {/* ── HEADER — flat page chrome, single hairline, no colour slab ── */}
       <div className="bar-navy">

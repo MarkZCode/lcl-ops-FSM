@@ -11,7 +11,6 @@ import MiniCalendar from "@/components/MiniCalendar";
 import WeekCapacity from "@/components/WeekCapacity";
 import EngineerScheduleView from "@/components/EngineerScheduleView";
 import JobModal from "@/components/JobModal";
-import { useSectionTour } from "@/components/OnboardingTour";
 
 export default function DispatchPage() {
   const { jobs } = useStore();
@@ -21,20 +20,6 @@ export default function DispatchPage() {
   const [weekRef, setWeekRef] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [modalOpen, setModalOpen] = useState(false);
 
-  const tour = useSectionTour("dispatch", [
-    {
-      selector: ".dispatch-calendar",
-      label: "Dispatch",
-      title: "Pick a day",
-      body: "Use the calendar on the left to jump to any date. Dots show days that have jobs scheduled.",
-    },
-    {
-      selector: ".dispatch-board",
-      label: "Dispatch",
-      title: "Engineer columns",
-      body: "Each engineer gets a column. Drag job cards between columns to reassign. Unassigned jobs sit in their own column.",
-    },
-  ]);
 
   // Map of yyyy-MM-dd -> job count, for dots in the mini calendar.
   const counts = useMemo(() => {
@@ -57,7 +42,6 @@ export default function DispatchPage() {
 
   return (
     <>
-      {tour}
       <PageHeader
         icon={FiColumns}
         title="Dispatch Board"

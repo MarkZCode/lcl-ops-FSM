@@ -10,7 +10,6 @@ import { gbp } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import PageHeader from "@/components/PageHeader";
 import ClientModal from "@/components/ClientModal";
-import { useSectionTour } from "@/components/OnboardingTour";
 import RequirePermission from "@/components/RequirePermission";
 
 // Avatar tint per client type — the type is carried by COLOUR on the phone
@@ -69,20 +68,6 @@ function ClientsInner() {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("new") === "1") setModalOpen(true);
   }, []);
 
-  const tour = useSectionTour("clients", [
-    {
-      selector: ".clients-new-btn",
-      label: "Clients",
-      title: "Add a client",
-      body: "Create a client profile with their name, contact details and properties. Jobs are then linked to clients.",
-    },
-    {
-      selector: ".clients-list",
-      label: "Clients",
-      title: "Click any client",
-      body: "Open a client to see all their properties, full job history, certificate status and lifetime value.",
-    },
-  ]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -104,7 +89,6 @@ function ClientsInner() {
 
   return (
     <>
-      {tour}
       <PageHeader
         icon={FiUsers}
         title="Clients"

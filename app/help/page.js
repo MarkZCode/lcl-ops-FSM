@@ -49,17 +49,6 @@ export default function HelpPage() {
         icon={FiBookOpen}
         title="Help & Documents"
         subtitle="User guide, templates and company document storage"
-        actions={
-          <button
-            className="btn-outline py-1.5 text-sm"
-            onClick={() => {
-              try { sessionStorage.setItem("lcl-start-tour", "1"); } catch {}
-              window.location.href = "/";
-            }}
-          >
-            🗺 Guided tour
-          </button>
-        }
       />
 
       <div className="p-4 sm:p-8">

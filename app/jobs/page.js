@@ -23,7 +23,6 @@ import { jobStage } from "@/lib/stages";
 import JobModal from "@/components/JobModal";
 import JobCardModal from "@/components/JobCardModal";
 import Link from "next/link";
-import { useSectionTour } from "@/components/OnboardingTour";
 import JobsViewMenu from "@/components/JobsViewMenu";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/lib/toast";
@@ -134,26 +133,6 @@ export default function JobsPage() {
   // first time you opened it would look like jobs had gone missing.
   const ctl = usePeriodRange("lcl-jobs-period", { defaultPeriod: "all" });
 
-  const tour = useSectionTour("jobs", [
-    {
-      selector: ".jobs-status-filter",
-      label: "Jobs",
-      title: "Filter by status",
-      body: "Use these pills to filter jobs — Quote, Scheduled, In Progress, Completed, Invoiced, Paid. Or view all at once.",
-    },
-    {
-      selector: ".jobs-new-btn",
-      label: "Jobs",
-      title: "Create a new job",
-      body: "Hit New job to raise a quote. Fill in the client, services, price and engineer — then it moves through the status pipeline.",
-    },
-    {
-      selector: ".jobs-view-toggle",
-      label: "Jobs",
-      title: "Board or list view",
-      body: "Switch between the Kanban board (see jobs by status) and a flat list for sorting and searching.",
-    },
-  ]);
 
   const cardClient = cardJob ? clients.find((c) => c.id === cardJob.clientId) : null;
   const cardProperty =
@@ -410,7 +389,6 @@ export default function JobsPage() {
 
   return (
     <>
-      {tour}
       <PageHeader
         icon={FiBriefcase}
         title="Jobs"

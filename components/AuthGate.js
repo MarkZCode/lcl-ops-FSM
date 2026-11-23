@@ -20,7 +20,6 @@ const LoginScreen = dynamic(() => import("./LoginScreen"), { ssr: false });
 // queries always carry a valid session.
 export default function AuthGate({ children }) {
   const { user, ready } = useAuth();
-  const [showTour, setShowTour] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -39,17 +38,6 @@ export default function AuthGate({ children }) {
       try { sessionStorage.removeItem("lcl-welcome"); } catch {}
     }, INTRO_MS);
     return () => clearTimeout(t);
-  }, []);
-
-  // Check if Help page requested a tour (persists across navigation)
-  useEffect(() => {
-    try {
-      if (sessionStorage.getItem("lcl-start-tour") === "1") {
-        sessionStorage.removeItem("lcl-start-tour");
-        // Small delay so Dashboard renders first
-        setTimeout(() => setShowTour(true), 600);
-      }
-    } catch {}
   }, []);
 
   // Engineer (Portal-only) accounts are confined to /portal, individual job
@@ -112,7 +100,7 @@ export default function AuthGate({ children }) {
 
   return (
     <ErrorBoundary>
-      <OfficeShell showTour={showTour} setShowTour={setShowTour}>{children}</OfficeShell>
+      <OfficeShell>{children}</OfficeShell>
     </ErrorBoundary>
   );
 }

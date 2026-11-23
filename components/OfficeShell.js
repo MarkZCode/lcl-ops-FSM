@@ -15,9 +15,8 @@ import Toaster from "./Toaster";
 import SyncErrorBanner from "./SyncErrorBanner";
 import ErrorBoundary from "./ErrorBoundary";
 import { ConfirmProvider } from "./ConfirmProvider";
-import OnboardingTour from "./OnboardingTour";
 
-export default function OfficeShell({ children, showTour, setShowTour }) {
+export default function OfficeShell({ children }) {
   return (
     <ErrorBoundary>
       <StoreProvider>
@@ -103,7 +102,6 @@ export default function OfficeShell({ children, showTour, setShowTour }) {
         {/* WelcomeToast disabled for now — was popping up notifications on
             every app open. <WelcomeToast /> */}
         <Toaster />
-        {showTour && <OnboardingTour forceShow onDone={() => setShowTour(false)} />}
       </ConfirmProvider>
       </StoreProvider>
     </ErrorBoundary>
