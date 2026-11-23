@@ -1,64 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FiLock, FiUser, FiEye, FiEyeOff, FiShield, FiCheck } from "react-icons/fi";
+import { useMemo, useState } from "react";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 import { useAuth } from "@/lib/auth";
 
-// Colours taken from the company logo itself (public/lcl-logo.png), so the
-// sign-in screen matches the mark instead of approximating it.
-const NAVY = "#021a3b";
-const GREEN = "#0d860a";
-const GREEN_ON_NAVY = "#4cc247"; // the logo green, lifted so it reads on navy
-
-const BADGES = [
-  "Gas Safe Registered",
-  "NICEIC / NAPIT Certified",
-  "Same-day Certificates",
-  "All 32 London Boroughs",
-];
-
-// Is Google sign-in actually switched on in Supabase? The button used to be
-// shown regardless and simply failed when pressed. Read from the public auth
-// settings endpoint, so it appears by itself the moment it's enabled.
-function useGoogleEnabled() {
-  const [enabled, setEnabled] = useState(false);
-  useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return;
-    fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
-      .then((r) => r.json())
-      .then((s) => setEnabled(!!s?.external?.google))
-      .catch(() => {});
-  }, []);
-  return enabled;
-}
-
 export default function LoginScreen() {
-  const { login, loginWithGoogle } = useAuth();
-  const googleEnabled = useGoogleEnabled();
+  const { login } = useAuth();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [googleBusy, setGoogleBusy] = useState(false);
 
-  // Tells the next page load it follows a sign-in, so the loading screen
-  // plays in full instead of flashing (see AuthGate).
   const markSignedIn = () => {
-    try { sessionStorage.setItem("lcl-welcome", "1"); } catch {}
-  };
-
-  const handleGoogle = async () => {
-    setError("");
-    setGoogleBusy(true);
-    markSignedIn();
-    const res = await loginWithGoogle();
-    if (!res.ok) {
-      setError(res.error || "Google sign-in failed.");
-      setGoogleBusy(false);
-    }
+    try {
+      sessionStorage.setItem("lcl-welcome", "1");
+    } catch {}
   };
 
   const submit = async (e) => {
@@ -71,182 +28,132 @@ export default function LoginScreen() {
       fetch("/api/auth/check-ip", { method: "POST" }).catch(() => {});
       window.location.href = "/";
     } else {
-      setError(res.error);
+      setError(res.error || "Invalid username or password.");
       setBusy(false);
     }
   };
 
-  const field =
-    "w-full rounded-[12px] border border-transparent bg-[#f5f5f7] py-3 pl-10 pr-4 text-[15px] text-[#1d1d1f] " +
-    "placeholder:text-[#a1a1a6] outline-none transition focus:border-[#0d860a]/40 focus:bg-[#ffffff] focus:ring-4 focus:ring-[#0d860a]/10";
+  // Generate glowing undulating wave ribbon lines in green
+  const wavePaths = useMemo(() => {
+    return Array.from({ length: 32 }, (_, i) => {
+      const t = i / 31;
+      const offset = (i - 16) * 7.5;
+      const spread = Math.sin(t * Math.PI) * 14;
+      const y1 = 640 + offset;
+      const cx1 = 360 + offset * 1.5;
+      const cy1 = 680 + offset * 1.2 + spread;
+      const cx2 = 680 + offset * 1.2;
+      const cy2 = 490 + offset * 0.9;
+      const mx = 880 + offset * 0.8;
+      const my = 390 + offset * 0.7;
+      const cx3 = 1080 + offset * 0.5;
+      const cy3 = 280 + offset * 0.5 - spread;
+      const cx4 = 1260;
+      const cy4 = 130 + offset * 0.4;
+      const endX = 1520;
+      const endY = 80 + offset * 0.3;
+      const opacity = 0.14 + (1 - Math.abs(i - 16) / 16) * 0.68;
+      return {
+        d: `M -60 ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${mx} ${my} C ${cx3} ${cy3}, ${cx4} ${cy4}, ${endX} ${endY}`,
+        opacity,
+      };
+    });
+  }, []);
 
   return (
     <div
-      className="legacy-chrome flex min-h-[var(--app-height,100dvh)] w-full flex-col lg:flex-row"
-      // Inline, not bg-white: the app's dark-mode layer repaints .bg-white
-      // dark, which turned this panel black under dark text. The sign-in
-      // screen is always light.
-      style={{ background: "#ffffff", colorScheme: "light" }}
+      className="relative flex min-h-[var(--app-height,100dvh)] w-full items-center justify-center overflow-hidden bg-black px-4 py-8 select-none"
+      style={{ colorScheme: "dark" }}
     >
-      {/* ── Brand panel ──
-          order-2 on mobile: this panel's heading + description alone are
-          tall enough to push the sign-in fields below the fold on a phone,
-          reported as the login screen opening to marketing copy with the
-          form needing a scroll to even reach. Desktop is unaffected
-          (lg:order-1 restores brand-left, form-right). */}
-      <div
-        className="relative order-2 flex flex-col justify-between overflow-hidden px-7 pb-10 pt-8 lg:order-1 lg:w-[46%] lg:px-14 lg:py-14"
-        style={{ background: NAVY }}
+      {/* ── Background: Green Ambient Glows ── */}
+      <div className="pointer-events-none absolute -left-24 bottom-4 h-[520px] w-[520px] rounded-full bg-emerald-600/18 blur-[130px]" />
+      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[600px] w-[600px] rounded-full bg-emerald-500/22 blur-[140px]" />
+      <div className="pointer-events-none absolute -right-24 top-6 h-[460px] w-[460px] rounded-full bg-emerald-400/12 blur-[120px]" />
+
+      {/* ── Background: Glowing Green Wave Ribbon ── */}
+      <svg
+        className="pointer-events-none absolute inset-0 h-full w-full opacity-85"
+        viewBox="0 0 1440 900"
+        preserveAspectRatio="none"
+        aria-hidden="true"
       >
-        {/* One soft light source, not decoration */}
-        <div
-          className="pointer-events-none absolute -right-40 -top-40 h-[34rem] w-[34rem] rounded-full opacity-[0.18] blur-3xl"
-          style={{ background: `radial-gradient(circle, ${GREEN_ON_NAVY}, transparent 65%)` }}
-        />
-        <div
-          className="pointer-events-none absolute -bottom-48 -left-32 h-[28rem] w-[28rem] rounded-full opacity-[0.10] blur-3xl"
-          style={{ background: "radial-gradient(circle, #6f8fcf, transparent 65%)" }}
-        />
+        <defs>
+          <linearGradient id="greenWave" x1="0%" y1="100%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#047857" stopOpacity="0.25" />
+            <stop offset="25%" stopColor="#059669" stopOpacity="0.85" />
+            <stop offset="55%" stopColor="#10b981" stopOpacity="1" />
+            <stop offset="85%" stopColor="#34d399" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#6ee7b7" stopOpacity="0.35" />
+          </linearGradient>
+        </defs>
+        {wavePaths.map((p, idx) => (
+          <path
+            key={idx}
+            d={p.d}
+            fill="none"
+            stroke="url(#greenWave)"
+            strokeWidth="1.25"
+            strokeOpacity={p.opacity}
+          />
+        ))}
+      </svg>
 
-        <div className="relative z-10 flex items-center gap-3.5">
-          <span className="grid h-[52px] w-[52px] shrink-0 place-items-center rounded-[14px] shadow-[0_6px_20px_rgba(0,0,0,0.25)]" style={{ background: "#ffffff" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/lcl-logo.png" alt="Landlord Compliance London" className="h-10 w-10 object-contain" />
-          </span>
+      {/* ── Glassmorphic Login Card ── */}
+      <div className="relative z-10 w-full max-w-[360px] sm:max-w-[380px] rounded-[32px] border border-white/[0.08] bg-[#161817]/75 p-8 sm:p-9 shadow-[0_30px_70px_rgba(0,0,0,0.85),0_0_50px_rgba(16,185,129,0.06)] backdrop-blur-2xl">
+        <h1 className="text-center text-[26px] font-semibold tracking-tight text-white mb-8">
+          Login
+        </h1>
+
+        <form onSubmit={submit} className="space-y-4">
           <div>
-            <p className="text-[19px] font-semibold leading-none tracking-tight text-white">LCL Ops</p>
-            <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: GREEN_ON_NAVY }}>
-              Field Service
+            <input
+              type="text"
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="username"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="Username"
+              autoFocus
+              className="w-full rounded-full border border-white/[0.08] bg-[#2a2c2b]/70 py-3.5 px-6 text-[15px] text-white placeholder:text-white/40 outline-none transition duration-150 focus:border-emerald-500/60 focus:bg-[#323634] focus:ring-4 focus:ring-emerald-500/15"
+            />
+          </div>
+
+          <div className="relative">
+            <input
+              type={show ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full rounded-full border border-white/[0.08] bg-[#2a2c2b]/70 py-3.5 pl-6 pr-12 text-[15px] text-white placeholder:text-white/40 outline-none transition duration-150 focus:border-emerald-500/60 focus:bg-[#323634] focus:ring-4 focus:ring-emerald-500/15"
+            />
+            <button
+              type="button"
+              onClick={() => setShow((v) => !v)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 text-white/40 transition hover:text-white"
+              aria-label={show ? "Hide password" : "Show password"}
+            >
+              {show ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {error && (
+            <p className="rounded-xl border border-rose-500/30 bg-rose-950/40 px-3.5 py-2 text-center text-[13px] text-rose-300">
+              {error}
             </p>
-          </div>
-        </div>
-
-        <div className="relative z-10 mt-10 lg:mt-0">
-          <p className="mb-4 text-[12px] font-medium uppercase tracking-[0.22em] text-white/55">
-            Landlord Compliance London
-          </p>
-          <h1 className="text-[34px] font-semibold leading-[1.08] tracking-[-0.02em] text-white sm:text-[42px] lg:text-[48px]">
-            Managing compliance,
-            <br />
-            <span style={{ color: GREEN_ON_NAVY }}>made simple.</span>
-          </h1>
-          <p className="mt-5 max-w-[26rem] text-[15px] leading-relaxed text-white/70">
-            Jobs, dispatch, invoices and certificates — everything your team needs to run
-            landlord safety compliance across London.
-          </p>
-
-          <div className="mt-9 hidden grid-cols-2 gap-2.5 sm:grid">
-            {BADGES.map((b) => (
-              <div
-                key={b}
-                className="flex items-center gap-2.5 rounded-[12px] border border-white/[0.08] bg-white/[0.05] px-3.5 py-3"
-              >
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: `${GREEN_ON_NAVY}26` }}>
-                  <FiCheck className="h-3 w-3" style={{ color: GREEN_ON_NAVY }} />
-                </span>
-                <span className="text-[13px] font-medium text-white/85">{b}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="relative z-10 mt-10 hidden text-[12px] text-white/40 lg:block">
-          © {new Date().getFullYear()} Landlord Compliance London Ltd
-        </p>
-      </div>
-
-      {/* ── Sign-in ── order-1 on mobile so this is what actually opens. */}
-      <div className="order-1 flex flex-1 items-center justify-center px-6 py-12 lg:order-2 lg:px-16">
-        <div className="w-full max-w-[380px]">
-          <h2 className="text-[28px] font-semibold tracking-[-0.02em] text-[#1d1d1f]">Welcome back</h2>
-          <p className="mt-1.5 text-[15px] text-[#6e6e73]">Sign in to your LCL Ops account</p>
-
-          {googleEnabled && (
-            <>
-              <button
-                type="button"
-                onClick={handleGoogle}
-                disabled={busy || googleBusy}
-                style={{ background: "#ffffff" }}
-                className="mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-[#d2d2d7] py-3 text-[15px] font-medium text-[#1d1d1f] transition hover:bg-[#f5f5f7] disabled:opacity-60"
-              >
-                <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-                {googleBusy ? "Redirecting to Google…" : "Continue with Google"}
-              </button>
-              <div className="my-6 flex items-center gap-3">
-                <span className="h-px flex-1 bg-[#e8e8ed]" />
-                <span className="text-[13px] text-[#86868b]">or</span>
-                <span className="h-px flex-1 bg-[#e8e8ed]" />
-              </div>
-            </>
           )}
 
-          <form onSubmit={submit} className={`space-y-4 ${googleEnabled ? "" : "mt-8"}`}>
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-[#1d1d1f]">Username or email</label>
-              <div className="relative">
-                <FiUser className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86868b]" />
-                <input
-                  type="text"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  autoComplete="username"
-                  className={field}
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Username or you@example.com"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-[#1d1d1f]">Password</label>
-              <div className="relative">
-                <FiLock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#86868b]" />
-                <input
-                  type={show ? "text" : "password"}
-                  autoComplete="current-password"
-                  className={`${field} pr-11`}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShow((v) => !v)}
-                  className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-[#86868b] transition hover:bg-[#e8e8ed]"
-                  aria-label={show ? "Hide password" : "Show password"}
-                >
-                  {show ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <p className="rounded-[12px] bg-[#fff1f0] px-3.5 py-2.5 text-[14px] text-[#c9302c]">{error}</p>
-            )}
-
+          <div className="flex justify-center pt-3">
             <button
               type="submit"
-              disabled={busy || googleBusy}
-              className="!mt-6 w-full rounded-full py-3.5 text-[15px] font-medium text-white shadow-[0_4px_14px_rgba(13,134,10,0.28)] transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
-              style={{ background: GREEN }}
+              disabled={busy}
+              className="rounded-full bg-[#4a4d4b]/85 hover:bg-emerald-600 px-10 py-2.5 text-[15px] font-medium text-white shadow-lg border border-white/10 transition duration-200 active:scale-95 disabled:opacity-50 hover:border-emerald-500/40 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]"
             >
-              {busy ? "Signing in…" : "Sign in"}
+              {busy ? "Logging in…" : "Login"}
             </button>
-          </form>
-
-          <p className="mt-7 flex items-center justify-center gap-1.5 text-[12px] text-[#86868b]">
-            <FiShield className="h-3.5 w-3.5" style={{ color: GREEN }} />
-            Secure · accounts are managed by your administrator
-          </p>
-        </div>
+          </div>
+        </form>
       </div>
     </div>
   );
